@@ -1,0 +1,7 @@
+# 状态估计误差
+
+float64 position_error_x
+float64 position_error_y
+float64 position_error_z
+float64 orientation_error
+float64 position_error

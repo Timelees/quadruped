@@ -1,0 +1,648 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find gz_quadruped_hardware)/xacro/foot_force_sensor.xacro"/>
+  <ros2_control name="GazeboSystem" type="system">
+    <hardware>
+      <plugin>gz_quadruped_hardware/GazeboSimSystem</plugin>
+    </hardware>
+
+    <joint name="FR_hip_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="FR_thigh_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="FR_calf_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="FL_hip_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="FL_thigh_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="FL_calf_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="RR_hip_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="RR_thigh_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="RR_calf_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="RL_hip_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="RL_thigh_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="RL_calf_joint">
+      <command_interface name="position"/>
+      <command_interface name="velocity"/>
+      <command_interface name="effort" />
+      <command_interface name="kp"/>
+      <command_interface name="kd"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <sensor name="imu_sensor">
+      <state_interface name="orientation.x"/>
+      <state_interface name="orientation.y"/>
+      <state_interface name="orientation.z"/>
+      <state_interface name="orientation.w"/>
+      <state_interface name="angular_velocity.x"/>
+      <state_interface name="angular_velocity.y"/>
+      <state_interface name="angular_velocity.z"/>
+      <state_interface name="linear_acceleration.x"/>
+      <state_interface name="linear_acceleration.y"/>
+      <state_interface name="linear_acceleration.z"/>
+    </sensor>
+
+
+    <sensor name="foot_force">
+      <state_interface name="FR_foot_force"/>
+      <state_interface name="FL_foot_force"/>
+      <state_interface name="RR_foot_force"/>
+      <state_interface name="RL_foot_force"/>
+    </sensor>
+
+  </ros2_control>
+
+  <!-- Gazebo's ros2_control plugin  -->
+  <gazebo>
+    <plugin filename="gz_quadruped_hardware-system" name="gz_quadruped_hardware::GazeboSimQuadrupedPlugin">
+      <parameters>$(find cyberdog_description)/config/gazebo.yaml</parameters>
+    </plugin>
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu">
+    </plugin>
+    <!-- <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact">
+    </plugin> -->
+    <plugin filename="gz-sim-forcetorque-system"
+            name="gz::sim::systems::ForceTorque">
+    </plugin>
+
+    <!-- Sensor -->
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+            <render_engine>ogre2</render_engine>
+    </plugin>
+
+  </gazebo>
+
+
+
+  <gazebo reference="imu_link">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>1</always_on>
+      <update_rate>1000</update_rate>
+      <visualize>true</visualize>
+      <topic>imu</topic>
+      <imu>
+        <angular_velocity>
+          <x>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>2e-3</stddev>
+              <bias_mean>0.0000075</bias_mean>
+              <bias_stddev>0.0000008</bias_stddev>
+            </noise>
+          </x>
+          <y>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>2e-3</stddev>
+              <bias_mean>0.0000075</bias_mean>
+              <bias_stddev>0.0000008</bias_stddev>
+            </noise>
+          </y>
+          <z>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>2e-3</stddev>
+              <bias_mean>0.0000075</bias_mean>
+              <bias_stddev>0.0000008</bias_stddev>
+            </noise>
+          </z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>1.7e-2</stddev>
+              <bias_mean>0.01</bias_mean>
+              <bias_stddev>0.001</bias_stddev>
+            </noise>
+          </x>
+          <y>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>1.7e-2</stddev>
+              <bias_mean>0.01</bias_mean>
+              <bias_stddev>0.001</bias_stddev>
+            </noise>
+          </y>
+          <z>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>1.7e-2</stddev>
+              <bias_mean>0.01</bias_mean>
+              <bias_stddev>0.001</bias_stddev>
+            </noise>
+          </z>
+        </linear_acceleration>
+      </imu>
+    </sensor>
+  </gazebo>
+  <gazebo reference="imu_joint">
+    <disableFixedJointLumping>true</disableFixedJointLumping>
+  </gazebo>
+
+  <!-- <gazebo reference="lidar_link">
+    <sensor name="gpu_lidar" type="gpu_lidar">
+      <always_on>true</always_on>
+      <visualize>true</visualize>
+      <update_rate>5</update_rate>
+      <topic>scan</topic>
+      <pose>0.0 0 0.0 0 0 0</pose>
+      <gz_frame_id>lidar_link</gz_frame_id>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>180</samples>
+            <resolution>1.000000</resolution>
+            <min_angle>-1.5700</min_angle>
+            <max_angle>1.5700</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.1</min>
+          <max>12.0</max>
+          <resolution>0.015</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.01</stddev>
+        </noise>
+      </lidar>
+      
+    </sensor>
+  </gazebo> -->
+  
+  <gazebo reference="D435_camera_link">
+      <sensor name="realsense_d435" type="rgbd_camera">
+        <always_on>true</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+        <topic>depth_camera</topic>
+        <camera name="d435">
+          <camera_info_topic>depth_camera/camera_info</camera_info_topic>
+          <horizontal_fov>1.0472</horizontal_fov>
+          <lens>
+            <intrinsics>
+              <fx>554.25469</fx>
+              <fy>554.25469</fy>
+              <cx>320.5</cx>
+              <cy>240.5</cy>
+              <s>0</s>
+            </intrinsics>
+          </lens>
+          <distortion>
+            <k1>0.0</k1>
+            <k2>0.0</k2>
+            <k3>0.0</k3>
+            <p1>0.0</p1>
+            <p2>0.0</p2>
+            <center>0.5 0.5</center>
+          </distortion>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.01</near>
+            <far>300</far>
+          </clip>
+          <depth_camera>
+            <clip>
+              <near>0.05</near>
+              <far>10</far>
+            </clip>
+          </depth_camera>
+          <noise>
+            <type>gaussian</type>
+            <mean>0</mean>
+            <stddev>0.007</stddev>
+          </noise>
+          <optical_frame_id>D435_camera_link</optical_frame_id>
+        </camera>
+        
+      </sensor>
+  </gazebo>
+
+
+
+  <gazebo reference="FR_abad">
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="FR_hip">
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.05 .05 .05 1.0</ambient>
+        <diffuse>.05 .05 .05 1.0</diffuse>
+        <specular>.05 .05 .05 1.0</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="FR_knee">
+    <mu1>0.7</mu1>
+    <mu2>0.7</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+    <surface>
+        <contact>
+          <ode>
+            <max_vel>0.00001</max_vel>
+            <min_depth>0.0</min_depth>
+          </ode>
+        </contact>
+      </surface>
+  </gazebo>
+  <gazebo reference="FR_foot">
+    <mu1>0.7</mu1>
+    <mu2>0.7</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+    <surface>
+        <contact>
+          <ode>
+            <max_vel>0.001</max_vel>
+            <min_depth>0.0</min_depth>
+          </ode>
+        </contact>
+      </surface>
+  </gazebo>
+
+  <gazebo reference="FL_abad">
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="FL_hip">
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.05 .05 .05 1.0</ambient>
+        <diffuse>.05 .05 .05 1.0</diffuse>
+        <specular>.05 .05 .05 1.0</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="FL_knee">
+    <mu1>0.7</mu1>
+    <mu2>0.7</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+    <surface>
+        <contact>
+          <ode>
+            <max_vel>0.00001</max_vel>
+            <min_depth>0.0</min_depth>
+          </ode>
+        </contact>
+      </surface>
+  </gazebo>
+  <gazebo reference="FL_foot">
+    <mu1>0.7</mu1>
+    <mu2>0.7</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+    <surface>
+        <contact>
+          <ode>
+            <max_vel>0.001</max_vel>
+            <min_depth>0.0</min_depth>
+          </ode>
+        </contact>
+      </surface>
+  </gazebo>
+  <gazebo reference="RR_abad">
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="RR_hip">
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.05 .05 .05 1.0</ambient>
+        <diffuse>.05 .05 .05 1.0</diffuse>
+        <specular>.05 .05 .05 1.0</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="RR_knee">
+    <mu1>0.7</mu1>
+    <mu2>0.7</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+    <surface>
+      <contact>
+        <ode>
+          <max_vel>0.00001</max_vel>
+           <min_depth>0.0</min_depth>
+        </ode>
+      </contact>
+    </surface>
+  </gazebo>
+  <gazebo reference="RR_foot">
+    <mu1>0.7</mu1>
+    <mu2>0.7</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+    <surface>
+      <contact>
+        <ode>
+          <max_vel>0.001</max_vel>
+          <min_depth>0.0</min_depth>
+        </ode>
+      </contact>
+    </surface>
+  </gazebo>
+  <gazebo reference="RL_abad">
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="RL_hip">
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.05 .05 .05 1.0</ambient>
+        <diffuse>.05 .05 .05 1.0</diffuse>
+        <specular>.05 .05 .05 1.0</specular>
+      </material>
+    </visual>
+  </gazebo>
+  <gazebo reference="RL_knee">
+    <mu1>0.7</mu1>
+    <mu2>0.7</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+    <surface>
+        <contact>
+          <ode>
+            <max_vel>0.00001</max_vel>
+            <min_depth>0.0</min_depth>
+          </ode>
+        </contact>
+    </surface>
+  </gazebo>
+  <gazebo reference="RL_foot">
+    <mu1>0.7</mu1>
+    <mu2>0.7</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <self_collide>1</self_collide>
+    <visual>
+      <material>
+        <ambient>.5 .5 .5 1.0</ambient>
+        <diffuse>.5 .5 .5 1.0</diffuse>
+        <specular>.5 .5 .5 1.0</specular>
+      </material>
+    </visual>
+    <surface>
+        <contact>
+          <ode>
+            <max_vel>0.001</max_vel>
+            <min_depth>0.0</min_depth>
+          </ode>
+        </contact>
+    </surface>
+  </gazebo>
+  <gazebo reference="body">
+    <mu1>0.6</mu1>
+    <mu2>0.6</mu2>
+    <kp value="50000.0"/>
+    <kd value="5000.0"/>
+    <visual>
+      <material>
+        <ambient>.1 .1 .1 1.0</ambient>
+        <diffuse>.1 .1 .1 1.0</diffuse>
+        <specular>.1 .1 .1 1.0</specular>
+      </material>
+    </visual>
+  </gazebo>
+
+  <xacro:foot_force_sensor name="FL" suffix="foot_fixed"/>
+  <xacro:foot_force_sensor name="RL" suffix="foot_fixed"/>
+  <xacro:foot_force_sensor name="FR" suffix="foot_fixed"/>
+  <xacro:foot_force_sensor name="RR" suffix="foot_fixed"/>
+
+  
+
+</robot>
