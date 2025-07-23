@@ -49,8 +49,11 @@ namespace ocs2::legged_robot
     {
         VectorFunctionLinearApproximation approx = VectorFunctionLinearApproximation::Zero(
             numVertices_, state.size(), 0);
+
+
         const auto param = cast<PerceptiveLeggedPrecomputation>(preComp).getFootPlacementConParameters()[
             contactPointIndex_];
+        
 
         const auto positionApprox = endEffectorKinematicsPtr_->getPositionLinearApproximation(state).front();
         approx.f = param.a * positionApprox.f + param.b;

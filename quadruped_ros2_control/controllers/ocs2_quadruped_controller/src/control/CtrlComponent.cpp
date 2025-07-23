@@ -176,10 +176,12 @@ namespace ocs2::legged_robot
                 *dynamic_cast<PerceptiveLeggedReferenceManager&>(*legged_interface_->getReferenceManagerPtr()).
                 getConvexRegionSelectorPtr(),
                 legged_interface_->getCentroidalModelInfo().numThreeDofContacts, node_);
+            std::cout << "PerceptiveLeggedInterface: Initialized foot placement visualization." << std::endl;
             // 球体标记可视化
             sphereVisualizationPtr_ = std::make_unique<SphereVisualization>(
                 legged_interface_->getPinocchioInterface(), legged_interface_->getCentroidalModelInfo(),
                 *dynamic_cast<PerceptiveLeggedInterface&>(*legged_interface_).getPinocchioSphereInterfacePtr(), node_);
+            std::cout << "PerceptiveLeggedInterface: Initialized sphere visualization." << std::endl;
         }
     }
 

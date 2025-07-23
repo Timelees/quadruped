@@ -83,7 +83,7 @@ namespace ocs2::legged_robot
                 footName + "_footCollision",
                 std::make_unique<StateSoftConstraint>(std::move(footCollisionConstraint), std::move(collisionPenalty)));
         }
-
+        // std::cout << "PerceptiveLeggedInterface: Initialized foot placement and collision constraints." << std::endl;
     
         // For collision avoidance
         scalar_t thighExcess = 0.025;
@@ -102,6 +102,7 @@ namespace ocs2::legged_robot
         std::unique_ptr<SphereSdfConstraint> sphereSdfConstraint(
             new SphereSdfConstraint(*sphereKinematicsPtr, signedDistanceFieldPtr_));
 
+        // std::cout << "PerceptiveLeggedInterface: Initialized sphere SDF constraint." << std::endl;
         //  std::unique_ptr<PenaltyBase> penalty(new RelaxedBarrierPenalty(RelaxedBarrierPenalty::Config(1e-3, 1e-3)));
         //  problem_ptr_->stateSoftConstraintPtr->add(
         //      "sdfConstraint", std::unique_ptr<StateCost>(new StateSoftConstraint(std::move(sphereSdfConstraint), std::move(penalty))));

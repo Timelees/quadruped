@@ -168,9 +168,7 @@ namespace ocs2::legged_robot
                                                       verbose));
 
         // Setup Problem PreComputation
-        problem_ptr_->preComputationPtr = std::make_unique<LeggedRobotPreComputation>(
-            *pinocchio_interface_ptr_, centroidal_model_info_, *reference_manager_ptr_->getSwingTrajectoryPlanner(),
-            model_settings_);
+        setupPreComputation(task_file, urdf_file, reference_file, verbose);
 
         // Rollout
         rollout_ptr_ = std::make_unique<TimeTriggeredRollout>(*problem_ptr_->dynamicsPtr, rollout_settings_);
@@ -209,6 +207,12 @@ namespace ocs2::legged_robot
         reference_manager_ptr_ =
             std::make_shared<SwitchedModelReferenceManager>(loadGaitSchedule(referenceFile, verbose),
                                                             std::move(swingTrajectoryPlanner));
+    }
+
+    void LeggedInterface::setupPreComputation(const std::string& taskFile, const std::string& urdfFile, const std::string& referenceFile,
+                                          bool verbose) {
+        problem_ptr_->preComputationPtr = std::make_unique<LeggedRobotPreComputation>(
+            *pinocchio_interface_ptr_, centroidal_model_info_, *reference_manager_ptr_->getSwingTrajectoryPlanner(), model_settings_);
     }
 
 

@@ -253,7 +253,7 @@
     <disableFixedJointLumping>true</disableFixedJointLumping>
   </gazebo>
 
-  <!-- <gazebo reference="lidar_link">
+  <gazebo reference="lidar_link">
     <sensor name="gpu_lidar" type="gpu_lidar">
       <always_on>true</always_on>
       <visualize>true</visualize>
@@ -266,12 +266,13 @@
           <horizontal>
             <samples>180</samples>
             <resolution>1.000000</resolution>
-            <min_angle>-1.5700</min_angle>
-            <max_angle>1.5700</max_angle>
+            <min_angle>0</min_angle>
+            <max_angle>6.28</max_angle>
           </horizontal>
         </scan>
+        
         <range>
-          <min>0.1</min>
+          <min>0.5</min>
           <max>12.0</max>
           <resolution>0.015</resolution>
         </range>
@@ -283,7 +284,7 @@
       </lidar>
       
     </sensor>
-  </gazebo> -->
+  </gazebo>
   
   <gazebo reference="D435_camera_link">
       <sensor name="realsense_d435" type="rgbd_camera">

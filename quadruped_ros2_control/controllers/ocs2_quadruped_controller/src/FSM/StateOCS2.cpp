@@ -119,10 +119,10 @@ namespace ocs2::legged_robot
             //std::cout << "i = " << i << "--" << ctrl_interfaces_.joint_torque_command_interface_[i].get().get_name() << " ==== " << ctrl_interfaces_.joint_torque_command_interface_[i].get().get_value() << std::endl; 
         }
         // 将关节命令转换到lowCmd
-        command2lowCmd(ctrl_interfaces_, ctrl_component_);
+        // command2lowCmd(ctrl_interfaces_, ctrl_component_);
 
         
-        ctrl_component_->ioInter->sendRecv(ctrl_component_->lowCmd, ctrl_component_->lowState);
+        // ctrl_component_->ioInter->sendRecv(ctrl_component_->lowCmd, ctrl_component_->lowState);
 
         // Visualization
         ctrl_component_->visualizer_->update(ctrl_component_->mpc_mrt_interface_->getPolicy(),

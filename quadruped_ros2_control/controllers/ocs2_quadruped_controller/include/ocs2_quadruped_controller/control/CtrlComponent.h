@@ -70,7 +70,7 @@ namespace ocs2::legged_robot
         void setupMpc();
         void setupMrt();
 
-        bool enable_perceptive_ = false;
+        bool enable_perceptive_ = true;
         CtrlInterfaces& ctrl_interfaces_;
         std::unique_ptr<StateEstimateBase> estimator_;
         std::unique_ptr<CentroidalModelRbdConversions> rbd_conversions_;

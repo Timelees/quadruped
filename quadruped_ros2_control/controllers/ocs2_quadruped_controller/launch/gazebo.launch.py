@@ -114,7 +114,7 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
     world = DeclareLaunchArgument(
         'world',
-        default_value='baylands',       # baylands
+        default_value='step',       # baylands
         description='The world to load'
     )
 
@@ -137,7 +137,7 @@ def generate_launch_description():
             "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
             "/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
             "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
-            # "/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan",
+            "/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan",
             "/depth_camera/color/image_raw@sensor_msgs/msg/Image@gz.msgs.Image",
             "/depth_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
             "/depth_camera/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked",

@@ -111,9 +111,9 @@ namespace ocs2::legged_robot
 
     controller_interface::CallbackReturn Ocs2QuadrupedController::on_init()
     {
-        ioInter = new IOROS();
-        lowCmd = new LowlevelCmd();
-        lowState = new LowlevelState();
+        // ioInter = new IOROS();
+        // lowCmd = new LowlevelCmd();
+        // lowState = new LowlevelState();
 
         get_node()->get_parameter("update_rate", ctrl_interfaces_.frequency_);
         RCLCPP_INFO(get_node()->get_logger(), "Controller Manager Update Rate: %d Hz", ctrl_interfaces_.frequency_);
