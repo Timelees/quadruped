@@ -216,7 +216,7 @@ namespace ocs2::legged_robot
                 std::make_shared<PlanarTerrainReceiver>(
                     node_, dynamic_cast<PerceptiveLeggedInterface&>(*legged_interface_).getPlanarTerrainPtr(),
                     dynamic_cast<PerceptiveLeggedInterface&>(*legged_interface_).getSignedDistanceFieldPtr(),
-                    "/convex_plane_decomposition_ros/planar_terrain", "elevation");
+                    "/planar_terrain", "elevation");
             mpc_->getSolverPtr()->addSynchronizedModule(planarTerrainReceiver);
         }
     }
