@@ -1,0 +1,73 @@
+plot_terrain_ConvexPlaneDecomposition:
+  ros__parameters:
+    # 高程图话题配置
+    elevation_topic: '/elevation_mapping/elevation_map_raw'
+    height_layer: 'elevation'
+    target_frame_id: 'odom'  # 目标坐标系，与Gazebo/机器人的TF树匹配
+    
+    submap:
+      width: 4.0   # 子地图宽度[m]，稍大一些以获得更好的感知范围
+      length: 4.0  # 子地图长度[m]
+    
+    publish_to_controller: true
+    frequency: 20.0
+
+    preprocessing:
+      resolution: 0.04   # 重采样分辨率[m]，设为负数跳过
+      kernelSize: 3       # 中值滤波核大小，3或5
+      numberOfRepeats: 1  # 滤波重复次数
+
+    sliding_window_plane_extractor:
+      kernel_size: 3                                        # 滑窗大小，用于法向量计算和平面检测，必须是奇数且>=3
+      planarity_opening_filter: 1                           # [#] 形态学开运算滤波像素数
+      plane_inclination_threshold_degrees: 25.0             # [deg] 平面法向量与world-z最大允许夹角
+      local_plane_inclination_threshold_degrees: 35.0       # [deg] 单元格法向量与world-z最大允许夹角  
+      plane_patch_error_threshold: 0.03                     # [m] 滑窗拟合平面的允许均方根误差
+      min_number_points_per_label: 4                        # [#] 每个标签的最小点数
+      connectivity: 4                                       # 标签连通性，4或8
+      include_ransac_refinement: true                       # 是否启用RANSAC精化
+      global_plane_fit_distance_error_threshold: 0.025      # [m] 点到平面的最大允许距离
+      global_plane_fit_angle_error_threshold_degrees: 25.0  # [deg] 点法向量相对平面法向量的最大允许偏差
+
+    ransac_plane_refinement:
+      probability: 0.0005      # 错过最大候选形状的概率
+      min_points: 6.0          # 每个平面的最小点数
+      epsilon: 0.025           # 点到平面的最大距离[m]
+      cluster_epsilon: 0.041   # [m] 聚类点之间的最大欧氏距离
+      normal_threshold: 25.0   # [deg] 法向量偏差阈值
+
+    contour_extraction:
+      marginSize: 1    # 边界偏移的核大小，以（子）像素为单位
+
+    postprocessing:
+      extracted_planes_height_offset: 0.01   # 平面高度补偿[m]
+      nonplanar_height_offset: 0.02          # 非平面区域额外高度补偿[m]
+      nonplanar_horizontal_offset: 0         # 非平面区域水平偏移[pixels]
+      smoothing_dilation_size: 0.3           # 膨胀核半宽[m]
+      smoothing_box_kernel_size: 0.1         # 均值滤波核半宽[m]
+      smoothing_gauss_kernel_size: 0.25      # 高斯滤波核半宽[m]
+
+    # ============ 地形配置 ============
+    # 注意: terrain_name 必须与 Gazebo 世界文件中使用的地形图一致
+    # Gazebo世界: stepping_stones_terrain.sdf 使用 stepping_stones.png
+    # 地形尺寸: 20.52 x 20.52 x 1 (在Gazebo中)
+    # 图片尺寸: 513 x 513 像素
+    # 分辨率计算: 20.52 / 513 ≈ 0.04 m/pixel
+    terrain_name: 'stepping_stones_90.png'  # 确保与Gazebo使用的地形图一致
+    terrain_scale: 1.0                   # 高度缩放因子，与Gazebo世界中的<size>z参数匹配
+    
+    adaptReferenceToTerrain: true
+    debug: false
+    
+    # ROS话题名称
+    pubTopicName: '/planar_terrain'
+    pubTopicNameRaw: '/elevation_map_raw'
+    
+    # 噪声参数 (用于测试鲁棒性，生产环境设为0)
+    noiseGauss: 0.0     # 高斯噪声标准差[m]
+    noiseUniform: 0.0   # 均匀噪声幅度[m]
+    outlier_percentage: 0.0  # 异常值百分比
+    blur: false         # 是否应用模糊
+    
+    # 地形分辨率，应与图片和Gazebo世界一致
+    resolution: 0.04    # 20.52m / 513pixels ≈ 0.04m/pixel

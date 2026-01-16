@@ -1,0 +1,11 @@
+<library path="cyber_quadruped_hardware">
+  <class name="cyber_quadruped_hardware/CyberSystem"
+         type="cyber_quadruped_hardware::CyberSystem"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Hardware interface for CyberDog quadruped robot using LCM communication.
+      Provides joint position/velocity/effort state interfaces and 
+      position/velocity/effort/kp/kd command interfaces.
+    </description>
+  </class>
+</library>

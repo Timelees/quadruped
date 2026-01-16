@@ -1,0 +1,99 @@
+# Robot.
+elevation_mapping:
+  ros__parameters:
+    map_frame_id: odom
+    robot_base_frame_id: base
+    robot_pose_with_covariance_topic: /pose # The topic where the robot pose with covariance is published.
+    
+    input_sources: ["depth_camera"]  # List of input sources to be used for elevation mapping.
+    # input_sources
+    depth_camera: # A name to identify the input source
+      type: pointcloud # Supported types: pointcloud
+      topic: /depth_camera/points
+      queue_size: 1
+      publish_on_update: true
+      sensor_processor:
+        type: perfect # Supported types: perfect, stereo, laser，structured_light
+        # cutoff_min_depth: 0.2
+        # cutoff_max_depth: 3.25
+        # normal_factor_a: 0.000611
+        # normal_factor_b:  0.003587
+        # normal_factor_c: 0.3515
+        # normal_factor_d: 0.0
+        # normal_factor_e: 1.0
+        # lateral_factor: 0.01576
+
+        # 体素滤波 (会造成一些异常高度值)
+        apply_voxelgrid_filter: false  # 是否应用体素滤波器
+        voxelgrid_filter_size: 1e-9   # 体素边长，单位米   （过大会过滤很多）
+
+        # 高度阈值滤波
+        ignore_points_above: 2.5     # 高度上限，单位米
+        ignore_points_below: -0.5     # 高度下限，单位米 
+
+        # 空间盒子滤波
+        ignore_points_inside_min_x: -0.35  
+        ignore_points_inside_max_x: 0.35
+        ignore_points_inside_min_y: -0.35  
+        ignore_points_inside_max_y: 0.35
+        ignore_points_inside_min_z: -0.35  
+        ignore_points_inside_max_z: 0.35
+
+    # lidar:
+    #   type: pointcloud
+    #   topic: /scan/points
+    #   queue_size: 1
+    #   publish_on_update: true
+    #   sensor_processor:
+    #     type: laser
+    #   ignore_points_above: 0.5
+    #   ignore_points_below: -0.5
+
+    # 地图跟随
+    track_point_frame_id: base
+    track_point_x: 0.0
+    track_point_y: 0.0
+    track_point_z: 0.0
+    time_tolerance: 0.1
+    robot_pose_cache_size: 300
+    scanning_duration: 0.1
+    visibility_cleanup_rate: 2.0  # 清理可见性点的速率
+
+    # Map.
+    length_in_x: 3.0
+    length_in_y: 3.0
+    position_x: 0.0
+    position_y: 0.0
+    resolution: 0.025
+
+    mahalanobis_distance_threshold: 2.0
+
+    # 方差限制
+    min_variance: 0.0001
+    max_variance: 0.05
+    horizontal_variance_x: 0.5       # 水平方差在x方向上的值
+    horizontal_variance_y: 0.0001      # 水平方差在y方向上的值
+    # min_horizontal_variance: 0.000225  # pow(resolution / 2.0 , 2)
+    max_horizontal_variance: 0.005
+
+    multi_height_noise: 0.01       # 多高度噪声
+    
+    surface_normal_positive_axis: z
+    
+    # Settings for initializing elevation map
+    initialize_elevation_map: true
+    initialization_method: 0
+    length_in_x_init_submap: 3.0
+    length_in_y_init_submap: 3.0
+    margin_init_submap: 0.3
+    init_submap_height_offset: -0.0 # 高程图初始化子图的高度偏移（以米为单位）
+    target_frame_init_submap: odom
+
+
+    enable_visibility_cleanup: true
+    enable_continuous_cleanup: false
+    
+    num_callback_threads: 2 # 处理点云回调的线程数
+    postprocessor_num_threads: 8 # 处理点云后处理的线程数
+    # fused_map_publishing_rate: 1.0  # 发布整个（融合的）高程地图的速率 
+  
