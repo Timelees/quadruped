@@ -67,11 +67,6 @@ namespace ocs2::legged_robot
         vector3_t angular_vel_local_, linear_accel_local_; // IMU线加速度、角加速度（机体坐标系）
         vector3_t angular_vel_world_, linear_accel_world_; // IMU线加速度、角加速度（世界坐标系）
 
-        // 传感器在机体参考系下的位置偏移（默认零）。
-        vector3_t imu_local_position_ = vector3_t(0.033, -0.017, 0.051); // imu_link相较于base_link的偏移位置
-
-        // 经过坐标变换并补偿离心加速度后的线加速度（世界坐标系）
-        vector3_t linear_accel_corrected_world_ = vector3_t::Zero();
 
         matrix3_t orientationCovariance_, angularVelCovariance_, linearAccelCovariance_;
 

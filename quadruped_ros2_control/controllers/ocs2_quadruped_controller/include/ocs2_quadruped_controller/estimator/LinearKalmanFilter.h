@@ -84,11 +84,22 @@ namespace ocs2::legged_robot
         // 状态估计向量（[位置(3), 速度(3), 接触点位置(3×N)]）、脚部位置观测值、脚部速度观测值
         vector_t xHat_, ps_, vs_;
 
+        
+        // Ground Truth (从Gazebo获取真实位姿用于对比)
+        void updateGroundTruth();
+        void publishGroundTruth(const rclcpp::Time &time);
+        rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr ground_truth_pub_;
+        Eigen::Vector3d gt_position_ = Eigen::Vector3d::Zero();
+        Eigen::Vector3d gt_linear_velocity_ = Eigen::Vector3d::Zero();
+        Eigen::Quaterniond gt_orientation_ = Eigen::Quaterniond::Identity();
+        Eigen::Vector3d gt_angular_velocity_ = Eigen::Vector3d::Zero();
+        bool ground_truth_enabled_ = true; // 是否启用Ground Truth对比
+        bool is_initialized_ = false;      // 状态是否已初始化
+
+
         // 日志记录
         std::unique_ptr<quadruped::logs::LogSave> logger_;
         bool is_logger_enabled_ = true;
-        // 控制日志写入频率：以秒为单位的间隔和上次写入时间
-        double log_interval_sec_ = 0.1; // 默认每0.1s写一次
-        rclcpp::Time last_log_time_;
+    
     };
 }

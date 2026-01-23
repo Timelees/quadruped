@@ -3,6 +3,8 @@
 //
 
 #include "ocs2_quadruped_controller/estimator/GroundTruth.h"
+#include <ocs2_robotic_tools/common/RotationDerivativesTransforms.h>
+#include <ocs2_robotic_tools/common/RotationTransforms.h>
 
 namespace ocs2::legged_robot
 {
@@ -12,6 +14,18 @@ namespace ocs2::legged_robot
             std::move(info), ctrl_component,
             node)
     {
+        // 日志保存器初始化
+        logger_ = std::make_unique<quadruped::logs::LogSave>();
+        if (is_logger_enabled_)
+        {
+            logger_->setEnabled(true);
+        }
+        else
+        {
+            logger_->setEnabled(false);
+        }
+
+
         initPublishers();
     }
 
@@ -19,6 +33,8 @@ namespace ocs2::legged_robot
     {
         updateJointStates();
         updateImu();
+
+     
 
         position_ = {
             ctrl_component_.odom_state_interface_[0].get().get_value(),
@@ -32,6 +48,24 @@ namespace ocs2::legged_robot
             ctrl_component_.odom_state_interface_[5].get().get_value()
         };
 
+
+
+        // 日志记录（每隔50次记录一次）
+        static int log_counter = 0;
+        log_counter++;
+        if (is_logger_enabled_ && (log_counter % 10 == 0))
+        {
+            Eigen::Vector3d position = position_;
+            Eigen::Vector3d linear_velocity = linear_velocity_;
+            Eigen::Quaterniond quat = quat_;
+            Eigen::Vector3d zyx = quatToZyx(quat_);
+            logger_->saveDataToCSV("position.csv", "pos_x, pos_y, pos_z", position);
+            logger_->saveDataToCSV("velocity.csv", "vel_x, vel_y, vel_z", linear_velocity);
+            logger_->saveDataToCSV("zyx.csv", "yaw, pitch, roll", zyx);
+        }
+\
+
+       
         updateLinear(position_, linear_velocity_);
 
         auto odom = getOdomMsg();

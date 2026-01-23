@@ -31,6 +31,9 @@ set(CONTROLLER_INCLUDE_DEPENDS
         elevation_mapping
 
         logs
+
+        # Sophus 李群李代数库（ROS 包名：Sophus）
+        Sophus
 )
 
 

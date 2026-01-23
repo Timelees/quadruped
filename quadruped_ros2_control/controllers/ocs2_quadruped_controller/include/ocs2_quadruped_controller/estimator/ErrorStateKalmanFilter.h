@@ -13,13 +13,15 @@
 
 #include <memory>
 #include <vector>
+#include <array>
+#include <optional>
 
 #include <Eigen/Dense>
 
 // 基于李群李代数的 ESKF 实现
 // #include "LieGroupESKF.h"
 #include "LieGroupUtils.h"
-
+#include <sophus/so3.hpp>
 #include "STAObserver.h"
 
 #include "log_save.h"
@@ -72,6 +74,7 @@ namespace ocs2::legged_robot
         static constexpr int MEAS_FOOT_VEL_DIM = 12;   // 足端速度观测维度
         static constexpr int MEAS_FOOT_HEIGHT_DIM = 4; // 足端高度观测维度
         static constexpr int MEAS_DIM = 28;            // 总观测维度 (12 + 12 + 4 = 28)
+       
 
         // 观测向量索引
         static constexpr int MEAS_FPOS_IDX = 0;     // 足端位置起始索引
@@ -143,9 +146,16 @@ namespace ocs2::legged_robot
         // body->world的姿态旋转矩阵
         Eigen::Matrix3d rotation_matrix_ = Eigen::Matrix3d::Identity();
 
+        // imu_link->body 的变换矩阵（只有平移，没有旋转）
+        Eigen::Vector3d imu_to_body_translation_{-0.033, 0.017, -0.051};        // cyberdog的imu和body的平移
+        Eigen::Quaterniond imu_to_body_rotation_ = Eigen::Quaterniond::Identity();
+        Eigen::Matrix3d R_imu_to_body_ = imu_to_body_rotation_.toRotationMatrix();
+
         // contact edge detection
         contact_flag_t prev_contact_flag_{};
         bool feet_world_initialized_ = false;
+
+       
 
         // 初始化误差协方差矩阵P的参数
         double init_pos_sigma_ = 0.01;
@@ -155,18 +165,36 @@ namespace ocs2::legged_robot
         double init_bg_sigma_ = 0.01; // 增大以适应较大的陀螺仪偏置不确定性
         double init_ba_sigma_ = 0.01;
 
-        // imu_sanity_check 测量的IMU噪声
-        Eigen::Vector3d imu_acc_noise_std_ = Eigen::Vector3d(0.017, 0.017, 0.017);     // acc std (m/s^2)
-        Eigen::Vector3d imu_gyro_noise_std_ = Eigen::Vector3d(0.0019, 0.0019, 0.5211); // gyro std (rad/s)
-        // imu_sanity_check 测量的IMU偏置
-        Eigen::Vector3d imu_acc_mean_ = Eigen::Vector3d(0.0, 0.0, 9.790);  // ba   (-0.011, 0.011, 9.790)
-        Eigen::Vector3d imu_gyro_mean_ = Eigen::Vector3d(0.0, 0.0, 0.0); // bg   (-0.0001, -0.0001, -0.52)
 
-        double proc_noise_acc_ = 0.017;  // 加速度过程噪声
-        double proc_noise_gyro_ = 0.002; // 角速度过程噪声
-        double proc_noise_fpos_ = 0.05;  // 足端位置过程噪声
-        double proc_noise_ba_ = 0.0001;  // 加速度偏置过程噪声
-        double proc_noise_bg_ = 0.001;   // 陀螺仪偏置过程噪声
+        // imu_sanity_check 测量的IMU偏置
+        Eigen::Vector3d imu_acc_mean_ = Eigen::Vector3d(0.0, 0.0, 9.790); // ba   (-0.011, 0.011, 9.790)
+        Eigen::Vector3d imu_gyro_mean_ = Eigen::Vector3d(0.0, 0.0, 0.0);  // bg   (-0.0001, -0.0001, -0.52)
+
+        // ==================== 启动静止期IMU偏置采样 ====================
+        static constexpr int BIAS_INIT_SAMPLES = 200;     // 采样帧数（约0.2秒@1kHz）
+        int bias_init_sample_count_ = 0;                  // 当前采样计数
+        Eigen::Vector3d gyro_sum_ = Eigen::Vector3d::Zero();  // 陀螺仪累加
+        Eigen::Vector3d acc_sum_ = Eigen::Vector3d::Zero();   // 加速度计累加
+        bool bias_initialized_ = false;                   // 偏置是否已初始化
+
+        // 加速度过程噪声
+        double proc_noise_acc_x_ = 0.017;
+        double proc_noise_acc_y_ = 0.017;
+        double proc_noise_acc_z_ = 0.017;
+        // 角速度过程噪声
+        double proc_noise_gyro_x_ = 0.002;
+        double proc_noise_gyro_y_ = 0.002;
+        double proc_noise_gyro_z_ = 0.5211;
+        // 足端位置过程噪声
+        double proc_noise_fpos_ = 0.05;
+        // 加速度偏置过程噪声
+        double proc_noise_ba_x_ = 0.0001;
+        double proc_noise_ba_y_ = 0.0001;
+        double proc_noise_ba_z_ = 0.0001;
+        // 陀螺仪偏置过程噪声
+        double proc_noise_bg_x_ = 0.001;
+        double proc_noise_bg_y_ = 0.001;
+        double proc_noise_bg_z_ = 0.5211;
 
         double meas_noise_fvel_ = 0.1;     // 足端速度测量噪声
         double meas_noise_fpos_ = 0.1;     // 足端位置测量噪声
@@ -175,22 +203,33 @@ namespace ocs2::legged_robot
         double meas_noise_bg_ = 0.0001;    // 陀螺仪偏置测量噪声
         double meas_noise_encoder_ = 0.02; // 编码器测量噪声
 
+        double high_suspect_number = 100.0;
+
         // 足端参数
         double foot_radius_ = 0.019; // 足端半径，用于高度约束
 
         double slip_threshold_ = 0.05; // 滑移阈值
         double slip_inflate_ = 10.0;   // 支撑相滑移膨胀系数
         double swing_inflate_ = 100.0; // 摆动相膨胀系数
+        
+        // 滑动检测状态（用于日志和调试）
+        std::array<bool, 4> slip_flag_ = {false, false, false, false};
+        std::array<double, 4> foot_world_speed_ = {0.0, 0.0, 0.0, 0.0};
 
-        ESKFNominalState xHat_;                          // 滤波器状态估计值
-        StateVec dx;                                      // 误差状态
-        StateCov P = StateCov::Identity();               // 误差协方差矩阵
-        ProcessNoiseCov Q = ProcessNoiseCov::Identity(); // 过程噪声协方差
-        MeasVec y = MeasVec::Zero();                     // 观测残差
-        MeasJacobian C = MeasJacobian::Zero();           // 观测雅可比
-        MeasCov R = MeasCov::Zero();                     // 观测噪声协方差
-        StateCov A = StateCov::Identity();               // 状态转移矩阵
+        ESKFNominalState xHat_;                            // 滤波器状态估计值
+        StateVec dx;                                       // 误差状态
+        StateCov P = StateCov::Identity();                 // 误差协方差矩阵
+        ProcessNoiseCov Q = ProcessNoiseCov::Identity();   // 过程噪声协方差
+        MeasVec y = MeasVec::Zero();                       // 观测残差
+        MeasJacobian C = MeasJacobian::Zero();             // 观测雅可比
+        MeasCov R = MeasCov::Zero();                       // 观测噪声协方差
+        StateCov A = StateCov::Identity();                 // 状态转移矩阵
         StateNoiseJacobian B = StateNoiseJacobian::Zero(); // 噪声雅可比矩阵 (27x24)
+
+
+        void imuCorrect();  // IMU校正
+        Eigen::Vector3d acc_correct;
+        Eigen::Vector3d w_correct; // 角速度直接转换，无需补偿
 
         // 设置过程噪声协方差矩阵 Q
         void setCovarianceQ(ProcessNoiseCov &Q, double dt);
@@ -202,7 +241,6 @@ namespace ocs2::legged_robot
         void injectErrorState(const StateVec &dx);
 
         void resetErrorState(const StateVec &dx);
-
 
         /**基于运动学的观测模型
          * 计算观测残差、雅可比和噪声协方差
@@ -218,6 +256,16 @@ namespace ocs2::legged_robot
                                         MeasCov &R);
 
         nav_msgs::msg::Odometry getOdomMsg();
+
+        // Ground Truth (从Gazebo获取真实位姿用于对比)
+        void updateGroundTruth();
+        void publishGroundTruth(const rclcpp::Time &time);
+        rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr ground_truth_pub_;
+        Eigen::Vector3d gt_position_ = Eigen::Vector3d::Zero();
+        Eigen::Vector3d gt_linear_velocity_ = Eigen::Vector3d::Zero();
+        Eigen::Quaterniond gt_orientation_ = Eigen::Quaterniond::Identity();
+        Eigen::Vector3d gt_angular_velocity_ = Eigen::Vector3d::Zero();
+        bool ground_truth_enabled_ = true; // 是否启用Ground Truth对比
 
         // STA Observer
         STAObserver sta_observer_;

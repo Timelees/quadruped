@@ -39,6 +39,10 @@
 #include <gz/sim/components/Name.hh>
 #include <gz/sim/components/ParentEntity.hh>
 #include <gz/sim/components/Sensor.hh>
+#include <gz/sim/components/Pose.hh>
+#include <gz/sim/components/LinearVelocity.hh>
+#include <gz/sim/components/Link.hh>
+#include <gz/sim/Model.hh>
 #include <gz/transport/Node.hh>
 #define GZ_TRANSPORT_NAMESPACE gz::transport::
 #define GZ_MSGS_NAMESPACE gz::msgs::
@@ -161,6 +165,27 @@ void ForceTorqueData::OnForceTorque(const GZ_MSGS_NAMESPACE Wrench& _msg)
     this->foot_effort = sqrt(pow(_msg.force().x(), 2) + pow(_msg.force().y(), 2) + pow(_msg.force().z(), 2));
 }
 
+/// \brief Ground Truth Odometry Data - 获取机器人在Gazebo中的真实位姿
+class OdomData
+{
+public:
+    /// \brief odom sensor's name (对应xacro中的sensor name)
+    std::string name{};
+
+    /// \brief Link name to track (机器人base link的名称)
+    std::string link_name{};
+
+    /// \brief Entity of the link to track
+    sim::Entity sim_link_ = sim::kNullEntity;
+
+    /// \brief Odom data: [pos_x, pos_y, pos_z, vel_x, vel_y, vel_z, 
+    ///                    orient_x, orient_y, orient_z, orient_w,
+    ///                    angular_vel_x, angular_vel_y, angular_vel_z]
+    std::array<double, 13> odom_data_{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                       0.0, 0.0, 0.0, 1.0,  // quaternion (x,y,z,w), w=1 for identity
+                                       0.0, 0.0, 0.0};
+};
+
 class gz_quadruped_hardware::GazeboSimSystemPrivate
 {
 public:
@@ -182,6 +207,9 @@ public:
 
     /// \brief vector with the foot force-torque sensors.
     std::vector<std::shared_ptr<ForceTorqueData>> ft_sensors_;
+
+    /// \brief vector with the ground truth odometry sensors.
+    std::vector<std::shared_ptr<OdomData>> odoms_;
 
     /// \brief state interfaces that will be exported to the Resource Manager
     std::vector<hardware_interface::StateInterface> state_interfaces_;
@@ -234,27 +262,6 @@ namespace gz_quadruped_hardware
         this->dataPtr->update_rate = update_rate;
         // 初始化ros节点
         this->dataPtr->ros_node = model_nh;
-        
-        // // 创建发布者
-        // this->dataPtr->imu_pub = this->dataPtr->ros_node->create_publisher<control_input_msgs::msg::SimImu>("imu_data",10);
-        // this->dataPtr->joint_pub = this->dataPtr->ros_node->create_publisher<control_input_msgs::msg::SimJoint>("joint_data",10);
-        // RCLCPP_INFO(this->dataPtr->ros_node->get_logger(), "imu and joint Publishers created");
-
-        // 
-        // std::thread([this]() {
-                
-        //         // 创建关节命令订阅者
-        //         this->cmd_sub = this->node->create_subscription<control_input_msgs::msg::LeggedCommand>
-        //             ("legged_command", 10, std::bind(&LeggedPlugin::RosCom, this, std::placeholders::_1));
-        //         if (this->cmd_sub) {
-        //             RCLCPP_INFO(this->node->get_logger(), "Subscriber created successfully.");
-        //         } else {
-        //             RCLCPP_ERROR(this->node->get_logger(), "Failed to create subscriber.");
-        //             // 在这里可能采取适当的错误处理措施
-        //         }
-        //         // 检查节点是否已经添加到执行器
-               
-        //     }).detach();
 
         
         RCLCPP_DEBUG(this->nh_->get_logger(), "n_dof_ %lu", this->dataPtr->n_dof_);
@@ -572,6 +579,110 @@ namespace gz_quadruped_hardware
                 this->dataPtr->ft_sensors_.push_back(ftData);
                 return true;
             });
+
+        // Ground Truth Odometry Sensor - 从URDF/xacro中读取配置
+        // 查找名为 "ground_truth" 的传感器配置
+        for (const auto& component : sensor_components_)
+        {
+            if (component.name == "ground_truth")
+            {
+                auto odomData = std::make_shared<OdomData>();
+                odomData->name = component.name;
+                
+                // 从参数中获取要追踪的link名称，默认为 "base"
+                if (component.parameters.find("link_name") != component.parameters.end())
+                {
+                    odomData->link_name = component.parameters.at("link_name");
+                }
+                else
+                {
+                    odomData->link_name = "base";  // 默认追踪base link
+                }
+
+                RCLCPP_INFO_STREAM(this->nh_->get_logger(), 
+                    "Loading Ground Truth Odom sensor: " << odomData->name << 
+                    ", tracking link: " << odomData->link_name);
+
+                // 查找对应的link entity
+                this->dataPtr->ecm->Each<sim::components::Link, sim::components::Name>(
+                    [&](const sim::Entity& _entity,
+                        const sim::components::Link*,
+                        const sim::components::Name* _name) -> bool
+                    {
+                        if (_name->Data() == odomData->link_name)
+                        {
+                            odomData->sim_link_ = _entity;
+                            RCLCPP_INFO_STREAM(this->nh_->get_logger(), 
+                                "Found link entity for: " << odomData->link_name);
+
+                            // 确保该link有WorldPose组件
+                            if (!this->dataPtr->ecm->EntityHasComponentType(
+                                _entity, sim::components::WorldPose().TypeId()))
+                            {
+                                this->dataPtr->ecm->CreateComponent(_entity, sim::components::WorldPose());
+                            }
+                            // 确保该link有WorldLinearVelocity组件
+                            if (!this->dataPtr->ecm->EntityHasComponentType(
+                                _entity, sim::components::WorldLinearVelocity().TypeId()))
+                            {
+                                this->dataPtr->ecm->CreateComponent(_entity, sim::components::WorldLinearVelocity());
+                            }
+                            // 确保该link有AngularVelocity组件
+                            if (!this->dataPtr->ecm->EntityHasComponentType(
+                                _entity, sim::components::AngularVelocity().TypeId()))
+                            {
+                                this->dataPtr->ecm->CreateComponent(_entity, sim::components::AngularVelocity());
+                            }
+                            return false;  // 找到后停止遍历
+                        }
+                        return true;
+                    });
+
+                if (odomData->sim_link_ == sim::kNullEntity)
+                {
+                    RCLCPP_WARN_STREAM(this->nh_->get_logger(), 
+                        "Could not find link: " << odomData->link_name << " for ground truth odom");
+                }
+
+                // 注册状态接口
+                static const std::map<std::string, size_t> odom_interface_map = {
+                    {"position.x", 0},
+                    {"position.y", 1},
+                    {"position.z", 2},
+                    {"linear_velocity.x", 3},
+                    {"linear_velocity.y", 4},
+                    {"linear_velocity.z", 5},
+                    {"orientation.x", 6},
+                    {"orientation.y", 7},
+                    {"orientation.z", 8},
+                    {"orientation.w", 9},
+                    {"angular_velocity.x", 10},
+                    {"angular_velocity.y", 11},
+                    {"angular_velocity.z", 12},
+                };
+
+                RCLCPP_INFO_STREAM(this->nh_->get_logger(), "\tState interfaces:");
+                for (const auto& state_interface : component.state_interfaces)
+                {
+                    auto it = odom_interface_map.find(state_interface.name);
+                    if (it != odom_interface_map.end())
+                    {
+                        RCLCPP_INFO_STREAM(this->nh_->get_logger(), "\t\t " << state_interface.name);
+                        this->dataPtr->state_interfaces_.emplace_back(
+                            odomData->name,
+                            state_interface.name,
+                            &odomData->odom_data_[it->second]);
+                    }
+                    else
+                    {
+                        RCLCPP_WARN_STREAM(this->nh_->get_logger(), 
+                            "Unknown odom interface: " << state_interface.name);
+                    }
+                }
+
+                this->dataPtr->odoms_.push_back(odomData);
+            }
+        }
     }
 
     CallbackReturn GazeboSimSystem::on_init(const hardware_interface::HardwareInfo& info)
@@ -708,86 +819,54 @@ namespace gz_quadruped_hardware
             }
         }
 
-        // // ============= 发布IMU数据 =============
-        // if (!this->dataPtr->imus_.empty()) {
-        //     auto imu_data = this->dataPtr->imus_[0];
-        //     control_input_msgs::msg::SimImu imu_msg;
+        // Read Ground Truth Odometry data from Gazebo
+        for (unsigned int i = 0; i < this->dataPtr->odoms_.size(); ++i)
+        {
+            if (this->dataPtr->odoms_[i]->sim_link_ == sim::kNullEntity)
+            {
+                continue;
+            }
+
+            // Get the world pose of the link (position + orientation)
+            const auto* worldPose = this->dataPtr->ecm->Component<sim::components::WorldPose>(
+                this->dataPtr->odoms_[i]->sim_link_);
             
-        //     // 填充IMU数据
-        //     imu_msg.quat_x = imu_data->imu_sensor_data_[0];
-        //     imu_msg.quat_y = imu_data->imu_sensor_data_[1];
-        //     imu_msg.quat_z = imu_data->imu_sensor_data_[2];
-        //     imu_msg.quat_w = imu_data->imu_sensor_data_[3];
-        //     imu_msg.gyro_x = imu_data->imu_sensor_data_[4];
-        //     imu_msg.gyro_y = imu_data->imu_sensor_data_[5];
-        //     imu_msg.gyro_z = imu_data->imu_sensor_data_[6];
-        //     imu_msg.accelerometer_x = imu_data->imu_sensor_data_[7];
-        //     imu_msg.accelerometer_y = imu_data->imu_sensor_data_[8];
-        //     imu_msg.accelerometer_z = imu_data->imu_sensor_data_[9];
-            
-        //     this->dataPtr->imu_pub->publish(imu_msg);
-        // }
-        // // ============= 发布关节数据 =============
-        // control_input_msgs::msg::SimJoint joint_msg;
-        
-        // // 假设关节顺序: FL_abad, FL_hip, FL_knee, FR_abad...
-        // if (this->dataPtr->joints_.size() >= 12) {
-        //     // 关节角度
-        //     // FR
-        //     joint_msg.q_abad_fr = this->dataPtr->joints_[0].joint_position;
-        //     joint_msg.q_hip_fr = this->dataPtr->joints_[1].joint_position;
-        //     joint_msg.q_knee_fr = this->dataPtr->joints_[2].joint_position;
-        //     // FL
-        //     joint_msg.q_abad_fl = this->dataPtr->joints_[3].joint_position;
-        //     joint_msg.q_hip_fl = this->dataPtr->joints_[4].joint_position;
-        //     joint_msg.q_knee_fl = this->dataPtr->joints_[5].joint_position;
-        //     // RR
-        //     joint_msg.q_abad_rr = this->dataPtr->joints_[6].joint_position;
-        //     joint_msg.q_hip_rr = this->dataPtr->joints_[7].joint_position;
-        //     joint_msg.q_knee_rr = this->dataPtr->joints_[8].joint_position;
-        //     // RL
-        //     joint_msg.q_abad_rl = this->dataPtr->joints_[9].joint_position;
-        //     joint_msg.q_hip_rl = this->dataPtr->joints_[10].joint_position;
-        //     joint_msg.q_knee_rl = this->dataPtr->joints_[11].joint_position;
+            // Get the world linear velocity of the link
+            const auto* worldLinVel = this->dataPtr->ecm->Component<sim::components::WorldLinearVelocity>(
+                this->dataPtr->odoms_[i]->sim_link_);
 
-        //     // 关节速度
-        //     // FR
-        //     joint_msg.qd_abad_fr = this->dataPtr->joints_[0].joint_velocity;
-        //     joint_msg.qd_hip_fr = this->dataPtr->joints_[1].joint_velocity;
-        //     joint_msg.qd_knee_fr = this->dataPtr->joints_[2].joint_velocity;
-        //     // FL
-        //     joint_msg.qd_abad_fl = this->dataPtr->joints_[3].joint_velocity;
-        //     joint_msg.qd_hip_fl = this->dataPtr->joints_[4].joint_velocity;
-        //     joint_msg.qd_knee_fl = this->dataPtr->joints_[5].joint_velocity;
-        //     // RR
-        //     joint_msg.qd_abad_rr = this->dataPtr->joints_[6].joint_velocity;
-        //     joint_msg.qd_hip_rr = this->dataPtr->joints_[7].joint_velocity;
-        //     joint_msg.qd_knee_rr = this->dataPtr->joints_[8].joint_velocity;
-        //     // RL
-        //     joint_msg.qd_abad_rl = this->dataPtr->joints_[9].joint_velocity;
-        //     joint_msg.qd_hip_rl = this->dataPtr->joints_[10].joint_velocity;
-        //     joint_msg.qd_knee_rl = this->dataPtr->joints_[11].joint_velocity;
+            // Get the world angular velocity of the link
+            const auto* worldAngVel = this->dataPtr->ecm->Component<sim::components::AngularVelocity>(
+                this->dataPtr->odoms_[i]->sim_link_);
 
-        //     // 关节力矩
-        //     // FR
-        //     joint_msg.tau_abad_fr = this->dataPtr->joints_[0].joint_effort;
-        //     joint_msg.tau_hip_fr = this->dataPtr->joints_[1].joint_effort;
-        //     joint_msg.tau_knee_fr = this->dataPtr->joints_[2].joint_effort;
-        //     // FL
-        //     joint_msg.tau_abad_fl = this->dataPtr->joints_[3].joint_effort;
-        //     joint_msg.tau_hip_fl = this->dataPtr->joints_[4].joint_effort;
-        //     joint_msg.tau_knee_fl = this->dataPtr->joints_[5].joint_effort;
-        //     // RR
-        //     joint_msg.tau_abad_rr = this->dataPtr->joints_[6].joint_effort;
-        //     joint_msg.tau_hip_rr = this->dataPtr->joints_[7].joint_effort;
-        //     joint_msg.tau_knee_rr = this->dataPtr->joints_[8].joint_effort;
-        //     // RL
-        //     joint_msg.tau_abad_rl = this->dataPtr->joints_[9].joint_effort;
-        //     joint_msg.tau_hip_rl = this->dataPtr->joints_[10].joint_effort;
-        //     joint_msg.tau_knee_rl = this->dataPtr->joints_[11].joint_effort;
+            if (worldPose)
+            {
+                // Position
+                this->dataPtr->odoms_[i]->odom_data_[0] = worldPose->Data().Pos().X();
+                this->dataPtr->odoms_[i]->odom_data_[1] = worldPose->Data().Pos().Y();
+                this->dataPtr->odoms_[i]->odom_data_[2] = worldPose->Data().Pos().Z();
+                // Orientation (quaternion: x, y, z, w)
+                this->dataPtr->odoms_[i]->odom_data_[6] = worldPose->Data().Rot().X();
+                this->dataPtr->odoms_[i]->odom_data_[7] = worldPose->Data().Rot().Y();
+                this->dataPtr->odoms_[i]->odom_data_[8] = worldPose->Data().Rot().Z();
+                this->dataPtr->odoms_[i]->odom_data_[9] = worldPose->Data().Rot().W();
+            }
 
-        //     this->dataPtr->joint_pub->publish(joint_msg);
-        // }
+            if (worldLinVel)
+            {
+                this->dataPtr->odoms_[i]->odom_data_[3] = worldLinVel->Data().X();
+                this->dataPtr->odoms_[i]->odom_data_[4] = worldLinVel->Data().Y();
+                this->dataPtr->odoms_[i]->odom_data_[5] = worldLinVel->Data().Z();
+            }
+
+            if (worldAngVel)
+            {
+                // Angular velocity (body frame in Gazebo)
+                this->dataPtr->odoms_[i]->odom_data_[10] = worldAngVel->Data().X();
+                this->dataPtr->odoms_[i]->odom_data_[11] = worldAngVel->Data().Y();
+                this->dataPtr->odoms_[i]->odom_data_[12] = worldAngVel->Data().Z();
+            }
+        }
 
 
         return hardware_interface::return_type::OK;

@@ -89,23 +89,7 @@ namespace ocs2::legged_robot
         vector_t vel_des = centroidal_model::getJointVelocities(optimized_input_,
                                                                 ctrl_component_->legged_interface_->
                                                                 getCentroidalModelInfo());
-        // // base_pose
-        // vector_t base_pos_des = centroidal_model::getBasePose(optimized_state_, 
-        //                                                      ctrl_component_->legged_interface_->
-        //                                                                      getCentroidalModelInfo());
-
-        //  // 发布基座期望值
-        // control_input_msgs::msg::SimBase desired_pose;
-        // desired_pose.position_x = base_pos_des[0];
-        // desired_pose.position_y = base_pos_des[1];
-        // desired_pose.position_z = base_pos_des[2];
-        // // 假设四元数
-        // desired_pose.orientation_w = base_pos_des[3];
-        // desired_pose.orientation_x = base_pos_des[4];
-        // desired_pose.orientation_y = base_pos_des[5];
-        // desired_pose.orientation_z = base_pos_des[6];
-        // desired_base_pub_->publish(desired_pose);
-                                                                             
+                                                     
 
         for (int i = 0; i < 12; i++)
         {
@@ -115,14 +99,8 @@ namespace ocs2::legged_robot
            
             ctrl_interfaces_.joint_kp_command_interface_[i].get().set_value(default_kp_);
             ctrl_interfaces_.joint_kd_command_interface_[i].get().set_value(default_kd_);
-
-            //std::cout << "i = " << i << "--" << ctrl_interfaces_.joint_torque_command_interface_[i].get().get_name() << " ==== " << ctrl_interfaces_.joint_torque_command_interface_[i].get().get_value() << std::endl; 
         }
-        // 将关节命令转换到lowCmd
-        // command2lowCmd(ctrl_interfaces_, ctrl_component_);
 
-        
-        // ctrl_component_->ioInter->sendRecv(ctrl_component_->lowCmd, ctrl_component_->lowState);
 
         // Visualization
         ctrl_component_->visualizer_->update(ctrl_component_->mpc_mrt_interface_->getPolicy(),
@@ -130,45 +108,45 @@ namespace ocs2::legged_robot
         
     }
 
-    void StateOCS2::command2lowCmd(CtrlInterfaces& ctrl_interfaces_, const std::shared_ptr<CtrlComponent>& ctrl_component_){
-        vector3_t kp, kd, q_des, qd_des, torque;
-        matrix3_t normal_scale;
-        normal_scale = vector3_t(1, -1, -1).asDiagonal();
+    // void StateOCS2::command2lowCmd(CtrlInterfaces& ctrl_interfaces_, const std::shared_ptr<CtrlComponent>& ctrl_component_){
+    //     vector3_t kp, kd, q_des, qd_des, torque;
+    //     matrix3_t normal_scale;
+    //     normal_scale = vector3_t(1, -1, -1).asDiagonal();
 
-        for(int i = 0; i < 12; i = i+3){
-            int leg = i / 3;    // 腿的顺序FL FR RL RR
-            // 力矩
-            torque[0] = ctrl_interfaces_.joint_torque_command_interface_[i].get().get_value();
-            torque[1] = ctrl_interfaces_.joint_torque_command_interface_[i+1].get().get_value();
-            torque[2] = ctrl_interfaces_.joint_torque_command_interface_[i+2].get().get_value();
+    //     for(int i = 0; i < 12; i = i+3){
+    //         int leg = i / 3;    // 腿的顺序FL FR RL RR
+    //         // 力矩
+    //         torque[0] = ctrl_interfaces_.joint_torque_command_interface_[i].get().get_value();
+    //         torque[1] = ctrl_interfaces_.joint_torque_command_interface_[i+1].get().get_value();
+    //         torque[2] = ctrl_interfaces_.joint_torque_command_interface_[i+2].get().get_value();
            
-            ctrl_component_->lowCmd->setTau(leg, torque);
-            // 关节位置
-            q_des[0] = ctrl_interfaces_.joint_position_command_interface_[i].get().get_value();
-            q_des[1] = ctrl_interfaces_.joint_position_command_interface_[i+1].get().get_value();
-            q_des[2] = ctrl_interfaces_.joint_position_command_interface_[i+2].get().get_value();
+    //         ctrl_component_->lowCmd->setTau(leg, torque);
+    //         // 关节位置
+    //         q_des[0] = ctrl_interfaces_.joint_position_command_interface_[i].get().get_value();
+    //         q_des[1] = ctrl_interfaces_.joint_position_command_interface_[i+1].get().get_value();
+    //         q_des[2] = ctrl_interfaces_.joint_position_command_interface_[i+2].get().get_value();
            
-            ctrl_component_->lowCmd->setQ(leg, q_des);
-            // 关节速度
-            qd_des[0] = ctrl_interfaces_.joint_velocity_command_interface_[i].get().get_value();
-            qd_des[1] = ctrl_interfaces_.joint_velocity_command_interface_[i+1].get().get_value();
-            qd_des[2] = ctrl_interfaces_.joint_velocity_command_interface_[i+2].get().get_value();
+    //         ctrl_component_->lowCmd->setQ(leg, q_des);
+    //         // 关节速度
+    //         qd_des[0] = ctrl_interfaces_.joint_velocity_command_interface_[i].get().get_value();
+    //         qd_des[1] = ctrl_interfaces_.joint_velocity_command_interface_[i+1].get().get_value();
+    //         qd_des[2] = ctrl_interfaces_.joint_velocity_command_interface_[i+2].get().get_value();
            
-            ctrl_component_->lowCmd->setQd(leg, qd_des);
-            // kp
-            kp[0] = ctrl_interfaces_.joint_kp_command_interface_[i].get().get_value();
-            kp[1] = ctrl_interfaces_.joint_kp_command_interface_[i+1].get().get_value();
-            kp[2] = ctrl_interfaces_.joint_kp_command_interface_[i+2].get().get_value();
+    //         ctrl_component_->lowCmd->setQd(leg, qd_des);
+    //         // kp
+    //         kp[0] = ctrl_interfaces_.joint_kp_command_interface_[i].get().get_value();
+    //         kp[1] = ctrl_interfaces_.joint_kp_command_interface_[i+1].get().get_value();
+    //         kp[2] = ctrl_interfaces_.joint_kp_command_interface_[i+2].get().get_value();
            
-            ctrl_component_->lowCmd->setKp(leg, kp);
-            // kd
-            kd[0] = ctrl_interfaces_.joint_kd_command_interface_[i].get().get_value();
-            kd[1] = ctrl_interfaces_.joint_kd_command_interface_[i+1].get().get_value();
-            kd[2] = ctrl_interfaces_.joint_kd_command_interface_[i+2].get().get_value();
+    //         ctrl_component_->lowCmd->setKp(leg, kp);
+    //         // kd
+    //         kd[0] = ctrl_interfaces_.joint_kd_command_interface_[i].get().get_value();
+    //         kd[1] = ctrl_interfaces_.joint_kd_command_interface_[i+1].get().get_value();
+    //         kd[2] = ctrl_interfaces_.joint_kd_command_interface_[i+2].get().get_value();
            
-            ctrl_component_->lowCmd->setKd(leg, kd);
-        }
-    }
+    //         ctrl_component_->lowCmd->setKd(leg, kd);
+    //     }
+    // }
 
     void StateOCS2::exit()
     {

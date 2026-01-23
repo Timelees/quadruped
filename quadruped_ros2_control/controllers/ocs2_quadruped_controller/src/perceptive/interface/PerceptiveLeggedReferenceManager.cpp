@@ -7,6 +7,8 @@
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
 
+#include <rclcpp/rclcpp.hpp>
+
 namespace ocs2::legged_robot
 {
     PerceptiveLeggedReferenceManager::PerceptiveLeggedReferenceManager(CentroidalModelInfo info,
@@ -46,15 +48,42 @@ namespace ocs2::legged_robot
             const auto& map = convexRegionSelectorPtr_->getPlanarTerrainPtr()->gridMap;
             vector_t pos = centroidal_model::getBasePose(state, info_).head(3);
 
+            // grid_map 的 atPosition() 越界会 throw std::out_of_range。
+            // ground_truth 模式下 base 的世界坐标更容易落在 map 外，必须做保护避免整个进程崩溃。
+            const grid_map::Position pos2d(pos.x(), pos.y());
+            if (!map.isInside(pos2d))
+            {
+                auto logger = rclcpp::get_logger("PerceptiveLeggedReferenceManager");
+                RCLCPP_WARN_THROTTLE(
+                    logger, *rclcpp::Clock::make_shared(), 2000,
+                    "Base position (x=%.3f, y=%.3f) is outside terrain map. Skip terrain-based reference adjustment.",
+                    pos.x(), pos.y());
+
+                newTargetTrajectories.timeTrajectory.push_back(time);
+                newTargetTrajectories.stateTrajectory.push_back(state);
+                newTargetTrajectories.inputTrajectory.push_back(input);
+                continue;
+            }
+
             // Base Orientation 根据地形调整基座姿态和高度
             scalar_t step = 0.3;
             grid_map::Vector3 normalVector;
-            normalVector(0) = (map.atPosition("smooth_planar", pos + grid_map::Position(-step, 0)) -
-                    map.atPosition("smooth_planar", pos + grid_map::Position(step, 0))) /
-                (2 * step);
-            normalVector(1) = (map.atPosition("smooth_planar", pos + grid_map::Position(0, -step)) -
-                    map.atPosition("smooth_planar", pos + grid_map::Position(0, step))) /
-                (2 * step);
+
+            // 做差分取梯度时也可能越界（靠近边缘），这里用中心点退化处理。
+            auto safeAtPosition = [&](const grid_map::Position& p) -> scalar_t {
+                if (!map.isInside(p))
+                {
+                    return map.atPosition("smooth_planar", pos2d);
+                }
+                return map.atPosition("smooth_planar", p);
+            };
+
+            normalVector(0) = (safeAtPosition(pos2d + grid_map::Position(-step, 0)) -
+                               safeAtPosition(pos2d + grid_map::Position(step, 0))) /
+                              (2 * step);
+            normalVector(1) = (safeAtPosition(pos2d + grid_map::Position(0, -step)) -
+                               safeAtPosition(pos2d + grid_map::Position(0, step))) /
+                              (2 * step);
             normalVector(2) = 1;
             normalVector.normalize();
             matrix3_t R;
@@ -67,7 +96,7 @@ namespace ocs2::legged_robot
 
             // Base Z Position
             centroidal_model::getBasePose(state, info_)(2) =
-                map.atPosition("smooth_planar", pos) + comHeight_ / cos(centroidal_model::getBasePose(state, info_)(4));
+                map.atPosition("smooth_planar", pos2d) + comHeight_ / cos(centroidal_model::getBasePose(state, info_)(4));
 
             newTargetTrajectories.timeTrajectory.push_back(time);
             newTargetTrajectories.stateTrajectory.push_back(state);

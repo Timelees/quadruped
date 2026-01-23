@@ -7,7 +7,7 @@
 #include <ocs2_centroidal_model/CentroidalModelPinocchioMapping.h>
 
 #include <tf2_ros/transform_broadcaster.h>
-
+#include "log_save.h"
 namespace ocs2::legged_robot {
     class GroundTruth final : public StateEstimateBase {
     public:
@@ -20,5 +20,10 @@ namespace ocs2::legged_robot {
         nav_msgs::msg::Odometry getOdomMsg();
         vector3_t position_;
         vector3_t linear_velocity_;
+        quaternion_t quat_;
+        vector3_t angular_velocity_;
+        // 日志保存
+        std::unique_ptr<quadruped::logs::LogSave> logger_;
+        bool is_logger_enabled_ = true;
     };
 }

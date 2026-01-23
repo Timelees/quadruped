@@ -26,17 +26,11 @@
 namespace ocs2::legged_robot
 {
     CtrlComponent::CtrlComponent(const std::shared_ptr<rclcpp_lifecycle::LifecycleNode>& node,
-                                 CtrlInterfaces& ctrl_interfaces,
-                                LowlevelCmd* lowCmd, LowlevelState* lowState, IOInterface* ioInter) : node_(node), ctrl_interfaces_(ctrl_interfaces), lowCmd(lowCmd), lowState(lowState), ioInter(ioInter)
+                                 CtrlInterfaces& ctrl_interfaces, bool enable_perceptive) : node_(node), ctrl_interfaces_(ctrl_interfaces), enable_perceptive_(enable_perceptive)
     {
         robot_pkg_ = node_->get_parameter("robot_pkg").as_string();
         joint_names_ = node_->get_parameter("joints").as_string_array();
         feet_names_ = node_->get_parameter("feet").as_string_array();
-
-        if (!node_->has_parameter("enable_perceptive")) {
-            node_->declare_parameter("enable_perceptive", enable_perceptive_);
-        }
-        enable_perceptive_ = node_->get_parameter("enable_perceptive").as_bool();
 
 
         const std::string package_share_directory = ament_index_cpp::get_package_share_directory(robot_pkg_);
@@ -129,9 +123,6 @@ namespace ocs2::legged_robot
     {
         // Update State Estimation
         measured_rbd_state_ = estimator_->update(time, period);
-
-        // std::cout << "卡尔曼滤波后状态rbd_state_: " << "位姿（yaw,pitch,roll: " << measured_rbd_state_.segment(0, 3).transpose() << "）" << std::endl;
-        // std::cout << "卡尔曼滤波后状态rbd_state_: " << "位置（x,y,z: " << measured_rbd_state_.segment(3, 3).transpose() << "）" << std::endl;
 
         // 更新时间并处理偏航角连续性
         observation_.time += period.seconds();

@@ -113,12 +113,13 @@ namespace ocs2::legged_robot
             ctrl_component_.imu_state_interface_[5].get().get_value(),
             ctrl_component_.imu_state_interface_[6].get().get_value()
         };
-
+        // std::cout << "IMU Angular Velocity (Local): " << angular_vel_local_.transpose() << std::endl;
         linear_accel_local_ = {
             ctrl_component_.imu_state_interface_[7].get().get_value(),
             ctrl_component_.imu_state_interface_[8].get().get_value(),
             ctrl_component_.imu_state_interface_[9].get().get_value()
         };
+        // std::cout << "IMU Linear Acceleration (Local): " << linear_accel_local_.transpose() << std::endl;
 
         // orientationCovariance_ = orientationCovariance;
         // angularVelCovariance_ = angularVelCovariance;
@@ -128,6 +129,7 @@ namespace ocs2::legged_robot
         rotation_matrix = getRotationMatrixFromZyxEulerAngles(quatToZyx(quat_));    // body->world
 
         const vector3_t zyx = quatToZyx(quat_) - zyx_offset_;
+        // std::cout << "IMU Orientation (Local): " << zyx.transpose() << std::endl;
         const vector3_t angularVelGlobal = getGlobalAngularVelocityFromEulerAnglesZyxDerivatives<scalar_t>(
             zyx, getEulerAnglesZyxDerivativesFromLocalAngularVelocity<scalar_t>(quatToZyx(quat_), angular_vel_local_));
 

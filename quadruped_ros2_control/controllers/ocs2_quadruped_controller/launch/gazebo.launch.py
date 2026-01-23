@@ -125,12 +125,16 @@ def launch_setup(context, *args, **kwargs):
     
     # Static transform publisher: map -> odom (identity transform)
     # 连接map坐标系和odom坐标系
+    # NOTE: 
+    #   - 状态估计器使用 Ground Truth 初始化，输出的 odom→base 已经是 world 坐标系下的位置
+    #   - 因此 map → odom 应该是单位变换
+    #   - 如果状态估计器从 (0,0,0) 开始，则需要设置为机器人初始位置 (x, y, 0)
     map_to_odom_tf_publisher = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='map_to_odom_tf_publisher',
         # x y z qx qy qz qw parent_frame child_frame
-        arguments=['-4.0', '0', '0', '0', '0', '0', '1', 'map', 'odom'],
+        arguments=['-6', '-8', '0.0', '0.0', '0.0', '0.0', '1.0', 'map', 'odom'],
         output='screen'
     )
 
@@ -170,7 +174,7 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
     world = DeclareLaunchArgument(
         'world',
-        default_value='step',       # baylands,  step,   stepping_stones_terrain
+        default_value='stepping_stones_terrain',       # baylands,  step,   stepping_stones_terrain
         description='The world to load'
     )
 
@@ -184,12 +188,12 @@ def generate_launch_description():
     # robot initial position
     x_pos = DeclareLaunchArgument(
     'x',
-    default_value='-4.0',
+    default_value='-6.0',
     description='Initial X position'
     )
     y_pos = DeclareLaunchArgument(
         'y',
-        default_value='0.0',
+        default_value='-8.0',
         description='Initial Y position'
     )
     z_pos = DeclareLaunchArgument(
@@ -222,7 +226,6 @@ def generate_launch_description():
             "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
             "/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
             "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
-            "/ground_truth/state@nav_msgs/msg/Odometry[gz.msgs.Odometry",
             # "/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan",        # 单线激光雷达数据
             # "/scan/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked",    # 3D点云数据
             # "/depth_camera/color/image_raw@sensor_msgs/msg/Image@gz.msgs.Image",

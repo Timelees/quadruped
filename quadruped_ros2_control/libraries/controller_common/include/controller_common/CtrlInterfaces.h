@@ -57,15 +57,13 @@ struct CtrlInterfaces
         joint_kd_command_interface_.clear();
         joint_kp_command_interface_.clear();
 
-      
-
         joint_effort_state_interface_.clear();
         joint_position_state_interface_.clear();
         joint_velocity_state_interface_.clear();
 
         imu_state_interface_.clear();
-        imu_state_interface_.clear();
         foot_force_state_interface_.clear();
+        odom_state_interface_.clear();
     }
 };
 

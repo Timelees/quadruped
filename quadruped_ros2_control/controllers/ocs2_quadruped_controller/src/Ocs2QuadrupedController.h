@@ -11,8 +11,6 @@
 #include <ocs2_quadruped_controller/FSM/StateOCS2.h>
 #include <ocs2_quadruped_controller/control/CtrlComponent.h>
 
-#include "ocs2_quadruped_controller/interface/io_interface/IOROS.h"
-
 namespace ocs2::legged_robot {
     struct FSMStateList {
         std::shared_ptr<FSMState> invalid;
@@ -70,10 +68,6 @@ namespace ocs2::legged_robot {
         std::vector<std::string> command_interface_types_;
         std::vector<std::string> state_interface_types_;
         
-
-        IOInterface* ioInter;
-        LowlevelCmd* lowCmd;    
-        LowlevelState* lowState;
         
         // 命令接口映射表
         std::unordered_map<
@@ -104,10 +98,16 @@ namespace ocs2::legged_robot {
         std::string foot_force_name_;
         std::vector<std::string> foot_force_interface_types_;
 
-        // Odometer Sensor (Ground Truth)
-        std::string estimator_type_ = "error_state_kalman";      // extend_kalman, linear_kalman，error_state_kalman
-        std::string odom_name_;
-        std::vector<std::string> odom_interface_types_;
+        std::string estimator_type_ = "error_state_kalman";      // 估计器配置： extend_kalman, linear_kalman, error_state_kalman
+        bool enable_perceptive_ = false;         // 是否启用感知
+
+        // Odometer Sensor (Ground Truth) - 获取Gazebo真实位姿用于与状态估计对比
+        bool gazebo_ground_truth = true;                         // 是否获取Gazebo真实位姿
+        std::string odom_name_ = "ground_truth";
+        std::vector<std::string> odom_interface_types_ = {
+            "position.x", "position.y", "position.z",
+            "linear_velocity.x", "linear_velocity.y", "linear_velocity.z"
+        };
 
         rclcpp::Subscription<control_input_msgs::msg::Inputs>::SharedPtr control_input_subscription_;
 

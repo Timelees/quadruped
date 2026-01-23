@@ -161,6 +161,24 @@
       <state_interface name="RL_foot_force"/>
     </sensor>
 
+    <!-- Ground Truth Odometry Sensor - 获取机器人在Gazebo中的真实位姿 -->
+    <sensor name="ground_truth">
+      <param name="link_name">base</param>
+      <state_interface name="position.x"/>
+      <state_interface name="position.y"/>
+      <state_interface name="position.z"/>
+      <state_interface name="linear_velocity.x"/>
+      <state_interface name="linear_velocity.y"/>
+      <state_interface name="linear_velocity.z"/>
+      <state_interface name="orientation.x"/>
+      <state_interface name="orientation.y"/>
+      <state_interface name="orientation.z"/>
+      <state_interface name="orientation.w"/>
+      <state_interface name="angular_velocity.x"/>
+      <state_interface name="angular_velocity.y"/>
+      <state_interface name="angular_velocity.z"/>
+    </sensor>
+
   </ros2_control>
 
   <!-- Gazebo's ros2_control plugin  -->
@@ -185,12 +203,6 @@
 
     <!-- Odometry -->
     <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
-      <odom_frame>world</odom_frame>                <!-- 世界固定坐标系的名称-->
-      <robot_base_frame>odom</robot_base_frame>     <!-- 刚性附着在移动机器人底座上的坐标系的名称-->
-      <odom_topic>/ground_truth/state</odom_topic>  <!-- 发布的里程计话题名称-->
-      <xyz_offset> 0 0 0 </xyz_offset>            <!-- 相对于身体固定帧的位置偏移-->
-      <rpy_offset> 0 0 0 </rpy_offset>            <!-- 相对于身体固定帧的旋转偏移 -->
-      <gaussian_noise> 0 </gaussian_noise>        <!-- 要添加到姿势和扭曲消息的高斯噪声的标准差 -->
     </plugin>
 
   </gazebo>
@@ -208,25 +220,34 @@
           <x>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <stddev>2e-3</stddev>
+              <!-- <stddev>2e-3</stddev>     
               <bias_mean>0.0000075</bias_mean>
-              <bias_stddev>0.0000008</bias_stddev>
+              <bias_stddev>0.0000008</bias_stddev> -->
+              <stddev>0</stddev>     
+              <bias_mean>0.00000</bias_mean>
+              <bias_stddev>0.000000</bias_stddev>
             </noise>
           </x>
           <y>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <stddev>2e-3</stddev>
+              <!-- <stddev>2e-3</stddev>     
               <bias_mean>0.0000075</bias_mean>
-              <bias_stddev>0.0000008</bias_stddev>
+              <bias_stddev>0.0000008</bias_stddev> -->
+              <stddev>0</stddev>     
+              <bias_mean>0.00000</bias_mean>
+              <bias_stddev>0.000000</bias_stddev>
             </noise>
           </y>
           <z>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <stddev>2e-3</stddev>
+              <!-- <stddev>2e-3</stddev>     
               <bias_mean>0.0000075</bias_mean>
-              <bias_stddev>0.0000008</bias_stddev>
+              <bias_stddev>0.0000008</bias_stddev> -->
+              <stddev>0</stddev>     
+              <bias_mean>0.00000</bias_mean>
+              <bias_stddev>0.000000</bias_stddev>
             </noise>
           </z>
         </angular_velocity>
@@ -234,34 +255,44 @@
           <x>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <stddev>1.7e-2</stddev>
+              <!-- <stddev>1.7e-2</stddev>
               <bias_mean>0.01</bias_mean>
-              <bias_stddev>0.001</bias_stddev>
+              <bias_stddev>0.001</bias_stddev> -->
+              <stddev>0.0</stddev>
+              <bias_mean>0.0</bias_mean>
+              <bias_stddev>0.0</bias_stddev>
             </noise>
           </x>
           <y>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <stddev>1.7e-2</stddev>
+              <!-- <stddev>1.7e-2</stddev>
               <bias_mean>0.01</bias_mean>
-              <bias_stddev>0.001</bias_stddev>
+              <bias_stddev>0.001</bias_stddev> -->
+              <stddev>0.0</stddev>
+              <bias_mean>0.0</bias_mean>
+              <bias_stddev>0.0</bias_stddev>
             </noise>
           </y>
           <z>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <stddev>1.7e-2</stddev>
+              <!-- <stddev>1.7e-2</stddev>
               <bias_mean>0.01</bias_mean>
-              <bias_stddev>0.001</bias_stddev>
+              <bias_stddev>0.001</bias_stddev> -->
+              <stddev>0.0</stddev>
+              <bias_mean>0.0</bias_mean>
+              <bias_stddev>0.0</bias_stddev>
             </noise>
           </z>
         </linear_acceleration>
       </imu>
     </sensor>
   </gazebo>
-  <gazebo reference="imu_joint">
+  <!-- 注释掉 disableFixedJointLumping 让 Gazebo 把 imu_link 合并到 body，避免物理振荡 -->
+  <!-- <gazebo reference="imu_joint">
     <disableFixedJointLumping>true</disableFixedJointLumping>
-  </gazebo>
+  </gazebo> -->
 
   <!-- <gazebo reference="lidar_link">
     <sensor name="gpu_lidar" type="gpu_lidar">
@@ -349,298 +380,8 @@
       </sensor>
   </gazebo>
 
-  
 
-  <gazebo reference="FR_abad">
-    <mu1>0.2</mu1>
-    <mu2>0.2</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-  </gazebo>
-  <gazebo reference="FR_hip">
-    <mu1>0.2</mu1>
-    <mu2>0.2</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.05 .05 .05 1.0</ambient>
-        <diffuse>.05 .05 .05 1.0</diffuse>
-        <specular>.05 .05 .05 1.0</specular>
-      </material>
-    </visual>
-  </gazebo>
-  <gazebo reference="FR_knee">
-    <mu1>0.7</mu1>
-    <mu2>0.7</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-    <surface>
-        <contact>
-          <ode>
-            <max_vel>0.00001</max_vel>
-            <min_depth>0.0</min_depth>
-          </ode>
-        </contact>
-      </surface>
-  </gazebo>
-  <gazebo reference="FR_foot">
-    <mu1>0.7</mu1>
-    <mu2>0.7</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-    <surface>
-        <contact>
-          <ode>
-            <max_vel>0.001</max_vel>
-            <min_depth>0.0</min_depth>
-          </ode>
-        </contact>
-      </surface>
-  </gazebo>
-
-  <gazebo reference="FL_abad">
-    <mu1>0.2</mu1>
-    <mu2>0.2</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-  </gazebo>
-  <gazebo reference="FL_hip">
-    <mu1>0.2</mu1>
-    <mu2>0.2</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.05 .05 .05 1.0</ambient>
-        <diffuse>.05 .05 .05 1.0</diffuse>
-        <specular>.05 .05 .05 1.0</specular>
-      </material>
-    </visual>
-  </gazebo>
-  <gazebo reference="FL_knee">
-    <mu1>0.7</mu1>
-    <mu2>0.7</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-    <surface>
-        <contact>
-          <ode>
-            <max_vel>0.00001</max_vel>
-            <min_depth>0.0</min_depth>
-          </ode>
-        </contact>
-      </surface>
-  </gazebo>
-  <gazebo reference="FL_foot">
-    <mu1>0.7</mu1>
-    <mu2>0.7</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-    <surface>
-        <contact>
-          <ode>
-            <max_vel>0.001</max_vel>
-            <min_depth>0.0</min_depth>
-          </ode>
-        </contact>
-      </surface>
-  </gazebo>
-  <gazebo reference="RR_abad">
-    <mu1>0.2</mu1>
-    <mu2>0.2</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-  </gazebo>
-  <gazebo reference="RR_hip">
-    <mu1>0.2</mu1>
-    <mu2>0.2</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.05 .05 .05 1.0</ambient>
-        <diffuse>.05 .05 .05 1.0</diffuse>
-        <specular>.05 .05 .05 1.0</specular>
-      </material>
-    </visual>
-  </gazebo>
-  <gazebo reference="RR_knee">
-    <mu1>0.7</mu1>
-    <mu2>0.7</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-    <surface>
-      <contact>
-        <ode>
-          <max_vel>0.00001</max_vel>
-           <min_depth>0.0</min_depth>
-        </ode>
-      </contact>
-    </surface>
-  </gazebo>
-  <gazebo reference="RR_foot">
-    <mu1>0.7</mu1>
-    <mu2>0.7</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-    <surface>
-      <contact>
-        <ode>
-          <max_vel>0.001</max_vel>
-          <min_depth>0.0</min_depth>
-        </ode>
-      </contact>
-    </surface>
-  </gazebo>
-  <gazebo reference="RL_abad">
-    <mu1>0.2</mu1>
-    <mu2>0.2</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-  </gazebo>
-  <gazebo reference="RL_hip">
-    <mu1>0.2</mu1>
-    <mu2>0.2</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.05 .05 .05 1.0</ambient>
-        <diffuse>.05 .05 .05 1.0</diffuse>
-        <specular>.05 .05 .05 1.0</specular>
-      </material>
-    </visual>
-  </gazebo>
-  <gazebo reference="RL_knee">
-    <mu1>0.7</mu1>
-    <mu2>0.7</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-    <surface>
-        <contact>
-          <ode>
-            <max_vel>0.00001</max_vel>
-            <min_depth>0.0</min_depth>
-          </ode>
-        </contact>
-    </surface>
-  </gazebo>
-  <gazebo reference="RL_foot">
-    <mu1>0.7</mu1>
-    <mu2>0.7</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
-    <self_collide>1</self_collide>
-    <visual>
-      <material>
-        <ambient>.5 .5 .5 1.0</ambient>
-        <diffuse>.5 .5 .5 1.0</diffuse>
-        <specular>.5 .5 .5 1.0</specular>
-      </material>
-    </visual>
-    <surface>
-        <contact>
-          <ode>
-            <max_vel>0.001</max_vel>
-            <min_depth>0.0</min_depth>
-          </ode>
-        </contact>
-    </surface>
-  </gazebo>
   <gazebo reference="body">
-    <mu1>0.6</mu1>
-    <mu2>0.6</mu2>
-    <kp value="50000.0"/>
-    <kd value="5000.0"/>
     <visual>
       <material>
         <ambient>.1 .1 .1 1.0</ambient>
@@ -650,6 +391,7 @@
     </visual>
   </gazebo>
 
+  <xacro:include filename="$(find gz_quadruped_hardware)/xacro/foot_force_sensor.xacro"/>
   <xacro:foot_force_sensor name="FL" suffix="foot_fixed"/>
   <xacro:foot_force_sensor name="RL" suffix="foot_fixed"/>
   <xacro:foot_force_sensor name="FR" suffix="foot_fixed"/>

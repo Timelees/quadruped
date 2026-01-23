@@ -494,29 +494,6 @@ int main(int argc, char *argv[])
         insetPublisher_->publish(convertInsetsToRosMarkers(planarTerrain.planarRegions, planarTerrain.gridMap.getFrameId(),
                                                            planarTerrain.gridMap.getTimestamp(), lineWidth));
 
-        // iter++;
-
-        // if (iter % 40 == 0)
-        // {
-
-        //   std::stringstream infoStream;
-        //   infoStream << "\n########################################################################\n";
-        //   infoStream << "The benchmarking is computed over " << iter << " iterations. \n";
-        //   infoStream << "PlaneExtraction Benchmarking    : Average time [ms], Max time [ms]\n";
-        //   auto printLine = [](std::string name, const convex_plane_decomposition::Timer &timer)
-        //   {
-        //     std::stringstream ss;
-        //     ss << std::fixed << std::setprecision(2);
-        //     ss << "\t" << name << "\t: " << std::setw(17) << timer.getAverageInMilliseconds() << ", " << std::setw(13)
-        //        << timer.getMaxIntervalInMilliseconds() << "\n";
-        //     return ss.str();
-        //   };
-        //   infoStream << printLine("Pre-process        ", planeDecompositionPipeline_->getPrepocessTimer());
-        //   infoStream << printLine("Sliding window     ", planeDecompositionPipeline_->getSlidingWindowTimer());
-        //   infoStream << printLine("Contour extraction ", planeDecompositionPipeline_->getContourExtractionTimer());
-        //   infoStream << printLine("Post-process       ", planeDecompositionPipeline_->getPostprocessTimer());
-        //   std::cerr << infoStream.str() << std::endl;
-        // }
         if (isprint)
         {
           RCLCPP_INFO(nodeHandle->get_logger(), "Translation: [%.2f, %.2f, %.2f]",

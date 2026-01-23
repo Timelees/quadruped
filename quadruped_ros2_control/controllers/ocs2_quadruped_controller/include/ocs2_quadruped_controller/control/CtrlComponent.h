@@ -17,9 +17,7 @@
 #include <ocs2_quadruped_controller/perceptive/visualize/SphereVisualization.h>
 
 #include "TargetManager.h"
-#include "ocs2_quadruped_controller/interface/io_message/LowlevelCmd.h"
-#include "ocs2_quadruped_controller/interface/io_message/LowlevelState.h"
-#include "ocs2_quadruped_controller/interface/io_interface/IOInterface.h"
+
 
 namespace ocs2
 {
@@ -35,8 +33,7 @@ namespace ocs2::legged_robot
     {
     public:
         explicit CtrlComponent(const std::shared_ptr<rclcpp_lifecycle::LifecycleNode>& node,
-                               CtrlInterfaces& ctrl_interfaces,
-                             LowlevelCmd* lowCmd, LowlevelState* lowState, IOInterface* ioInter);
+                               CtrlInterfaces& ctrl_interfaces, bool enable_perceptive);
 
         void setupStateEstimate(const std::string& estimator_type);
         void updateState(const rclcpp::Time& time, const rclcpp::Duration& period);
@@ -60,10 +57,6 @@ namespace ocs2::legged_robot
         std::string reference_file_;    // 默认参考
         std::string gait_file_;     // 步态时序参数
        
-
-        LowlevelCmd* lowCmd;
-        LowlevelState* lowState;
-        IOInterface* ioInter;
 
     private:
         void setupLeggedInterface();

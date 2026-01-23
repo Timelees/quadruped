@@ -17,10 +17,10 @@ model_settings
 
 swing_trajectory_config
 {
-  liftOffVelocity               0.2    // 离地速度
-  touchDownVelocity            -0.2     // 触地速度
-  swingHeight                   0.1    // 摆动高度
-  swingTimeScale                0.15   // 摆动时间缩放因子，根据实际情况动态调整摆动速度
+  liftOffVelocity               0.08   // 离地速度 - 降低以减少冲击
+  touchDownVelocity            -0.08   // 触地速度 - 降低以减少落地冲击
+  swingHeight                   0.08   // 摆动高度 - 原地踏步时降低以提高稳定性
+  swingTimeScale                0.15   // 摆动时间缩放因子
  
 }
 
@@ -181,22 +181,22 @@ Q
   scaling 1e+0
 
   ;; Normalized Centroidal Momentum: [linear, angular] ;;
-  (0,0)   20.0     ; vcom_x  - 增大以更好跟踪速度指令
-  (1,1)   100.0    ; vcom_y  - 增大以减少侧向漂移
-  (2,2)   100.0    ; vcom_z
-  (3,3)   20.0     ; L_x / robotMass
-  (4,4)   40.0     ; L_y / robotMass
-  (5,5)   100.0    ; L_z / robotMass
+  (0,0)   200.0     ; vcom_x  -- 增大以更好跟踪速度指令
+  (1,1)   130.0     ; vcom_y 
+  (2,2)   100.0     ; vcom_z
+  (3,3)   30.0      ; L_x / robotMass
+  (4,4)   50.0      ; L_y / robotMass
+  (5,5)   150.0     ; L_z / robotMass
 
   ;; Base Pose: [position, orientation] ;;
-  (6,6)   1500.0   ; p_base_x - 增大以减少x漂移
-  (7,7)   1500.0   ; p_base_y - 增大以减少y漂移
-  (8,8)   1500.0   ; p_base_z
-  (9,9)   1000.0    ; theta_base_z - 增大以减少yaw漂移
+  (6,6)   1200.0   ; p_base_x -- 增大以减少x漂移
+  (7,7)   1000.0   ; p_base_y -- 增大以减少y漂移
+  (8,8)   1200.0   ; p_base_z -- 增大以减少z漂移
+  (9,9)   800.0    ; theta_base_z   -- 增大以减少姿态的z旋转
   (10,10) 400.0    ; theta_base_y
   (11,11) 300.0    ; theta_base_x
 
-  ;; Leg Joint Positions: [FL, RL, FR, RR] ;;
+  ;; Leg Joint Positions: [FL, RL, FR, RR] ;; -- 增加以更好跟踪关节位置
   (12,12) 10.0     ; FL_hip_joint
   (13,13) 10.0     ; FL_thigh_joint
   (14,14) 5.0     ; FL_calf_joint
@@ -216,7 +216,7 @@ R
 {
   scaling 1e-3
 
-  ;; Feet Contact Forces: [FL, FR, RL, RR] ;;
+  ;; Feet Contact Forces: [FL, FR, RL, RR] ;; 接触力权重
   (0,0)   1.0       ; front_left_force
   (1,1)   1.0       ; front_left_force
   (2,2)   1.0       ; front_left_force
@@ -230,7 +230,7 @@ R
   (10,10) 1.0       ; rear_right_force
   (11,11) 1.0       ; rear_right_force
 
-  ;; foot velocity relative to base: [FL, RL, FR, RR] (uses the Jacobian at nominal configuration) ;;
+  ;; foot velocity relative to base: [FL, RL, FR, RR] (uses the Jacobian at nominal configuration) ;; 足端速度权重，平滑的足端运动
   (12,12) 10000.0    ; x
   (13,13) 10000.0    ; y
   (14,14) 10000.0    ; z
@@ -247,7 +247,7 @@ R
 
 frictionConeSoftConstraint
 {
-  frictionCoefficient    0.3        // 摩擦系数
+  frictionCoefficient    0.6        // 摩擦系数 - 增大以减少足端滑动
 
   ; relaxed log barrier parameters  // 松弛障碍函数配置
   mu                     0.1
@@ -291,19 +291,19 @@ torqueLimitsTask
 
 frictionConeTask
 {
-  frictionCoefficient    0.3
+  frictionCoefficient    0.6  ; 与frictionConeSoftConstraint保持一致
 }
 
 swingLegTask
 {
-    kp                   300
-    kd                   30
+    kp                   300  ; 
+    kd                   30   ; 
 }
 
 weight
 {
-    swingLeg        150
-    baseAccel       5
+    swingLeg        150      ; 增大摆动腿权重以提高轨迹跟踪
+    baseAccel       5        ; 增大基座加速度权重
     contactForce    0.01
 }
 
@@ -314,14 +314,15 @@ kalmanFilter
     is_enabled_logger           false        // 是否开启日志
 
     ; LinearKalmanFilter parameters
-    footRadius                  0.019
-    imuProcessNoisePosition     0.02     
-    imuProcessNoiseVelocity     0.015
-    footProcessNoisePosition    0.0005
+    footRadius                  0.0207       // 足端半径 [m]
 
-    footSensorNoisePosition     0.005
-    footSensorNoiseVelocity     0.005
-    footHeightSensorNoise       0.05
+    imuProcessNoisePosition     0.0225     
+    imuProcessNoiseVelocity     0.0225
+    footProcessNoisePosition    0.0025
+
+    footSensorNoisePosition     0.001
+    footSensorNoiseVelocity     0.0355
+    footHeightSensorNoise       0.001
 
     highSuspectNumber           100   
 }
@@ -333,70 +334,45 @@ ErrorStateKalmanFilter
     is_enabled_logger                 true        // 是否开启日志
 
     ; ==================== 噪声放大阈值 ====================
-    SwingInflate                      1000.0       // 摆动相噪声放大倍数，放大观测矩阵摆动相足端位置部分的噪声
-    SlipThreshold                     0.05        // 足端滑动阈值
-    SlipInflate                       1000.0        // 支撑相足端滑动噪声放大倍数，放大观测矩阵支撑相足端速度部分的噪声
+    SwingInflate                      50.0        // 摆动相噪声放大倍数，放大观测矩阵摆动相足端位置部分的噪声
+    SlipThreshold                     0.15          // 足端滑动阈值 [m/s] - 增大以避免误检
+    SlipInflate                       10.0        // 支撑相足端滑动噪声放大倍数（不要太大，否则滑动时完全忽略观测）
 
     ; ==================== 误差协方差矩阵P初始值sigma ====================
-    ; 影响：控制滤波器初始化时对各状态的信任程度
-    ; 增大 -> 初始不确定性大，滤波器会更快调整状态以适应观测，但可能过度响应噪声
-    ; 减小 -> 初始不确定性小，滤波器更信任初始值，收敛较慢但更稳定
     InitPosSigma                      0.03        // 位置初始sigma [m]
-                                                  // 增大: 位置估计初期波动大，快速收敛但可能overshoot
-                                                  // 减小: 位置估计初期稳定，但若初始值偏差大则收敛慢
-    
     InitVelSigma                      0.03        // 速度初始sigma [m/s]
-                                                  // 增大: 速度估计响应快，但易受噪声影响
-                                                  // 减小: 速度估计稳定，但动态响应变慢
-    
-    InitRotSigma                      0.05       // 姿态初始sigma [rad]
-                                                  // 增大: 姿态估计初期调整幅度大
-                                                  // 减小: 更信任IMU初始姿态，通常IMU姿态较准
-    
-    InitFootPosSigma                  0.02        // 足端位置初始sigma [m]
-                                                  // 增大: 足端位置不确定性大
-                                                  // 减小: 足端估计更稳定
-    
-    InitBiasGyroSigma                 0.05       // 陀螺仪偏置初始sigma [rad/s]
-                                                  // 增大: 偏置估计变化快
-                                                  // 减小: 偏置估计保守稳定
-    
-    InitBiasAccelSigma                0.05        // 加速度计偏置初始sigma [m/s^2]
-                                                  // 增大: 偏置估计变化快
-                                                  // 减小: 偏置估计保守稳定
-
-
+    InitRotSigma                      0.05       // 姿态初始sigma [rad]        
+    InitFootPosSigma                  0.02       // 足端位置初始sigma [m]                                    
+    InitBiasGyroSigma                 0.05       // 陀螺仪偏置初始sigma [rad/s] - 增大让初期快速收敛                             
+    InitBiasAccelSigma                0.05       // 加速度计偏置初始sigma [m/s^2]
+                                           
     ; ==================== 过程噪声Q (对IMU预测的不信任程度) ====================
     ; 核心原理：值越大 -> 不信任IMU积分，更依赖观测校正
     ;          值越小 -> 信任IMU积分，观测校正作用减弱
     
-    ProcessNoiseAcceleration          0.0035        // 加速度过程噪声 [m/s^2]——积分一次变成速度噪声，积分两次变成位置噪声
-                                                  // 增大: 不信任IMU加速度积分，速度/位置估计更依赖足端观测
-                                                  // 减小: 信任IMU加速度积分，减小对观测的依赖
-    
-    ProcessNoiseGyroscope             0.002        // 角速度过程噪声 [rad/s]
-                                                  // 增大: 不信任角速度积分，姿态更依赖观测
-                                                  // 减小: 信任角速度积分，姿态平滑但可能漂移
+    ProcessNoiseAcceleration_X          0.0035       // 加速度过程噪声 [m/s^2] 
+    ProcessNoiseAcceleration_Y          0.0035   
+    ProcessNoiseAcceleration_Z          0.0035 
 
+    ProcessNoiseGyroscope_X             0.002       // 角速度过程噪声 [rad/s] - 降低以信任陀螺积分
+    ProcessNoiseGyroscope_Y             0.002                              
+    ProcessNoiseGyroscope_Z             0.002     // Z轴更小，增强yaw稳定性
 
-    ProcessNoiseFootPosition          0.005      // 足端位置过程噪声 [m]
-                                                  // 增大: 允许足端位置变化大，适合摆动腿
-                                                  // 减小: 假设足端静止，适合接触腿
-    
-    ProcessNoiseBiasAcceleration      0.0005      // 加速度计偏置过程噪声 [m/s^3]
-                                                  // 增大: 偏置估计变化快，可跟踪快速变化的偏置
-                                                  // 减小: 偏置估计稳定，假设偏置变化慢
-    
-    ProcessNoiseBiasGyroscope         0.0005     // 陀螺仪偏置过程噪声 [rad/s^2]
-                                                  // 增大: 偏置估计变化快
-                                                  // 减小: 偏置估计稳定
+    ProcessNoiseFootPosition            0.005      // 足端位置过程噪声 [m]
 
+    ProcessNoiseBiasAcceleration_X      0.0003      // 加速度计偏置过程噪声 [m/s^3]
+    ProcessNoiseBiasAcceleration_Y      0.0003   
+    ProcessNoiseBiasAcceleration_Z      0.0003                                   
+    
+    ProcessNoiseBiasGyroscope_X         0.0001     // 陀螺仪偏置过程噪声 [rad/s^2] 
+    ProcessNoiseBiasGyroscope_Y         0.0001   
+    ProcessNoiseBiasGyroscope_Z         0.0001                     
 
     ; ==================== 观测噪声R (对运动学测量的不信任程度) ====================
     ; 核心原理：值越小 -> 信任运动学观测，观测校正作用强
     ;          值越大 -> 不信任运动学观测，更依赖IMU积分
     
-    MeasurementNoiseFootVelocity      0.02         // 足端速度观测噪声 [m/s] 
+    MeasurementNoiseFootVelocity      0.02          // 足端速度观测噪声 [m/s] - 降低以增强速度观测约束  
                                                   // 增大: 不信任速度观测，速度估计更依赖IMU
                                                   // 减小: 信任速度观测，能有效校正速度漂移
     
@@ -409,7 +385,7 @@ ErrorStateKalmanFilter
                                                   // 减小: 更强的高度约束，防止z方向漂移
                                                   // 增大: 允许更大的高度变化
                                                   
-    MeasurementNoiseEncoder           0.003        // 关节编码器观测噪声 [rad]  ——————影响观测噪声矩阵R
+    MeasurementNoiseEncoder           0.003       // 关节编码器观测噪声 [rad]  ——————影响观测噪声矩阵R
     
     FootRadius                        0.0207       // 足端半径 [m]，用于高度约束
     

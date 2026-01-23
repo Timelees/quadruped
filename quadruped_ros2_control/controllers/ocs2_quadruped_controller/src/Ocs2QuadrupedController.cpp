@@ -61,7 +61,7 @@ namespace ocs2::legged_robot
             conf.names.push_back(imu_name_ + "/" += interface_type);
         }
         // 里程计接口
-        if (estimator_type_ == "ground_truth")
+        if (gazebo_ground_truth)
         {
             for (const auto& interface_type : odom_interface_types_)
             {
@@ -111,9 +111,6 @@ namespace ocs2::legged_robot
 
     controller_interface::CallbackReturn Ocs2QuadrupedController::on_init()
     {
-        // ioInter = new IOROS();
-        // lowCmd = new LowlevelCmd();
-        // lowState = new LowlevelState();
 
         get_node()->get_parameter("update_rate", ctrl_interfaces_.frequency_);
         RCLCPP_INFO(get_node()->get_logger(), "Controller Manager Update Rate: %d Hz", ctrl_interfaces_.frequency_);
@@ -128,22 +125,27 @@ namespace ocs2::legged_robot
         imu_name_ = auto_declare<std::string>("imu_name", imu_name_);
         imu_interface_types_ = auto_declare<std::vector<std::string>>("imu_interfaces", state_interface_types_);
 
-        // Odometer Sensor (Ground Truth)
+        // Odometer Sensor (Ground Truth) - 用于获取Gazebo真实位姿进行对比
         estimator_type_ = auto_declare<std::string>("estimator_type", estimator_type_);
-        if (estimator_type_ == "ground_truth")
+        gazebo_ground_truth = auto_declare<bool>("gazebo_ground_truth", gazebo_ground_truth);
+        if (gazebo_ground_truth)
         {
             odom_name_ = auto_declare<std::string>("odom_name", odom_name_);
-            odom_interface_types_ = auto_declare<std::vector<std::string>>("odom_interfaces", state_interface_types_);
+            odom_interface_types_ = auto_declare<std::vector<std::string>>("odom_interfaces", odom_interface_types_);
+            RCLCPP_INFO(get_node()->get_logger(), "Gazebo Ground Truth enabled, odom_name: %s", odom_name_.c_str());
         }
         // Foot Force Sensor
         foot_force_name_ = auto_declare<std::string>("foot_force_name", foot_force_name_);
         foot_force_interface_types_ = auto_declare<std::vector<std::string>>("foot_force_interfaces", state_interface_types_);
 
+        // 感知设置
+        enable_perceptive_ = auto_declare<bool>("enable_perceptive", enable_perceptive_);
 
         // 创建控制组件
-        ctrl_comp_ = std::make_shared<CtrlComponent>(get_node(), ctrl_interfaces_, lowCmd, lowState, ioInter); // 控制组件
+        ctrl_comp_ = std::make_shared<CtrlComponent>(get_node(), ctrl_interfaces_, enable_perceptive_); // 控制组件
         ctrl_comp_->setupStateEstimate(estimator_type_);    // 配置状态估计器
         
+
         // 初始化状态
         state_list_.passive = std::make_shared<StatePassive>(ctrl_interfaces_);
         state_list_.fixedDown = std::make_shared<StateOCS2>(ctrl_interfaces_, ctrl_comp_);

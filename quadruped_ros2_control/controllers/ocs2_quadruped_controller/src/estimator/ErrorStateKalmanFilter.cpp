@@ -46,6 +46,11 @@ namespace ocs2::legged_robot
 
         // 初始化话题发布
         initPublishers();
+
+        // 初始化 Ground Truth 发布器 (用于与状态估计对比)
+        ground_truth_pub_ = node_->create_publisher<nav_msgs::msg::Odometry>("Ground_Truth", 10);
+
+        ground_truth_enabled_ = true; // 启用 Ground Truth 对比
     }
 
     ErrorStateKalmanFilter::~ErrorStateKalmanFilter()
@@ -66,9 +71,9 @@ namespace ocs2::legged_robot
         constexpr double foot_radius = 0.0207;
         xHat_.p = Eigen::Vector3d(0.0, 0.0, initial_body_height);
         xHat_.v = Eigen::Vector3d::Zero();
-        xHat_.q = Eigen::Quaterniond(rotation_matrix_);
+        xHat_.q = Eigen::Quaterniond::Identity();
 
-        // 足端初始位置：假设在地面上（Z = foot_radius）
+        // 足端初始位置
         xHat_.f[0] = Eigen::Vector3d(0.23, 0.15, foot_radius);
         xHat_.f[1] = Eigen::Vector3d(0.23, -0.15, foot_radius);
         xHat_.f[2] = Eigen::Vector3d(-0.096, 0.15, foot_radius);
@@ -151,8 +156,11 @@ namespace ocs2::legged_robot
 
         // ESKF 输入
         ESKFInput in;
-        in.acc = linear_accel_local_;
-        in.gyro = angular_vel_local_;
+
+        imuCorrect(); // IMU校正
+
+        in.acc = acc_correct;
+        in.gyro = w_correct;
         // 暂时不加扰动
         in.dist_acc = Eigen::Vector3d::Zero();
         in.dist_vel = Eigen::Vector3d::Zero();
@@ -170,10 +178,13 @@ namespace ocs2::legged_robot
         // ESKF更新
         eskfUpdate(y, C, R);
 
+        // 更新 Ground Truth 数据 (在日志记录之前更新，确保数据有效)
+        updateGroundTruth();
+
         // 日志记录（每隔50次记录一次）
         static int log_counter = 0;
         log_counter++;
-        if (is_logger_enabled_ && (log_counter % 50 == 0))
+        if (is_logger_enabled_ && (log_counter % 10 == 0))
         {
             ESKFNominalState x_nominal_after_update = xHat_;   // 观测更新后状态，名义状态+误差状态
             Eigen::Vector3d a_unbias = in.acc - xHat_.ba;      // 滤波后的加速度（body系）
@@ -183,19 +194,12 @@ namespace ocs2::legged_robot
             Eigen::Vector3d state_pos = x_nominal_after_update.p;                // 位置估计值
             Eigen::Vector3d state_vel = x_nominal_after_update.v;                // 速度估计值
             Eigen::Vector3d state_rot_zyx = quatToZyx(x_nominal_after_update.q); // 姿态估计值（ZYX欧拉角）
-            Eigen::Vector3d state_fpos1 = x_nominal_after_update.f[0];           // 足端1位置估计值
-            Eigen::Vector3d state_fpos2 = x_nominal_after_update.f[1];           // 足端2位置估计值
-            Eigen::Vector3d state_fpos3 = x_nominal_after_update.f[2];           // 足端3位置估计值
-            Eigen::Vector3d state_fpos4 = x_nominal_after_update.f[3];           // 足端4位置估计值
+
             Eigen::Vector3d state_ba = x_nominal_after_update.ba;                // 加速度计偏置估计值
             Eigen::Vector3d state_bg = x_nominal_after_update.bg;                // 陀螺仪偏置估计值
             logger_->saveDataToCSV("state_pos.csv", "pos_x, pos_y, pos_z", state_pos);
             logger_->saveDataToCSV("state_vel.csv", "vel_x, vel_y, vel_z", state_vel);
             logger_->saveDataToCSV("state_rot_zyx.csv", "yaw, pitch, roll", state_rot_zyx);
-            logger_->saveDataToCSV("state_fpos1.csv", "fpos1_x, fpos1_y, fpos1_z", state_fpos1);
-            logger_->saveDataToCSV("state_fpos2.csv", "fpos2_x, fpos2_y, fpos2_z", state_fpos2);
-            logger_->saveDataToCSV("state_fpos3.csv", "fpos3_x, fpos3_y, fpos3_z", state_fpos3);
-            logger_->saveDataToCSV("state_fpos4.csv", "fpos4_x, fpos4_y, fpos4_z", state_fpos4);
             logger_->saveDataToCSV("state_ba.csv", "ba_x, ba_y, ba_z", state_ba);
             logger_->saveDataToCSV("state_bg.csv", "bg_x, bg_y, bg_z", state_bg);
 
@@ -217,7 +221,7 @@ namespace ocs2::legged_robot
 
                     // body系下足端总速度（包含角速度引起的附加速度）
                     Eigen::Vector3d omega_cross_r = omega_body_updated.cross(fpos_body);
-                    Eigen::Vector3d fvel_body_total = omega_cross_r + fvel_body;
+                    Eigen::Vector3d fvel_body_total = fvel_body;
 
                     // 世界系下的足端速度
                     Eigen::Vector3d fvel_world = x_nominal_after_update.v + R_wb_updated * fvel_body_total;
@@ -236,12 +240,14 @@ namespace ocs2::legged_robot
             Eigen::Vector3d IMU_gyro_x(in.gyro(0), omega_unbias(0), 0.0);
             Eigen::Vector3d IMU_gyro_y(in.gyro(1), omega_unbias(1), 0.0);
             Eigen::Vector3d IMU_gyro_z(in.gyro(2), omega_unbias(2), 0.0);
+            const vector3_t zyx = quatToZyx(quat_); // 四元数转欧拉角
             logger_->saveDataToCSV("IMU_acc_x.csv", "measured_acc_x, unbias_acc_x, unused", IMU_acc_x);
             logger_->saveDataToCSV("IMU_acc_y.csv", "measured_acc_y, unbias_acc_y, unused", IMU_acc_y);
             logger_->saveDataToCSV("IMU_acc_z.csv", "measured_acc_z, unbias_acc_z, unused", IMU_acc_z);
             logger_->saveDataToCSV("IMU_gyro_x.csv", "measured_gyro_x, unbias_gyro_x, unused", IMU_gyro_x);
             logger_->saveDataToCSV("IMU_gyro_y.csv", "measured_gyro_y, unbias_gyro_y, unused", IMU_gyro_y);
             logger_->saveDataToCSV("IMU_gyro_z.csv", "measured_gyro_z, unbias_gyro_z, unused", IMU_gyro_z);
+            logger_->saveDataToCSV("IMU_euler_angles.csv", "yaw, pitch, roll", zyx);
 
             // 误差协方差矩阵P
             StateCov P_post = P;
@@ -311,24 +317,44 @@ namespace ocs2::legged_robot
             logger_->saveDataToCSV("y_height13_residual.csv", "yh_1, yh_3, unused",
                                    Eigen::Vector3d(foot_height_residual(1), foot_height_residual(3), 0.0));
 
-            // 记录接触状态 (4条腿的接触标志: 1.0=支撑相, 0.0=摆动相)
-            // 由于saveDataToCSV只支持Vector3d，分两次记录
-            Eigen::Vector3d contact_state_0(contact_flag_[0] ? 1.0 : 0.0, 0.0, 0.0);
-            Eigen::Vector3d contact_state_1(contact_flag_[1] ? 1.0 : 0.0, 0.0, 0.0);
-            Eigen::Vector3d contact_state_2(contact_flag_[2] ? 1.0 : 0.0, 0.0, 0.0);
-            Eigen::Vector3d contact_state_3(contact_flag_[3] ? 1.0 : 0.0, 0.0, 0.0);
-            logger_->saveDataToCSV("contact_state_0.csv", "c0, unused, unused", contact_state_0);
-            logger_->saveDataToCSV("contact_state_1.csv", "c1, unused, unused", contact_state_1);
-            logger_->saveDataToCSV("contact_state_2.csv", "c2, unused, unused", contact_state_2);
-            logger_->saveDataToCSV("contact_state_3.csv", "c3, unused, unused", contact_state_3);
+            // ==================== Ground Truth 对比日志 ====================
+            if (ground_truth_enabled_)
+            {
+                // Ground Truth 姿态 (欧拉角 ZYX)
+                Eigen::Vector3d gt_rot_zyx = quatToZyx(gt_orientation_);
+                logger_->saveDataToCSV("gazeboTrue_rot_zyx.csv", "gt_yaw, gt_pitch, gt_roll", gt_rot_zyx);
+                logger_->saveDataToCSV("gazeboTrue_pos.csv", "gt_pos_x, gt_pos_y, gt_pos_z", gt_position_);
+                logger_->saveDataToCSV("gazeboTrue_vel.csv", "gt_vel_x, gt_vel_y, gt_vel_z", gt_linear_velocity_);
+                logger_->saveDataToCSV("gazeboTrue_angvel.csv", "gt_wx, gt_wy, gt_wz", gt_angular_velocity_);
+                // 位置误差 (估计值 - 真值)
+                Eigen::Vector3d pos_error = state_pos - gt_position_;
+                logger_->saveDataToCSV("posEstiTruthError.csv", "err_x, err_y, err_z", pos_error);
+                // 速度误差 (估计值 - 真值)
+                Eigen::Vector3d vel_error = state_vel - gt_linear_velocity_;
+                logger_->saveDataToCSV("velEstiTruthError.csv", "err_vx, err_vy, err_vz", vel_error);
+                // 姿态误差 (估计值 - 真值)
+                Eigen::Vector3d rot_error = state_rot_zyx - gt_rot_zyx;
+                logger_->saveDataToCSV("rotEstiTruthError.csv", "err_yaw, err_pitch, err_roll", rot_error);
+                // 角速度误差 (估计值 - 真值), 注意估计器使用的是去偏后的角速度
+                Eigen::Vector3d angvel_error = omega_unbias - gt_angular_velocity_;
+                logger_->saveDataToCSV("angvelEstiTruthError.csv", "err_wx, err_wy, err_wz", angvel_error);
+            }
         }
 
-        // 更新输出状态
+        // 更新输出状态 (需要将 IMU 点转换到 body 点)
+        Eigen::Matrix3d R_wb_out = xHat_.q.toRotationMatrix();
+        Eigen::Vector3d r_world_out = R_wb_out * imu_to_body_translation_;
+        Eigen::Vector3d omega_body_out = in.gyro - xHat_.bg;
+        Eigen::Vector3d omega_world_out = R_wb_out * omega_body_out;
+        
+        Eigen::Vector3d p_body_out = xHat_.p + r_world_out;  // body位置
+        Eigen::Vector3d v_body_out = xHat_.v + omega_world_out.cross(r_world_out);  // body速度
+        
         vector3_t zyx = quatToZyx(xHat_.q);
         rbd_state_.segment<3>(0) = zyx;
-        rbd_state_.segment<3>(3) = xHat_.p;
-        rbd_state_.segment<3>(18) = in.gyro - xHat_.bg;
-        rbd_state_.segment<3>(21) = xHat_.v;
+        rbd_state_.segment<3>(3) = p_body_out;  // 使用转换后的body位置
+        rbd_state_.segment<3>(18) = omega_body_out;
+        rbd_state_.segment<3>(21) = v_body_out;  // 使用转换后的body速度
         quat_ = xHat_.q;
 
         auto odom = getOdomMsg();
@@ -337,26 +363,38 @@ namespace ocs2::legged_robot
         odom.child_frame_id = "base";
         publishMsgs(odom);
 
+        // Publish ground truth for comparison (data already updated above)
+        publishGroundTruth(time);
+
         return rbd_state_;
+    }
+
+    void ErrorStateKalmanFilter::imuCorrect()
+    {
+        // imu和body之间的杆臂效应消除
+        // 获取当前的角速度
+        Eigen::Vector3d w_body = R_imu_to_body_ * angular_vel_local_;
+        Eigen::Vector3d acc_body = R_imu_to_body_ * linear_accel_local_;
+        // 向心加速度补偿: a_body = a_imu - w x (w x r)
+        acc_correct = acc_body - w_body.cross(w_body.cross(imu_to_body_translation_));
+        w_correct = w_body; // 角速度直接转换，无需补偿
     }
 
     void ErrorStateKalmanFilter::eskfPrediction(double dt, const ESKFInput &u)
     {
         // 设置过程噪声 Q
         setCovarianceQ(Q, dt);
-
         Eigen::Vector3d a_unbias = u.acc - xHat_.ba;      // 去偏置后的加速度（body系）
         Eigen::Vector3d omega_unbias = u.gyro - xHat_.bg; // 去偏置后的陀螺仪角速度（body系）
         Eigen::Matrix3d R = xHat_.q.toRotationMatrix();   // 当前姿态旋转矩阵
         Eigen::Vector3d g(0.0, 0.0, -9.81);               // 重力加速度 (世界系)
         Eigen::Vector3d a_world = R * a_unbias + g;       // 世界系下的加速度
-
         // =================== 名义状态传播 ===================
         xHat_.p = xHat_.p + xHat_.v * dt + 0.5 * a_world * dt * dt; // 位置更新: p_k = p_{k-1} + v * dt
         xHat_.v = xHat_.v + a_world * dt;                           // 速度更新: v_k = v_{k-1} + a * dt
         // 姿态更新: R_k = R_{k-1} * Exp(ω * dt)
         Eigen::Vector3d delta_theta = omega_unbias * dt; // 旋转角度
-        Eigen::Quaterniond dq = ExpSO3Quat(delta_theta);
+        Eigen::Quaterniond dq = Sophus::SO3d::exp(delta_theta).unit_quaternion();
         xHat_.q = xHat_.q * dq;
         xHat_.q.normalize(); // 保持单位四元数
         // 足端位置、偏置保持不变 (由过程噪声建模)
@@ -371,27 +409,25 @@ namespace ocs2::legged_robot
         // 计算离散化的状态转移矩阵 A 和噪声雅可比 B
         // 误差状态布局: [δp, δv, δθ, δf1, δf2, δf3, δf4, δba, δbg]
         A = StateCov::Identity();
-        A.block<3, 3>(ESKFNominalState::POS_IDX, ESKFNominalState::VEL_IDX) = Eigen::Matrix3d::Identity() * dt; // ∂δp_dot/∂δv = I
-        A.block<3, 3>(ESKFNominalState::VEL_IDX, ESKFNominalState::ROT_IDX) = -R * skew(a_unbias) * dt;         // ∂δv_dot/∂δθ = -R * [a_unbias]_x * dt
-        A.block<3, 3>(ESKFNominalState::VEL_IDX, ESKFNominalState::BA_IDX) = -R * dt;                           // ∂δv_dot/∂δba = -R * dt
-        A.block<3, 3>(ESKFNominalState::ROT_IDX, ESKFNominalState::ROT_IDX) = ExpSO3(-delta_theta);             // ∂δθ_dot/∂δθ = I - [ω_unbias]_x * dt ≈ Exp(-ω * dt)
-        A.block<3, 3>(ESKFNominalState::ROT_IDX, ESKFNominalState::BG_IDX) = -Eigen::Matrix3d::Identity() * dt; // ∂δθ_dot/∂δbg = -I * dt
+        A.block<3, 3>(ESKFNominalState::POS_IDX, ESKFNominalState::VEL_IDX) = Eigen::Matrix3d::Identity() * dt;         // ∂δp_dot/∂δv = I
+        A.block<3, 3>(ESKFNominalState::VEL_IDX, ESKFNominalState::ROT_IDX) = -R * Sophus::SO3d::hat(a_unbias) * dt;    // ∂δv_dot/∂δθ = -R * [a_unbias]_x * dt
+        A.block<3, 3>(ESKFNominalState::VEL_IDX, ESKFNominalState::BA_IDX) = -R * dt;                                   // ∂δv_dot/∂δba = -R * dt
+        A.block<3, 3>(ESKFNominalState::ROT_IDX, ESKFNominalState::ROT_IDX) = Sophus::SO3d::exp(-delta_theta).matrix(); // ∂δθ_dot/∂δθ = I - [ω_unbias]_x * dt ≈ Exp(-ω * dt)
+        A.block<3, 3>(ESKFNominalState::ROT_IDX, ESKFNominalState::BG_IDX) = -Eigen::Matrix3d::Identity() * dt;         // ∂δθ_dot/∂δbg = -I * dt
 
         // 噪声雅可比 B     噪声布局: [n_g(3), n_a(3), n_f1(3), n_f2(3), n_f3(3), n_f4(3), n_ba(3), n_bg(3)]
         B.setZero();
-        B.block<3, 3>(ESKFNominalState::ROT_IDX, 0) = -ExpSO3(delta_theta) * dt;         // 陀螺仪噪声 -> 姿态误差
+        // B.block<3, 3>(ESKFNominalState::ROT_IDX, 0) = -Sophus::SO3d::exp(delta_theta).matrix() * dt; // 陀螺仪噪声 -> 姿态误差
+        B.block<3, 3>(ESKFNominalState::ROT_IDX, 0) = -Eigen::Matrix3d::Identity() * dt; // 陀螺仪噪声 -> 姿态误差
         B.block<3, 3>(ESKFNominalState::VEL_IDX, 3) = -R * dt;                           // 加速度噪声 -> 速度误差
         // 足端过程噪声 -> 足端位置误差 (世界系下的随机游走)
-        B.block<3, 3>(ESKFNominalState::F1_IDX, 6) = R * dt;
-        B.block<3, 3>(ESKFNominalState::F2_IDX, 9) = R * dt;
-        B.block<3, 3>(ESKFNominalState::F3_IDX, 12) = R * dt;
-        B.block<3, 3>(ESKFNominalState::F4_IDX, 15) = R * dt;
+        B.block<3, 3>(ESKFNominalState::F1_IDX, 6) = -Eigen::Matrix3d::Identity() * dt;
+        B.block<3, 3>(ESKFNominalState::F2_IDX, 9) = -Eigen::Matrix3d::Identity() * dt;
+        B.block<3, 3>(ESKFNominalState::F3_IDX, 12) = -Eigen::Matrix3d::Identity() * dt;
+        B.block<3, 3>(ESKFNominalState::F4_IDX, 15) = -Eigen::Matrix3d::Identity() * dt;
         // 偏置随机游走噪声
         B.block<3, 3>(ESKFNominalState::BA_IDX, 18) = Eigen::Matrix3d::Identity() * dt;
         B.block<3, 3>(ESKFNominalState::BG_IDX, 21) = Eigen::Matrix3d::Identity() * dt;
-
-        // 先验误差状态更新
-        // dx = A * dx; // 噪声omega_k通过协方差传播
 
         // 协方差传播: P_k = A * P_{k-1} * A^T + B * Q * B^T
         P = A * P * A.transpose() + B * Q * B.transpose();
@@ -417,7 +453,7 @@ namespace ocs2::legged_robot
         StateCov I_KH = StateCov::Identity() - K * C;
         P = I_KH * P * I_KH.transpose() + K * R * K.transpose(); // 非最优卡尔曼增益下会引入观测噪声项
 
-        // 5. 误差状态重置 (姿态部分)  这里是否有影响？？？？？？？
+        // 5. 误差状态重置 (姿态部分)
         resetErrorState(dx);
 
         // 确保对称性
@@ -431,20 +467,26 @@ namespace ocs2::legged_robot
         {
             return;
         }
-
         // 过程噪声协方差 (连续时间噪声 × dt)
         // [ n_g(3), n_a(3), n_f1(3), n_f2(3), n_f3(3), n_f4(3), n_ba(3), n_bg(3) ]
         // =================== 1. 角速度噪声（影响姿态积分）===================
-        double gyro_variance = (proc_noise_gyro_ * proc_noise_gyro_);
-        Eigen::Matrix3d gyro_Q = gyro_variance * Eigen::Matrix3d::Identity();
-        // 降低 yaw(z轴) 方向的过程噪声，因为 yaw 不可观，需要更信任陀螺仪
-        gyro_Q(2, 2) *= 0.01;  // yaw 过程噪声降为 1/100
+        Eigen::Matrix3d gyro_variance;
+        gyro_variance.setZero();
+        gyro_variance(0, 0) = proc_noise_gyro_x_ * proc_noise_gyro_x_;
+        gyro_variance(1, 1) = proc_noise_gyro_y_ * proc_noise_gyro_y_;
+        gyro_variance(2, 2) = proc_noise_gyro_z_ * proc_noise_gyro_z_;
+        Eigen::Matrix3d gyro_Q = gyro_variance;
         Q.block<3, 3>(0, 0) = gyro_Q;
         // =================== 2. 加速度噪声（影响速度积分）===================
-        double acc_variance = (proc_noise_acc_ * proc_noise_acc_) ;
-        Q.block<3, 3>(3, 3) = acc_variance * Eigen::Matrix3d::Identity();
+        Eigen::Matrix3d acc_variance;
+        acc_variance.setZero();
+        acc_variance(0, 0) = proc_noise_acc_x_ * proc_noise_acc_x_;
+        acc_variance(1, 1) = proc_noise_acc_y_ * proc_noise_acc_y_;
+        acc_variance(2, 2) = proc_noise_acc_z_ * proc_noise_acc_z_;
+        Eigen::Matrix3d acc_Q = acc_variance;
+        Q.block<3, 3>(3, 3) = acc_Q;
         // =================== 3. 足端过程噪声（基于接触置信度）===================
-        double high_suspect_number = 100.0;
+
         for (int i = 0; i < 4; ++i)
         {
             double estimated_contact = 0.0;
@@ -457,22 +499,26 @@ namespace ocs2::legged_robot
             // double base_variance = dt * proc_noise_fpos_ * proc_noise_fpos_;
             double base_variance = (proc_noise_fpos_ * proc_noise_fpos_);
             // 根据接触置信度放大噪声
-            // contact=1 时: variance = base_variance
-            // contact=0 时: variance = (1 + 1000) * base_variance = 1001 * base_variance
             double foot_variance = (1.0 + (1.0 - estimated_contact) * high_suspect_number) * base_variance;
 
             // 对每条腿的 xyz 三个轴都设置相同的过程噪声
             Q.block<3, 3>(6 + 3 * i, 6 + 3 * i) = foot_variance * Eigen::Matrix3d::Identity();
         }
         // =================== 4. 偏置过程噪声（随时间漂移）===================
-        // 偏置变化较慢，噪声较小，与 dt 成正比
-        double ba_variance = (proc_noise_ba_ * proc_noise_ba_) ;
-        double bg_variance = (proc_noise_bg_ * proc_noise_bg_) ;
-        Q.block<3, 3>(18, 18) = ba_variance * Eigen::Matrix3d::Identity();
-        Eigen::Matrix3d bg_Q = bg_variance * Eigen::Matrix3d::Identity();
-        // 降低 bg_z 的过程噪声，因为它难以被观测到（弱可观），需要假设它变化更慢
-        bg_Q(2, 2) *= 0.01;  // bg_z 过程噪声降为 1/10
-        Q.block<3, 3>(21, 21) = bg_Q;
+        Eigen::Matrix3d ba_variance;
+        ba_variance.setZero();
+        ba_variance(0, 0) = proc_noise_ba_x_ * proc_noise_ba_x_;
+        ba_variance(1, 1) = proc_noise_ba_y_ * proc_noise_ba_y_;
+        ba_variance(2, 2) = proc_noise_ba_z_ * proc_noise_ba_z_;
+
+        Eigen::Matrix3d bg_variance;
+        bg_variance.setZero();
+        bg_variance(0, 0) = proc_noise_bg_x_ * proc_noise_bg_x_;
+        bg_variance(1, 1) = proc_noise_bg_y_ * proc_noise_bg_y_;
+        bg_variance(2, 2) = proc_noise_bg_z_ * proc_noise_bg_z_;
+
+        Q.block<3, 3>(18, 18) = ba_variance; // 偏置加速度噪声
+        Q.block<3, 3>(21, 21) = bg_variance; // 偏置陀螺仪噪声
     }
 
     void ErrorStateKalmanFilter::measurementModelKinematics(const ESKFNominalState &x, const ESKFInput &in, MeasVec &y, MeasJacobian &C, MeasCov &R)
@@ -519,24 +565,18 @@ namespace ocs2::legged_robot
         {
             const bool isContact = contact_flag_[i];
             const int foot_state_idx = ESKFNominalState::F1_IDX + 3 * i;
-
             // ==================== 1. 足端位置观测 (body系) ====================
-            // 测量: z_pos = f_body_meas (来自运动学)
-            // 预测: h_pos(x) = R^T * (f_world - p)
-            // 残差: y_pos = z_pos - h_pos(x)
             Eigen::Vector3d fpos_body_meas = foot_pos_[i];
             Eigen::Vector3d fpos_world_est = x.f[i];
             Eigen::Vector3d fpos_body_pred = R_wb.transpose() * (fpos_world_est - p_k);
-            // 足端位置是否使用足端半径补偿？？？？？？
             Eigen::Vector3d y_pos = fpos_body_meas - fpos_body_pred;
             y.segment<3>(ESKFNominalState::MEAS_FPOS_IDX + 3 * i) = y_pos;
-
             // 足端位置雅可比
             // ∂h_pos/∂p = -R^T
             // ∂h_pos/∂θ = [R^T * (f_world - p)]_× = [f_body_pred]_×
             // ∂h_pos/∂f = R^T
             Eigen::Matrix3d dh_pos_dp = -R_wb.transpose();
-            Eigen::Matrix3d dh_pos_dtheta = lie_group::skew(fpos_body_pred);
+            Eigen::Matrix3d dh_pos_dtheta = Sophus::SO3d::hat(fpos_body_pred);
             Eigen::Matrix3d dh_pos_df = R_wb.transpose();
 
             C.block<3, 3>(ESKFNominalState::MEAS_FPOS_IDX + 3 * i, ESKFNominalState::POS_IDX) = dh_pos_dp;
@@ -559,32 +599,26 @@ namespace ocs2::legged_robot
             }
 
             // ==================== 2. 足端速度观测 (世界系) ====================
-            // TODO: fvel_body这个地方的速度是使用运动学算的速度还是估计的足端位置求导来做？
-            // 完整的足端世界系速度: fvel_world = v_body + R * (ω_body × f_body + fvel_body)
-            // 其中:
-            // - v_body: 机体在世界系下的速度
-            // - ω_body: 机体角速度 (body系, 已去偏)
-            // - f_body: 足端在body系下的位置 (foot_pos_[i])
-            // - fvel_body: 足端在body系下的速度 (foot_vel_[i], 来自关节运动学)
-            // 支撑相约束: 足端在世界系下应该静止 (fvel_world = 0)
-            // 残差: y_vel = z(=0) - h(x)
+            // 观测模型: 支撑足世界系速度 = 0
+            // 预测: v_foot_world = v_body + R * (v_foot_body + omega × r_foot)
+            // 其中 omega = gyro - bg
             Eigen::Matrix3d R_vel_i = R_fvel;
             fpos_body_meas = foot_pos_[i];
-            const Eigen::Vector3d fvel_body_meas = foot_vel_[i];
-            const Eigen::Vector3d omega_body = in.gyro - x.bg;                                         // body
-            const Eigen::Vector3d fvel_body_total = omega_body.cross(fpos_body_meas) + fvel_body_meas; // body
-            const Eigen::Vector3d fvel_world_pred = v_k + R_wb * fvel_body_total;                      // world
+            const Eigen::Vector3d fvel_body_meas = foot_vel_[i];                    // 运动学速度（关节速度产生）
+            const Eigen::Vector3d omega_body = in.gyro - x.bg;                      // body角速度
+            const Eigen::Vector3d omega_cross_r = omega_body.cross(fpos_body_meas); // 角速度产生的线速度 (rotational component)
+            const Eigen::Vector3d fvel_body_total = fvel_body_meas + omega_cross_r;                 // 仅使用运动学产生的足端速度
+            const Eigen::Vector3d fvel_world_pred = v_k + R_wb * fvel_body_total;   // world系预测速度 (不包含 omega x r)
+
 
             if (isContact)
             {
+                // y = z - h = 0 - fvel_world_pred = -fvel_world_pred
                 y.segment<3>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i) = -fvel_world_pred;
-
-                C.block<3, 3>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i, ESKFNominalState::VEL_IDX) =
-                    Eigen::Matrix3d::Identity();
-                C.block<3, 3>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i, ESKFNominalState::ROT_IDX) =
-                    -R_wb * lie_group::skew(fvel_body_total);
-                C.block<3, 3>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i, ESKFNominalState::BG_IDX) =
-                    R_wb * lie_group::skew(fpos_body_meas);
+                // ∂y/∂v = -∂fvel_world/∂v = -I  (但y=-fvel所以取正)
+                C.block<3, 3>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i, ESKFNominalState::VEL_IDX) = Eigen::Matrix3d::Identity();
+                // ∂y/∂θ = -∂(R*fvel_kin)/∂θ = -R*[fvel_kin]× (右扰动)
+                C.block<3, 3>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i, ESKFNominalState::ROT_IDX) = -R_wb * Sophus::SO3d::hat(fvel_body_total);
             }
             else
             {
@@ -595,12 +629,11 @@ namespace ocs2::legged_robot
             }
 
             // ==================== 3. 足端高度观测 (世界系) ====================
-            // 这里采用最直接的贴地约束：支撑相 f_world_z ~= foot_radius_
             double R_height_i = R_fheight;
             if (isContact)
             {
                 const double fheight_pred = x.f[i].z();
-                y(ESKFNominalState::MEAS_FHEIGHT_IDX + i) = (foot_radius_ - fheight_pred);
+                y(ESKFNominalState::MEAS_FHEIGHT_IDX + i) = ( - fheight_pred);
                 // y = z - h, dy/dfz = -1
                 C(ESKFNominalState::MEAS_FHEIGHT_IDX + i, foot_state_idx + 2) = 1.0;
             }
@@ -610,14 +643,12 @@ namespace ocs2::legged_robot
                 C.row(ESKFNominalState::MEAS_FHEIGHT_IDX + i).setZero();
                 R_height_i *= swing_inflate_;
             }
-            // ==================== 4. 根据接触相位置信度调整噪声 ====================
 
+            // ==================== 4. 根据接触相位和滑动状态调整噪声 ====================
             if (!isContact)
             {
                 // 摆动相: 大幅增加噪声，降低观测信任度
                 R_pos_i *= swing_inflate_;
-                R_vel_i *= swing_inflate_;
-                R_height_i *= swing_inflate_;
             }
 
             // ==================== 5. 观测矩阵更新 ====================
@@ -642,7 +673,7 @@ namespace ocs2::legged_robot
 
         // 姿态 (使用李群更新: q ← q ⊗ Exp(δθ))
         Eigen::Vector3d delta_theta = dx.segment<3>(ESKFNominalState::ROT_IDX);
-        Eigen::Quaterniond dq = ExpSO3Quat(delta_theta);
+        Eigen::Quaterniond dq = Sophus::SO3d::exp(delta_theta).unit_quaternion();
         xHat_.q = xHat_.q * dq;
         xHat_.q.normalize();
 
@@ -661,9 +692,9 @@ namespace ocs2::legged_robot
     {
         Eigen::Vector3d delta_theta = dx.segment<3>(ESKFNominalState::ROT_IDX);
 
-        // 构造重置雅可比 (只有姿态部分需要修正)
+        // 构造重置雅可比 (只有姿态部分需要修正)，《Quaternion kinematics for the error-state Kalman filter》公式317，姿态在局部坐标系
         StateCov G_reset = StateCov::Identity();
-        G_reset.block<3, 3>(ESKFNominalState::ROT_IDX, ESKFNominalState::ROT_IDX) = Eigen::Matrix3d::Identity() - 0.5 * skew(delta_theta);
+        G_reset.block<3, 3>(ESKFNominalState::ROT_IDX, ESKFNominalState::ROT_IDX) = Eigen::Matrix3d::Identity() - 0.5 * Sophus::SO3d::hat(delta_theta);
 
         // 更新协方差
         P = G_reset * P * G_reset.transpose();
@@ -676,9 +707,24 @@ namespace ocs2::legged_robot
         odom.pose.covariance.fill(0.0);
         odom.twist.covariance.fill(0.0);
 
-        odom.pose.pose.position.x = xHat_.p.x();
-        odom.pose.pose.position.y = xHat_.p.y();
-        odom.pose.pose.position.z = xHat_.p.z();
+        // ==================== IMU点 -> Body点 坐标转换 ====================
+        // xHat_.p/v 是 IMU 点在世界系下的位置/速度
+        // 需要转换到 body (base_link) 点
+        // p_body = p_imu + R_world_body * t_imu_to_body
+        // v_body = v_imu + omega_world × (R_world_body * t_imu_to_body)
+        Eigen::Matrix3d R_wb = xHat_.q.toRotationMatrix();
+        Eigen::Vector3d r_world = R_wb * imu_to_body_translation_;  // 杆臂在世界系下的表示
+        
+        Eigen::Vector3d p_body = xHat_.p + r_world;  // body在世界系下的位置
+        
+        // 角速度 (body系，去偏后)
+        Eigen::Vector3d omega_body = angular_vel_local_ - xHat_.bg;
+        Eigen::Vector3d omega_world = R_wb * omega_body;
+        Eigen::Vector3d v_body = xHat_.v + omega_world.cross(r_world);  // body在世界系下的速度
+
+        odom.pose.pose.position.x = p_body.x();
+        odom.pose.pose.position.y = p_body.y();
+        odom.pose.pose.position.z = p_body.z();
 
         odom.pose.pose.orientation.x = quat_.x();
         odom.pose.pose.orientation.y = quat_.y();
@@ -694,13 +740,13 @@ namespace ocs2::legged_robot
             }
         }
 
-        odom.twist.twist.linear.x = xHat_.v.x();
-        odom.twist.twist.linear.y = xHat_.v.y();
-        odom.twist.twist.linear.z = xHat_.v.z();
+        odom.twist.twist.linear.x = v_body.x();
+        odom.twist.twist.linear.y = v_body.y();
+        odom.twist.twist.linear.z = v_body.z();
 
-        odom.twist.twist.angular.x = angular_vel_local_.x() - xHat_.bg.x();
-        odom.twist.twist.angular.y = angular_vel_local_.y() - xHat_.bg.y();
-        odom.twist.twist.angular.z = angular_vel_local_.z() - xHat_.bg.z();
+        odom.twist.twist.angular.x = omega_body.x();
+        odom.twist.twist.angular.y = omega_body.y();
+        odom.twist.twist.angular.z = omega_body.z();
 
         for (int i = 0; i < 3; ++i)
         {
@@ -736,11 +782,19 @@ namespace ocs2::legged_robot
         loadData::loadPtreeValue(pt, init_bg_sigma_, prefix + "InitBiasGyroSigma", verbose);
         loadData::loadPtreeValue(pt, init_ba_sigma_, prefix + "InitBiasAccelSigma", verbose);
 
-        loadData::loadPtreeValue(pt, proc_noise_acc_, prefix + "ProcessNoiseAcceleration", verbose);
-        loadData::loadPtreeValue(pt, proc_noise_gyro_, prefix + "ProcessNoiseGyroscope", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_acc_x_, prefix + "ProcessNoiseAcceleration_X", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_acc_y_, prefix + "ProcessNoiseAcceleration_Y", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_acc_z_, prefix + "ProcessNoiseAcceleration_Z", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_gyro_x_, prefix + "ProcessNoiseGyroscope_X", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_gyro_y_, prefix + "ProcessNoiseGyroscope_Y", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_gyro_z_, prefix + "ProcessNoiseGyroscope_Z", verbose);
         loadData::loadPtreeValue(pt, proc_noise_fpos_, prefix + "ProcessNoiseFootPosition", verbose);
-        loadData::loadPtreeValue(pt, proc_noise_ba_, prefix + "ProcessNoiseBiasAcceleration", verbose);
-        loadData::loadPtreeValue(pt, proc_noise_bg_, prefix + "ProcessNoiseBiasGyroscope", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_ba_x_, prefix + "ProcessNoiseBiasAcceleration_X", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_ba_y_, prefix + "ProcessNoiseBiasAcceleration_Y", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_ba_z_, prefix + "ProcessNoiseBiasAcceleration_Z", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_bg_x_, prefix + "ProcessNoiseBiasGyroscope_X", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_bg_y_, prefix + "ProcessNoiseBiasGyroscope_Y", verbose);
+        loadData::loadPtreeValue(pt, proc_noise_bg_z_, prefix + "ProcessNoiseBiasGyroscope_Z", verbose);
 
         loadData::loadPtreeValue(pt, meas_noise_fvel_, prefix + "MeasurementNoiseFootVelocity", verbose);
         loadData::loadPtreeValue(pt, meas_noise_fpos_, prefix + "MeasurementNoiseFootPosition", verbose);
@@ -749,5 +803,70 @@ namespace ocs2::legged_robot
         loadData::loadPtreeValue(pt, meas_noise_bg_, prefix + "MeasurementNoiseBiasGyroscope", verbose);
         loadData::loadPtreeValue(pt, meas_noise_encoder_, prefix + "MeasurementNoiseEncoder", verbose);
         loadData::loadPtreeValue(pt, foot_radius_, prefix + "FootRadius", verbose);
+    }
+
+    void ErrorStateKalmanFilter::updateGroundTruth()
+    {
+        const size_t num_interfaces = ctrl_component_.odom_state_interface_.size();
+
+        // Position (indices 0-2)
+        gt_position_(0) = ctrl_component_.odom_state_interface_[0].get().get_value();
+        gt_position_(1) = ctrl_component_.odom_state_interface_[1].get().get_value();
+        gt_position_(2) = ctrl_component_.odom_state_interface_[2].get().get_value();
+
+        // Linear velocity (indices 3-5)
+        gt_linear_velocity_(0) = ctrl_component_.odom_state_interface_[3].get().get_value();
+        gt_linear_velocity_(1) = ctrl_component_.odom_state_interface_[4].get().get_value();
+        gt_linear_velocity_(2) = ctrl_component_.odom_state_interface_[5].get().get_value();
+
+        // Orientation quaternion (indices 6-9)
+        if (num_interfaces > 9)
+        {
+            gt_orientation_.x() = ctrl_component_.odom_state_interface_[6].get().get_value();
+            gt_orientation_.y() = ctrl_component_.odom_state_interface_[7].get().get_value();
+            gt_orientation_.z() = ctrl_component_.odom_state_interface_[8].get().get_value();
+            gt_orientation_.w() = ctrl_component_.odom_state_interface_[9].get().get_value();
+            gt_orientation_.normalize();
+        }
+
+        // Angular velocity (indices 10-12)
+        if (num_interfaces > 12)
+        {
+            gt_angular_velocity_(0) = ctrl_component_.odom_state_interface_[10].get().get_value();
+            gt_angular_velocity_(1) = ctrl_component_.odom_state_interface_[11].get().get_value();
+            gt_angular_velocity_(2) = ctrl_component_.odom_state_interface_[12].get().get_value();
+        }
+    }
+
+    void ErrorStateKalmanFilter::publishGroundTruth(const rclcpp::Time &time)
+    {
+
+        nav_msgs::msg::Odometry gt_msg;
+        gt_msg.header.stamp = time;
+        gt_msg.header.frame_id = "odom";
+        gt_msg.child_frame_id = "base";
+
+        // Position (from Gazebo WorldPose)
+        gt_msg.pose.pose.position.x = gt_position_(0);
+        gt_msg.pose.pose.position.y = gt_position_(1);
+        gt_msg.pose.pose.position.z = gt_position_(2);
+
+        // Orientation (from Gazebo WorldPose)
+        gt_msg.pose.pose.orientation.x = gt_orientation_.x();
+        gt_msg.pose.pose.orientation.y = gt_orientation_.y();
+        gt_msg.pose.pose.orientation.z = gt_orientation_.z();
+        gt_msg.pose.pose.orientation.w = gt_orientation_.w();
+
+        // Linear velocity (from Gazebo WorldLinearVelocity)
+        gt_msg.twist.twist.linear.x = gt_linear_velocity_(0);
+        gt_msg.twist.twist.linear.y = gt_linear_velocity_(1);
+        gt_msg.twist.twist.linear.z = gt_linear_velocity_(2);
+
+        // Angular velocity (from Gazebo AngularVelocity)
+        gt_msg.twist.twist.angular.x = gt_angular_velocity_(0);
+        gt_msg.twist.twist.angular.y = gt_angular_velocity_(1);
+        gt_msg.twist.twist.angular.z = gt_angular_velocity_(2);
+
+        ground_truth_pub_->publish(gt_msg);
     }
 }

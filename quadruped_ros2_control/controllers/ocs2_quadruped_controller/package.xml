@@ -36,6 +36,9 @@
   
   <depend>logs</depend>
 
+  <!-- Sophus 李群李代数库（ROS 包名：Sophus） -->
+  <depend>Sophus</depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
