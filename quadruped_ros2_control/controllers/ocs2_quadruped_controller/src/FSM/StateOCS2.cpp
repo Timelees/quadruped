@@ -4,6 +4,7 @@
 
 #include "ocs2_quadruped_controller/FSM/StateOCS2.h"
 
+#include <algorithm>
 #include <angles/angles.h>
 #include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 #include <ocs2_core/misc/LoadData.h>
@@ -18,21 +19,38 @@ namespace ocs2::legged_robot
           ctrl_component_(ctrl_component),
           node_(ctrl_component->node_)
     {
-        // 获取自gazebo.yaml的ros_parameters
-        if (!node_->has_parameter("default_kp"))
+        // 获取自gazebo.yaml/cyber_controllers.yaml的ros_parameters
+        if (!node_->has_parameter("default_hip_kp"))
         {
-            node_->declare_parameter("default_kp", default_kp_);
+            node_->declare_parameter("default_hip_kp", default_hip_kp);
         }
-        if (!node_->has_parameter("default_kd"))
+        if (!node_->has_parameter("default_hip_kd"))
         {
-            node_->declare_parameter("default_kd", default_kd_);
+            node_->declare_parameter("default_hip_kd", default_hip_kd);
         }
-        default_kp_ = node_->get_parameter("default_kp").as_double();
-        default_kd_ = node_->get_parameter("default_kd").as_double();
+        if (!node_->has_parameter("default_thigh_kp"))
+        {
+            node_->declare_parameter("default_thigh_kp", default_thigh_kp);
+        }
+        if (!node_->has_parameter("default_thigh_kd"))
+        {
+            node_->declare_parameter("default_thigh_kd", default_thigh_kd);
+        }
+        if (!node_->has_parameter("default_calf_kp"))
+        {
+            node_->declare_parameter("default_calf_kp", default_calf_kp);
+        }
+        if (!node_->has_parameter("default_calf_kd"))
+        {
+            node_->declare_parameter("default_calf_kd", default_calf_kd);
+        }
+        default_hip_kp = node_->get_parameter("default_hip_kp").as_double();
+        default_hip_kd = node_->get_parameter("default_hip_kd").as_double();
+        default_thigh_kp = node_->get_parameter("default_thigh_kp").as_double();
+        default_thigh_kd = node_->get_parameter("default_thigh_kd").as_double();
+        default_calf_kp = node_->get_parameter("default_calf_kp").as_double();
+        default_calf_kd = node_->get_parameter("default_calf_kd").as_double();
 
-       
-
-        
         // selfCollisionVisualization_.reset(new LeggedSelfCollisionVisualization(leggedInterface_->getPinocchioInterface(),
         //                                                                        leggedInterface_->getGeometryInterface(), pinocchioMapping, nh));
 
@@ -44,6 +62,46 @@ namespace ocs2::legged_robot
 
         // Safety Checker
         safety_checker_ = std::make_shared<SafetyChecker>(ctrl_component_->legged_interface_->getCentroidalModelInfo());
+
+        // 构建 WBC 索引 → ctrl_interfaces 索引的映射表
+        // WBC/模型固定顺序: FL_hip, FL_thigh, FL_calf, FR_hip, FR_thigh, FR_calf, RL_hip, RL_thigh, RL_calf, RR_hip, RR_thigh, RR_calf
+        const std::vector<std::string> wbc_joint_order = {
+            "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
+            "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
+            "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
+            "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint"
+        };
+        
+        // ctrl_interfaces 的顺序来自 ctrl_component_->joint_names_（即 YAML 的 joints 参数）
+        const auto& interface_joint_order = ctrl_component_->getJointNames();
+
+        for (int wbc_idx = 0; wbc_idx < 12; ++wbc_idx)
+        {
+            const auto& wbc_joint_name = wbc_joint_order[wbc_idx];
+            auto it = std::find(interface_joint_order.begin(), interface_joint_order.end(), wbc_joint_name);
+            if (it != interface_joint_order.end())
+            {
+                wbc_to_interface_map_[wbc_idx] = static_cast<int>(std::distance(interface_joint_order.begin(), it));
+            }
+            else
+            {
+                // 如果找不到对应关节，打印警告并使用恒等映射
+                RCLCPP_WARN(node_->get_logger(), 
+                           "[StateOCS2] WBC joint '%s' not found in interface joint list, using identity mapping",
+                           wbc_joint_name.c_str());
+                wbc_to_interface_map_[wbc_idx] = wbc_idx;
+            }
+        }
+        
+        // 打印映射表用于调试
+        RCLCPP_INFO(node_->get_logger(), "[StateOCS2] WBC -> Interface joint mapping:");
+        for (int i = 0; i < 12; ++i)
+        {
+            RCLCPP_INFO(node_->get_logger(), "  WBC[%d] %s -> Interface[%d] %s",
+                       i, wbc_joint_order[i].c_str(),
+                       wbc_to_interface_map_[i], 
+                       interface_joint_order[wbc_to_interface_map_[i]].c_str());
+        }
 
         // // 初始化发布者
         // desired_base_pub_ = node_->create_publisher<control_input_msgs::msg::SimBase>(
@@ -90,17 +148,38 @@ namespace ocs2::legged_robot
                                                                 ctrl_component_->legged_interface_->
                                                                 getCentroidalModelInfo());
                                                      
+        
 
-        for (int i = 0; i < 12; i++)
+        // FL  FR  RL  RR - WBC输出的固定顺序
+        // 使用 wbc_to_interface_map_ 将 WBC 索引映射到正确的 ctrl_interfaces 索引
+        for (int wbc_idx = 0; wbc_idx < 12; wbc_idx++)
         {
-            ctrl_interfaces_.joint_torque_command_interface_[i].get().set_value(torque(i));
-            ctrl_interfaces_.joint_position_command_interface_[i].get().set_value(pos_des(i));
-            ctrl_interfaces_.joint_velocity_command_interface_[i].get().set_value(vel_des(i));
-           
-            ctrl_interfaces_.joint_kp_command_interface_[i].get().set_value(default_kp_);
-            ctrl_interfaces_.joint_kd_command_interface_[i].get().set_value(default_kd_);
-        }
+            int interface_idx = wbc_to_interface_map_[wbc_idx];
+            
+            ctrl_interfaces_.joint_torque_command_interface_[interface_idx].get().set_value(torque(wbc_idx));
+            ctrl_interfaces_.joint_position_command_interface_[interface_idx].get().set_value(pos_des(wbc_idx));
+            ctrl_interfaces_.joint_velocity_command_interface_[interface_idx].get().set_value(vel_des(wbc_idx));
+            
+            // 针对不同关节设置控制参数（基于 WBC 索引，因为 kp/kd 是按关节类型设置的）
+            if(wbc_idx % 3 == 0){
+                ctrl_interfaces_.joint_kd_command_interface_[interface_idx].get().set_value(default_hip_kd);
+                ctrl_interfaces_.joint_kp_command_interface_[interface_idx].get().set_value(default_hip_kp);
+            }
+            else if(wbc_idx % 3 == 1)
+            {
+                ctrl_interfaces_.joint_kp_command_interface_[interface_idx].get().set_value(default_thigh_kp);
+                ctrl_interfaces_.joint_kd_command_interface_[interface_idx].get().set_value(default_thigh_kd);
+            }
+            else
+            {
+                ctrl_interfaces_.joint_kp_command_interface_[interface_idx].get().set_value(default_calf_kp);
+                ctrl_interfaces_.joint_kd_command_interface_[interface_idx].get().set_value(default_calf_kd);
+            }
 
+            // std::cout << "WBC[" << wbc_idx << "]->Interface[" << interface_idx << "] - Torque: " << torque(wbc_idx) << ", Position: " << pos_des(wbc_idx) << ", Velocity: " << vel_des(wbc_idx) << ", kp: " << ctrl_interfaces_.joint_kp_command_interface_[interface_idx].get().get_value() << ", kd: " << ctrl_interfaces_.joint_kd_command_interface_[interface_idx].get().get_value() << std::endl;
+        }
+        
+    
 
         // Visualization
         ctrl_component_->visualizer_->update(ctrl_component_->mpc_mrt_interface_->getPolicy(),
@@ -108,45 +187,6 @@ namespace ocs2::legged_robot
         
     }
 
-    // void StateOCS2::command2lowCmd(CtrlInterfaces& ctrl_interfaces_, const std::shared_ptr<CtrlComponent>& ctrl_component_){
-    //     vector3_t kp, kd, q_des, qd_des, torque;
-    //     matrix3_t normal_scale;
-    //     normal_scale = vector3_t(1, -1, -1).asDiagonal();
-
-    //     for(int i = 0; i < 12; i = i+3){
-    //         int leg = i / 3;    // 腿的顺序FL FR RL RR
-    //         // 力矩
-    //         torque[0] = ctrl_interfaces_.joint_torque_command_interface_[i].get().get_value();
-    //         torque[1] = ctrl_interfaces_.joint_torque_command_interface_[i+1].get().get_value();
-    //         torque[2] = ctrl_interfaces_.joint_torque_command_interface_[i+2].get().get_value();
-           
-    //         ctrl_component_->lowCmd->setTau(leg, torque);
-    //         // 关节位置
-    //         q_des[0] = ctrl_interfaces_.joint_position_command_interface_[i].get().get_value();
-    //         q_des[1] = ctrl_interfaces_.joint_position_command_interface_[i+1].get().get_value();
-    //         q_des[2] = ctrl_interfaces_.joint_position_command_interface_[i+2].get().get_value();
-           
-    //         ctrl_component_->lowCmd->setQ(leg, q_des);
-    //         // 关节速度
-    //         qd_des[0] = ctrl_interfaces_.joint_velocity_command_interface_[i].get().get_value();
-    //         qd_des[1] = ctrl_interfaces_.joint_velocity_command_interface_[i+1].get().get_value();
-    //         qd_des[2] = ctrl_interfaces_.joint_velocity_command_interface_[i+2].get().get_value();
-           
-    //         ctrl_component_->lowCmd->setQd(leg, qd_des);
-    //         // kp
-    //         kp[0] = ctrl_interfaces_.joint_kp_command_interface_[i].get().get_value();
-    //         kp[1] = ctrl_interfaces_.joint_kp_command_interface_[i+1].get().get_value();
-    //         kp[2] = ctrl_interfaces_.joint_kp_command_interface_[i+2].get().get_value();
-           
-    //         ctrl_component_->lowCmd->setKp(leg, kp);
-    //         // kd
-    //         kd[0] = ctrl_interfaces_.joint_kd_command_interface_[i].get().get_value();
-    //         kd[1] = ctrl_interfaces_.joint_kd_command_interface_[i+1].get().get_value();
-    //         kd[2] = ctrl_interfaces_.joint_kd_command_interface_[i+2].get().get_value();
-           
-    //         ctrl_component_->lowCmd->setKd(leg, kd);
-    //     }
-    // }
 
     void StateOCS2::exit()
     {

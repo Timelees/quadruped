@@ -139,9 +139,11 @@ namespace cyber_quadruped_hardware
         struct JointData
         {
             std::string name;
+            // state interface
             double position = 0.0;
             double velocity = 0.0;
             double effort = 0.0;
+            // command interface
             double position_cmd = 0.0;
             double velocity_cmd = 0.0;
             double effort_cmd = 0.0;

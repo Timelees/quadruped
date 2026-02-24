@@ -4,6 +4,44 @@ namespace fs = std::filesystem;
 
 namespace quadruped::logs {
 
+namespace {
+
+inline bool shouldWriteHeader(const fs::path& filePath, const std::string& header) {
+    if (header.empty()) return false;
+    if (!fs::exists(filePath)) return true;
+    try {
+        return fs::file_size(filePath) == 0;
+    } catch (...) {
+        return false;
+    }
+}
+
+// Write one CSV row with arbitrary number of columns.
+// Callers must hold LogSave::fileMutex_.
+inline void appendCsvRow(std::ofstream& ofs, const std::vector<double>& cols) {
+    if (cols.empty()) {
+        ofs << "\n";
+        return;
+    }
+    for (size_t i = 0; i < cols.size(); ++i) {
+        if (i) ofs << ",";
+        ofs << cols[i];
+    }
+    ofs << "\n";
+}
+
+inline fs::path resolveCsvPathInLogsDataDir(const std::string& filename) {
+    // Prefer the package's source `data` directory next to this source file
+    fs::path srcFilePath = fs::path(__FILE__);
+    // .../logs/src/log_save.cpp -> .../logs/
+    fs::path pkgDir = srcFilePath.parent_path().parent_path();
+    fs::path dir = pkgDir / "data";
+    fs::create_directories(dir);
+    return dir / filename;
+}
+
+} // namespace
+
 LogSave::~LogSave() {
     close();
 }
@@ -95,31 +133,31 @@ void LogSave::appendData(const ocs2::vector_t &data, const int &vector_row, cons
 
 // 保存三维向量到 csv 文件，路径位于包 logs 下的 data 目录
 void LogSave::saveDataToCSV(const std::string &filename, const std::string &header, const Eigen::Vector3d &data) {
+    // Keep existing API and behavior. Delegate to the generic writer.
+    saveDataToCSV(filename, header, std::initializer_list<double>{data(0), data(1), data(2)});
+}
+
+void LogSave::saveDataToCSV(const std::string &filename, const std::string &header, const Eigen::VectorXd &data) {
+    if (!enabled_.load()) return;
+    if (filename.empty()) return;
+
+    std::vector<double> cols;
+    cols.reserve(static_cast<size_t>(data.size()));
+    for (int i = 0; i < data.size(); ++i) {
+        cols.push_back(data(i));
+    }
+    saveDataToCSV(filename, header, cols);
+}
+
+void LogSave::saveDataToCSV(const std::string &filename, const std::string &header, const std::vector<double> &data) {
     if (!enabled_.load()) return;
     if (filename.empty()) return;
 
     std::lock_guard<std::mutex> lock(fileMutex_);
 
     try {
-        // Prefer the package's source `data` directory next to this source file
-        fs::path srcFilePath = fs::path(__FILE__);
-        // go up to package directory: .../src/quadruped_ros2_control/logs/src/log_save.cpp -> .../src/quadruped_ros2_control/logs/
-        fs::path pkgDir = srcFilePath.parent_path().parent_path();
-        fs::path dir = pkgDir / "data";
-        fs::create_directories(dir);
-        fs::path filePath = dir / filename;
-
-        // If file not exists or empty, we'll write header first
-        bool writeHeader = false;
-        if (!fs::exists(filePath)) {
-            writeHeader = !header.empty();
-        } else {
-            try {
-                writeHeader = (fs::file_size(filePath) == 0) && !header.empty();
-            } catch (...) {
-                writeHeader = false;
-            }
-        }
+        const fs::path filePath = resolveCsvPathInLogsDataDir(filename);
+        const bool writeHeader = shouldWriteHeader(filePath, header);
 
         std::ofstream ofs(filePath, std::ios::out | std::ios::app);
         if (!ofs.is_open()) return;
@@ -129,13 +167,21 @@ void LogSave::saveDataToCSV(const std::string &filename, const std::string &head
         }
 
         // Append data as CSV row (no extra timestamp to keep CSV clean)
-        ofs << data(0) << "," << data(1) << "," << data(2) << "\n";
+        appendCsvRow(ofs, data);
         ofs.flush();
         ofs.close();
     } catch (const std::exception &e) {
         (void)e;
         return;
     }
+}
+
+void LogSave::saveDataToCSV(const std::string &filename, const std::string &header, std::initializer_list<double> data) {
+    if (!enabled_.load()) return;
+    if (filename.empty()) return;
+
+    std::vector<double> cols(data.begin(), data.end());
+    saveDataToCSV(filename, header, cols);
 }
 
 // 刷新缓冲区

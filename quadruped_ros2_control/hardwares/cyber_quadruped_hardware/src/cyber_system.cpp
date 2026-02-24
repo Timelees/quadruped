@@ -36,9 +36,12 @@ hardware_interface::CallbackReturn CyberSystem::on_init(
     for (size_t i = 0; i < info_.joints.size(); ++i)
     {
         joints_[i].name = info_.joints[i].name;
+        std::cout << "[cybersystem]初始化关节：joints_[" << i << "] = " << joints_[i].name << std::endl;
+        // ros2 controll state interface
         joints_[i].position = 0.0;
         joints_[i].velocity = 0.0;
         joints_[i].effort = 0.0;
+        // ros2 controll command interface
         joints_[i].position_cmd = 0.0;
         joints_[i].velocity_cmd = 0.0;
         joints_[i].effort_cmd = 0.0;
@@ -269,17 +272,17 @@ hardware_interface::return_type CyberSystem::read(
 {
     std::lock_guard<std::mutex> lock(data_mutex_);
 
-    // 定期打印通信状态（每5秒一次，用于诊断）
-    static int read_count = 0;
-    read_count++;
-    if (read_count % 2500 == 0)  // 500Hz * 5s = 2500
-    {
-        RCLCPP_INFO(rclcpp::get_logger("CyberSystem"),
-                    "[LCM Status] err_flag: 0x%x, motor_ctrl_state_received: %s",
-                    robot_state_.err_flag,
-                    first_motor_ctrl_state_received_.load() ? "YES" : "NO");
+    // // 定期打印通信状态（每5秒一次，用于诊断）
+    // static int read_count = 0;
+    // read_count++;
+    // if (read_count % 2500 == 0)  // 500Hz * 5s = 2500
+    // {
+    //     RCLCPP_INFO(rclcpp::get_logger("CyberSystem"),
+    //                 "[LCM Status] err_flag: 0x%x, motor_ctrl_state_received: %s",
+    //                 robot_state_.err_flag,
+    //                 first_motor_ctrl_state_received_.load() ? "YES" : "NO");
                    
-    }
+    // }
 
     // 检查通信状态
     // 只在通信状态发生变化时打印一次（避免刷屏）
@@ -396,6 +399,9 @@ hardware_interface::return_type CyberSystem::write(
                     motor_cmd_.tau_des[i] = static_cast<float>(joints_[i].effort_cmd);
                     motor_cmd_.kp_des[i] = static_cast<float>(joints_[i].kp_cmd);
                     motor_cmd_.kd_des[i] = static_cast<float>(joints_[i].kd_cmd);
+
+                    // std::cout << joints_[i].name 
+                            //   << " - motor_cmd_: Pos=" << motor_cmd_.q_des[i] << std::endl;
                 }
                 need_send = true;
             }
@@ -496,13 +502,13 @@ void CyberSystem::handleLegData(
     const std::string& chan,
     const leg_control_data_lcmt* msg)
 {
-    // 如果需要使用 leg_control_data 中的数据，可以在这里处理
     // 目前留空，因为主要数据从 spi_data 获取
     ( void )rbuf;
     ( void )chan;
     (void)msg;
 }
 
+// 通过SPI协议接收电机数据，反馈机器人状态信息robot_state_，通过state interface反馈到控制器
 void CyberSystem::handleMotorData(
     const lcm::ReceiveBuffer* rbuf,
     const std::string& chan,
@@ -534,6 +540,7 @@ void CyberSystem::handleMotorData(
         robot_state_.tau[i * 3 + 0] = msg->tau_abad[i] * joint_sign_[i * 3 + 0];
         robot_state_.tau[i * 3 + 1] = msg->tau_hip[i] * joint_sign_[i * 3 + 1];
         robot_state_.tau[i * 3 + 2] = msg->tau_knee[i] * joint_sign_[i * 3 + 2];
+
     }
 
     for (int i = 0; i < 12; ++i)
@@ -588,35 +595,29 @@ void CyberSystem::handleRobotState(
 
 void CyberSystem::sendMotorCommand()
 {
-    motor_ctrl_lcmt cmd;
+    motor_ctrl_lcmt motor_ctrl_;
 
     // 拷贝 motor_cmd_ 到本地副本以避免锁持有时间过长
-    MotorCmd local_cmd;
-    {
-        std::lock_guard<std::mutex> lock(data_mutex_);
-        local_cmd = motor_cmd_;
-    }
+    // MotorCmd local_cmd;
+    // {
+    //     std::lock_guard<std::mutex> lock(data_mutex_);
+    //     local_cmd = motor_cmd_;
+    // }
 
     // 应用符号转换
     for (int i = 0; i < 12; ++i)
     {
-        cmd.q_des[i] = local_cmd.q_des[i] * joint_sign_[i];
-        cmd.qd_des[i] = local_cmd.qd_des[i] * joint_sign_[i];
-        cmd.kp_des[i] = local_cmd.kp_des[i];
-        cmd.kd_des[i] = local_cmd.kd_des[i];
-        cmd.tau_des[i] = local_cmd.tau_des[i] * joint_sign_[i];
+        motor_ctrl_.q_des[i] = motor_cmd_.q_des[i] * joint_sign_[i];
+        motor_ctrl_.qd_des[i] = motor_cmd_.qd_des[i] * joint_sign_[i];
+
+        motor_ctrl_.kp_des[i] = motor_cmd_.kp_des[i];
+        motor_ctrl_.kd_des[i] = motor_cmd_.kd_des[i];
+        motor_ctrl_.tau_des[i] = motor_cmd_.tau_des[i] * joint_sign_[i];
+
     }
 
-    // 调试：打印发送状态（每5秒一次）
-    static int send_count = 0;
-    send_count++;
-    if (send_count % 2500 == 1)  // 第一次和每5秒打印一次
-    {
-        RCLCPP_INFO(rclcpp::get_logger("CyberSystem"),
-                    "[LCM Send] Publishing motor_ctrl command (count: %d)", send_count);
-    }
 
-    motor_ctrl_lcm_->publish("motor_ctrl", &cmd);
+    motor_ctrl_lcm_->publish("motor_ctrl", &motor_ctrl_);
 
 }
 

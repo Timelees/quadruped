@@ -5,6 +5,7 @@
 #ifndef STATEOCS2_H
 #define STATEOCS2_H
 
+#include <array>
 #include <SafetyChecker.h>
 #include <ocs2_centroidal_model/CentroidalModelRbdConversions.h>
 #include <ocs2_core/misc/Benchmark.h>
@@ -14,6 +15,7 @@
 
 #include "controller_common/FSM/FSMState.h"
 #include "control_input_msgs/msg/sim_base.hpp"
+
 
 namespace ocs2
 {
@@ -37,8 +39,6 @@ namespace ocs2::legged_robot
 
         void exit() override;
 
-        // 将关节命令转换到lowCmd
-        void command2lowCmd(CtrlInterfaces& ctrl_interfaces_,  const std::shared_ptr<CtrlComponent>& ctrl_component_);
 
         FSMStateName checkChange() override;
 
@@ -52,12 +52,20 @@ namespace ocs2::legged_robot
         std::shared_ptr<SafetyChecker> safety_checker_;
         benchmark::RepeatedTimer wbc_timer_;
 
-        double default_kp_ = 0;
-        double default_kd_ = 6;
-        
+        double default_hip_kp = 0;
+        double default_hip_kd = 6;
+        double default_thigh_kp = 0;
+        double default_thigh_kd = 6;
+        double default_calf_kp = 0;
+        double default_calf_kd = 6;
 
         vector_t optimized_state_, optimized_input_;    // MPC优化后的状态和输入
 
+        // WBC 输出索引 → ctrl_interfaces 索引的映射表
+        // WBC 固定顺序: FL(0-2), FR(3-5), RL(6-8), RR(9-11)
+        // ctrl_interfaces 顺序来自 YAML joints 参数（可能不同）
+        std::array<int, 12> wbc_to_interface_map_;
+        
         // rclcpp::Publisher<control_input_msgs::msg::SimBase>::SharedPtr desired_base_pub_;
     };
 }

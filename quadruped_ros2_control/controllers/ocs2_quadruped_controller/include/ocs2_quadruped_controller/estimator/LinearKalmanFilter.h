@@ -5,14 +5,21 @@
 #pragma once
 
 #include "StateEstimateBase.h"
+#include "ContactEstimator.h"
 
 #include <ocs2_centroidal_model/CentroidalModelPinocchioMapping.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematics.h>
+#include <ocs2_legged_robot/gait/LegLogic.h>
 
 #include <tf2_ros/transform_broadcaster.h>
 
 #include "log_save.h"
 #include <rclcpp/rclcpp.hpp>
+
+// 前向声明
+namespace ocs2::legged_robot {
+    class SwitchedModelReferenceManager;
+}
 
 
 namespace ocs2::legged_robot
@@ -27,7 +34,17 @@ namespace ocs2::legged_robot
 
         vector_t update(const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
+        void computeForwardKinematics();
+
         void loadSettings(const std::string &task_file, bool verbose);
+
+        /**
+         * @brief 设置 SwitchedModelReferenceManager 用于获取步态相位信息
+         * @param reference_manager_ptr 引用管理器指针
+         */
+        void setReferenceManager(std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr) {
+            reference_manager_ptr_ = reference_manager_ptr;
+        }
 
     protected:
         /**
@@ -69,7 +86,7 @@ namespace ocs2::legged_robot
         scalar_t footSensorNoisePosition_ = 0.005;
         scalar_t footSensorNoiseVelocity_ = 0.1;
         scalar_t footHeightSensorNoise_ = 0.01;
-        scalar_t high_suspect_number_ = 100.0;
+        scalar_t high_suspect_number_ = 1000.0;
 
 
         
@@ -93,13 +110,33 @@ namespace ocs2::legged_robot
         Eigen::Vector3d gt_linear_velocity_ = Eigen::Vector3d::Zero();
         Eigen::Quaterniond gt_orientation_ = Eigen::Quaterniond::Identity();
         Eigen::Vector3d gt_angular_velocity_ = Eigen::Vector3d::Zero();
-        bool ground_truth_enabled_ = true; // 是否启用Ground Truth对比
+        bool ground_truth_enabled_ = false; // 是否启用Ground Truth对比
         bool is_initialized_ = false;      // 状态是否已初始化
 
 
         // 日志记录
         std::unique_ptr<quadruped::logs::LogSave> logger_;
         bool is_logger_enabled_ = true;
+        bool sim_mode_ = true;      // true:仿真，false:实机
+
+        // 接触估计器
+        std::unique_ptr<ContactEstimator> contact_estimator_;
+        bool use_contact_estimator_ = false;  // 是否使用接触估计器
+
+        // 步态相位信息获取
+        std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr_;
+        scalar_t mpc_start_time_ = 0.0;  // MPC计划的起始时间
+        scalar_t mpc_current_time_ = 0.0; // MPC当前时间
+        
+        /**
+         * @brief 从 MPC 的 ModeSchedule 获取支撑相和摆动相
+         * @param[in] current_time 当前时间
+         * @param[out] contact_phase 支撑相位 [0,1]，-1 表示不在支撑相
+         * @param[out] swing_phase 摆动相位 [0,1]，-1 表示不在摆动相
+         */
+        void getGaitPhaseFromMPC(scalar_t current_time,
+                                  std::array<scalar_t, 4>& contact_phase,
+                                  std::array<scalar_t, 4>& swing_phase);
     
     };
 }

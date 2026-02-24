@@ -12,13 +12,33 @@ controller_manager:
     ocs2_quadruped_controller:
       type: ocs2_quadruped_controller/Ocs2QuadrupedController
 
+
+    imu_sensor_broadcaster:
+      type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+imu_sensor_broadcaster:
+  ros__parameters:
+    sensor_name: "imu_sensor"
+    frame_id: "imu_link"
+
+
 # 控制器特定参数（顶级节点）
 ocs2_quadruped_controller:
   ros__parameters:
     update_rate: 500
     robot_pkg: "cyberdog_description"
-    default_kd: 1.5
-    default_kp: 70.0
+    
+    # 增大刚度kp以提高位置跟踪精度  
+    default_hip_kp: 50.0    # hip 侧摆电机
+    default_thigh_kp: 50.0  # thigh 大腿电机
+    default_calf_kp: 50.0   # calf 小腿电机
+
+    # 增大阻尼kd以减少振荡和漂移
+    default_hip_kd: 1.0
+    default_thigh_kd: 1.0
+    default_calf_kd: 1.0
+
+
     feet_force_threshold: 3.0
     # 关节名称配置 - 按照实机关节顺序
     # 顺序: FR(0-2), FL(3-5), RR(6-8), RL(9-11)
@@ -35,6 +55,7 @@ ocs2_quadruped_controller:
       - RL_hip_joint
       - RL_thigh_joint
       - RL_calf_joint
+
 
     # 命令接口
     command_interfaces:
@@ -81,6 +102,16 @@ ocs2_quadruped_controller:
       - RL_foot_force
       - FR_foot_force
       - RR_foot_force
+
+
+    # 状态估计器类型: error_state_kalman, linear_kalman
+    estimator_type: "linear_kalman"
+
+    # 是否启动感知
+    enable_perceptive: false
+
+    # 仿真/实机模式 true: 仿真  false: 实机
+    sim_mode: false
 
 # joint_state_broadcaster 特定参数
 joint_state_broadcaster:

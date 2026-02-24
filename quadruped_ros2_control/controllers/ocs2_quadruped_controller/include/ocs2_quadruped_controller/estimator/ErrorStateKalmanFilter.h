@@ -19,10 +19,8 @@
 #include <Eigen/Dense>
 
 // 基于李群李代数的 ESKF 实现
-// #include "LieGroupESKF.h"
-#include "LieGroupUtils.h"
 #include <sophus/so3.hpp>
-#include "STAObserver.h"
+// #include "STAObserver.h"
 
 #include "log_save.h"
 
@@ -31,7 +29,6 @@
 
 namespace ocs2::legged_robot
 {
-    using namespace lie_group;
 
     // 名义状态定义
     struct ESKFNominalState
@@ -268,7 +265,7 @@ namespace ocs2::legged_robot
         bool ground_truth_enabled_ = true; // 是否启用Ground Truth对比
 
         // STA Observer
-        STAObserver sta_observer_;
+        // STAObserver sta_observer_;
 
         // 日志保存
         std::unique_ptr<quadruped::logs::LogSave> logger_;

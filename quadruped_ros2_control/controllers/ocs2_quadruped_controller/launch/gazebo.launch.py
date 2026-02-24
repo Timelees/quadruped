@@ -134,7 +134,7 @@ def launch_setup(context, *args, **kwargs):
         executable='static_transform_publisher',
         name='map_to_odom_tf_publisher',
         # x y z qx qy qz qw parent_frame child_frame
-        arguments=['-6', '-8', '0.0', '0.0', '0.0', '0.0', '1.0', 'map', 'odom'],
+        arguments=['-0', '-0', '0.0', '0.0', '0.0', '0.0', '1.0', 'map', 'odom'],
         output='screen'
     )
 
@@ -174,7 +174,7 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
     world = DeclareLaunchArgument(
         'world',
-        default_value='stepping_stones_terrain',       # baylands,  step,   stepping_stones_terrain
+        default_value='step',       # baylands,  step,   stepping_stones_terrain
         description='The world to load'
     )
 
@@ -188,12 +188,12 @@ def generate_launch_description():
     # robot initial position
     x_pos = DeclareLaunchArgument(
     'x',
-    default_value='-6.0',
+    default_value='-0.0',
     description='Initial X position'
     )
     y_pos = DeclareLaunchArgument(
         'y',
-        default_value='-8.0',
+        default_value='-0.0',
         description='Initial Y position'
     )
     z_pos = DeclareLaunchArgument(

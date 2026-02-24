@@ -38,7 +38,8 @@ namespace ocs2::legged_robot
         void setupStateEstimate(const std::string& estimator_type);
         void updateState(const rclcpp::Time& time, const rclcpp::Duration& period);
         void init();
-
+        std::vector<std::string> getJointNames(){return joint_names_;};
+        
         std::shared_ptr<rclcpp_lifecycle::LifecycleNode> node_;
         std::unique_ptr<LeggedInterface> legged_interface_;
         std::unique_ptr<PinocchioEndEffectorKinematics> ee_kinematics_; // 足端动力学

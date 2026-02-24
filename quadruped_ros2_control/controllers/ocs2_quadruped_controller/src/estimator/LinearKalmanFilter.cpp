@@ -2,17 +2,22 @@
 // Created by qiayuan on 2022/7/24.
 //
 
+#include <map>
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/rnea.hpp>
 #include <utility>
+#include <sstream>
 
 #include <ocs2_quadruped_controller/estimator/LinearKalmanFilter.h>
+#include <ocs2_quadruped_controller/interface/SwitchedModelReferenceManager.h>
 #include <ocs2_core/misc/LoadData.h>
 
 #include <ocs2_robotic_tools/common/RotationDerivativesTransforms.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
 
-namespace ocs2::legged_robot {
+namespace ocs2::legged_robot
+{
     KalmanFilterEstimate::KalmanFilterEstimate(PinocchioInterface pinocchio_interface,
                                                CentroidalModelInfo info,
                                                const PinocchioEndEffectorKinematics &ee_kinematics,
@@ -25,8 +30,9 @@ namespace ocs2::legged_robot {
           numContacts_(info_.numThreeDofContacts + info_.numSixDofContacts),
           dimContacts_(3 * numContacts_),
           numState_(6 + dimContacts_),
-          numObserve_(2 * dimContacts_ + numContacts_) {
-        
+          numObserve_(2 * dimContacts_ + numContacts_)
+    {
+
         // 日志保存器初始化
         logger_ = std::make_unique<quadruped::logs::LogSave>();
         if (is_logger_enabled_)
@@ -38,8 +44,6 @@ namespace ocs2::legged_robot {
             logger_->setEnabled(false);
         }
 
-
-
         xHat_.setZero(numState_);
         ps_.setZero(dimContacts_);
         vs_.setZero(dimContacts_);
@@ -50,7 +54,8 @@ namespace ocs2::legged_robot {
         c1 << matrix3_t::Identity(), matrix3_t::Zero();
         c2 << matrix3_t::Zero(), matrix3_t::Identity();
         c_.setZero(numObserve_, numState_);
-        for (ssize_t i = 0; i < numContacts_; ++i) {
+        for (ssize_t i = 0; i < numContacts_; ++i)
+        {
             c_.block(3 * i, 0, 3, 6) = c1;
             c_.block(3 * (numContacts_ + i), 0, 3, 6) = c2;
             c_(2 * dimContacts_ + i, 6 + 3 * i + 2) = 1.0;
@@ -66,19 +71,154 @@ namespace ocs2::legged_robot {
         initPublishers();
 
         // 初始化 Ground Truth 发布器 (用于与状态估计对比)
-        ground_truth_pub_ = node_->create_publisher<nav_msgs::msg::Odometry>("Ground_Truth", 10);
+        if (sim_mode_)
+        {
+            ground_truth_pub_ = node_->create_publisher<nav_msgs::msg::Odometry>("Ground_Truth", 10);
+            ground_truth_enabled_ = true; // 启用 Ground Truth 对比
+        }
 
-        ground_truth_enabled_ = true; // 启用 Ground Truth 对比
-
+        // 初始化接触估计器
+        
+        // 创建 ContactEstimator 需要单独的 PinocchioInterface 副本
+        PinocchioInterface pinocchio_interface_copy(pinocchio_interface_);
+        contact_estimator_ = std::make_unique<ContactEstimator>(
+                std::move(pinocchio_interface_copy),
+                info_,
+                ee_kinematics,
+                ctrl_component,
+                node);
+        RCLCPP_INFO(node_->get_logger(), "ContactEstimator initialized successfully.");
+        
     }
 
-    vector_t KalmanFilterEstimate::update(const rclcpp::Time &time, const rclcpp::Duration &period) {
-        updateJointStates();
-        updateContact();
-        updateImu();
-    
+    vector_t KalmanFilterEstimate::update(const rclcpp::Time &time, const rclcpp::Duration &period)
+    {
+        scalar_t dt = period.seconds(); // 控制器时间周期
 
-        scalar_t dt = period.seconds();
+        updateJointStates();        // 更新关节状态
+        computeForwardKinematics(); // 计算前向运动学
+
+        // 使用 ContactEstimator 估计足端接触状态和足端力
+        if (use_contact_estimator_ && contact_estimator_)
+        {
+            // 设置关节力矩
+            Eigen::Matrix<double, 12, 1> joint_torques;
+            for (int i = 0; i < 12; ++i)
+            {
+                joint_torques(i) = ctrl_component_.joint_effort_state_interface_[i].get().get_value();
+            }
+            // std::cout << "[KalmanFilter] joint_torque: " << joint_torques.transpose() << std::endl;
+            contact_estimator_->setJointTorques(joint_torques);
+
+            // 设置机器人状态
+            contact_estimator_->setRbdState(rbd_state_);
+
+            // 更新动力学参数并计算足端力
+            contact_estimator_->updateAndComputeForce(dt);
+
+            // 获取足端高度
+            // 注意：ee_kinematics_->getPosition() 返回的是 base 坐标系下的足端位置。
+            // ContactEstimator 的 P_h 期望输入“足端离地高度”(world z - ground_z)。
+            // 这里在平地假设 ground_z = 0 的条件下，将 base->foot 变换到 world，取 foot_world.z 作为 height。
+            const auto eePosBase = ee_kinematics_->getPosition(vector_t());
+            std::array<double, 4> foot_heights;
+
+            // base 在 world 中的姿态（用当前估计的 quat_ 更一致；如果你更希望用 rbd_state_ 的姿态，也可以替换）
+            const matrix3_t R_wb = getRotationMatrixFromZyxEulerAngles(quatToZyx(quat_));
+
+            // base 在 world 中的位置
+            const vector3_t p_wb = xHat_.segment<3>(0);
+
+            constexpr scalar_t ground_z = 0.0; // 平地假设；后续可接 elevation map / raycast
+            for (int i = 0; i < 4; ++i)
+            {
+                const vector3_t p_bf = eePosBase[i];
+                const vector3_t p_wf = p_wb + R_wb * p_bf;
+                foot_heights[i] = static_cast<double>(p_wf.z() - ground_z);
+            }
+
+            // 从 MPC 的 ModeSchedule 获取接触相位和摆动相位
+            std::array<double, 4> contact_phase;
+            std::array<double, 4> swing_phase;
+            const double current_time = time.seconds();
+            getGaitPhaseFromMPC(current_time, contact_phase, swing_phase);
+
+            // 从 MPC 获取期望接触状态并设置到 ContactEstimator
+            contact_flag_t expected_contact;
+            expected_contact.fill(false);
+            if (reference_manager_ptr_)
+            {
+                try
+                {
+                    const auto &modeSchedule = reference_manager_ptr_->getModeSchedule();
+                    const auto mode = modeSchedule.modeAtTime(current_time);
+                    expected_contact = modeNumber2StanceLeg(mode);
+                }
+                catch (const std::exception &e)
+                {
+                    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+                                         "Failed to get expected contact from ModeSchedule: %s", e.what());
+                }
+            }
+            contact_estimator_->setExpectedContact(expected_contact);
+
+            // std::cout << "[Linear KalmanFilter] contact_phase: [";
+            // for (size_t i = 0; i < contact_phase.size(); ++i) {
+            //     if (i) std::cout << ", ";
+            //     std::cout << contact_phase[i];
+            // }
+            // std::cout << "]" << std::endl;
+            // std::cout << "[Linear KalmanFilter] swing_phase: [";
+            // for (size_t i = 0; i < swing_phase.size(); ++i) {
+            //     if (i) std::cout << ", ";
+            //     std::cout << swing_phase[i];
+            // }
+            // std::cout << "]" << std::endl;
+
+            // 获取估计的足端力
+            auto foot_forces = contact_estimator_->getFootForces();
+
+            // std::cout << "[Linear KalmanFilter] estimate foot_forces: [";
+            // for (size_t i = 0; i < foot_forces.size(); ++i) {
+            //     if (i) std::cout << ", ";
+            //     std::cout << foot_forces[i];
+            // }
+            // std::cout << "]" << std::endl;
+
+            // 更新接触估计
+            contact_estimator_->update(foot_forces, foot_heights, contact_phase, swing_phase);
+
+            // 获取接触标志并更新到状态估计
+            auto contact_flags = contact_estimator_->getContactFlags();
+            for (int i = 0; i < 4; ++i)
+            {
+                contact_flag_[i] = contact_flags[i];
+            }
+        }
+        else
+        {   
+            // 设置关节力矩
+            Eigen::Matrix<double, 12, 1> joint_torques;
+            for (int i = 0; i < 12; ++i)
+            {
+                joint_torques(i) = ctrl_component_.joint_effort_state_interface_[i].get().get_value();
+            }
+            // std::cout << "[KalmanFilter] joint_torque: " << joint_torques.transpose() << std::endl;
+            contact_estimator_->setJointTorques(joint_torques);
+
+            // 设置机器人状态
+            contact_estimator_->setRbdState(rbd_state_);
+
+            // 更新动力学参数并计算足端力
+            contact_estimator_->updateAndComputeForce(dt);
+
+            // 获取足端力
+            foot_forces = contact_estimator_->getFootForces();
+            
+            updateContact(); // 使用原有的接触更新逻辑
+        }
+        updateImu(); // 获取 IMU 数据
+
         a_.block(0, 3, 3, 3) = dt * matrix3_t::Identity();
         b_.block(0, 0, 3, 3) = 0.5 * dt * dt * matrix3_t::Identity();
         b_.block(3, 0, 3, 3) = dt * matrix3_t::Identity();
@@ -86,26 +226,7 @@ namespace ocs2::legged_robot {
         q_.block(3, 3, 3, 3) = (dt * 9.81f / 20.f) * matrix3_t::Identity();
         q_.block(6, 6, dimContacts_, dimContacts_) = dt * matrix_t::Identity(dimContacts_, dimContacts_);
 
-        const auto &model = pinocchio_interface_.getModel();
-        auto &data = pinocchio_interface_.getData();
-        size_t actuatedDofNum = info_.actuatedDofNum;
-
-        vector_t qPino(info_.generalizedCoordinatesNum);
-        vector_t vPino(info_.generalizedCoordinatesNum);
-        qPino.setZero();
-        qPino.segment<3>(3) = rbd_state_.head<3>(); // Only set orientation, let position in origin.
-        qPino.tail(actuatedDofNum) = rbd_state_.segment(6, actuatedDofNum);
-
-        vPino.setZero();
-        vPino.segment<3>(3) = getEulerAnglesZyxDerivativesFromGlobalAngularVelocity<scalar_t>(
-            qPino.segment<3>(3),
-            rbd_state_.segment<3>(info_.generalizedCoordinatesNum));
-        // Only set angular velocity, let linear velocity be zero
-        vPino.tail(actuatedDofNum) = rbd_state_.segment(6 + info_.generalizedCoordinatesNum, actuatedDofNum);
-
-        forwardKinematics(model, data, qPino, vPino);
-        updateFramePlacements(model, data);
-
+        // eePos和eeVel的值为负，使用时要取反才能正确表示足端位置和速度
         const auto eePos = ee_kinematics_->getPosition(vector_t());
         const auto eeVel = ee_kinematics_->getVelocity(vector_t(), vector_t());
 
@@ -113,17 +234,18 @@ namespace ocs2::legged_robot {
         q.block(0, 0, 3, 3) = q_.block(0, 0, 3, 3) * imu_process_noise_position_;
         q.block(3, 3, 3, 3) = q_.block(3, 3, 3, 3) * imu_process_noise_velocity_;
         q.block(6, 6, dimContacts_, dimContacts_) =
-                q_.block(6, 6, dimContacts_, dimContacts_) * footProcessNoisePosition_;
+            q_.block(6, 6, dimContacts_, dimContacts_) * footProcessNoisePosition_;
 
         matrix_t r = matrix_t::Identity(numObserve_, numObserve_);
         r.block(0, 0, dimContacts_, dimContacts_) =
-                r_.block(0, 0, dimContacts_, dimContacts_) * footSensorNoisePosition_;
+            r_.block(0, 0, dimContacts_, dimContacts_) * footSensorNoisePosition_;
         r.block(dimContacts_, dimContacts_, dimContacts_, dimContacts_) =
-                r_.block(dimContacts_, dimContacts_, dimContacts_, dimContacts_) * footSensorNoiseVelocity_;
+            r_.block(dimContacts_, dimContacts_, dimContacts_, dimContacts_) * footSensorNoiseVelocity_;
         r.block(2 * dimContacts_, 2 * dimContacts_, numContacts_, numContacts_) =
-                r_.block(2 * dimContacts_, 2 * dimContacts_, numContacts_, numContacts_) * footHeightSensorNoise_;
+            r_.block(2 * dimContacts_, 2 * dimContacts_, numContacts_, numContacts_) * footHeightSensorNoise_;
 
-        for (int i = 0; i < numContacts_; i++) {
+        for (int i = 0; i < numContacts_; i++)
+        {
             int i1 = 3 * i;
 
             int qIndex = 6 + i1;
@@ -138,8 +260,8 @@ namespace ocs2::legged_robot {
             r.block(rIndex2, rIndex2, 3, 3) = (isContact ? 1. : high_suspect_number) * r.block(rIndex2, rIndex2, 3, 3);
             r(rIndex3, rIndex3) = (isContact ? 1. : high_suspect_number) * r(rIndex3, rIndex3);
 
-            ps_.segment(3 * i, 3) = -eePos[i];
-            ps_.segment(3 * i, 3)[2] += foot_radius_;
+            ps_.segment(3 * i, 3) = -eePos[i];        // foot相较于base在下方，需要取反
+            ps_.segment(3 * i, 3)[2] += foot_radius_; // body质心高度
             vs_.segment(3 * i, 3) = -eeVel[i];
         }
 
@@ -171,19 +293,22 @@ namespace ocs2::legged_robot {
         //    p_.block(0, 0, 2, 2) /= 10.;
         //  }
 
-        // 更新 Ground Truth 数据 (在日志记录之前更新，确保数据有效)
-        updateGroundTruth();
+        if (sim_mode_)
+        {
+            // 更新 Ground Truth 数据 (在日志记录之前更新，确保数据有效)
+            updateGroundTruth();
+        }
 
         // 日志记录
         static int log_counter = 0;
         log_counter++;
-        if(is_logger_enabled_ && (log_counter % 10 == 0))
+        if (is_logger_enabled_ && (log_counter % 10 == 0))
         {
             // 状态估计值
-            Eigen::Vector3d state_zyx = quatToZyx(quat_);               // 姿态
-            Eigen::Vector3d state_pos = xHat_.segment<3>(0);               // 位置估计值
-            Eigen::Vector3d state_vel = xHat_.segment<3>(3);              // 速度估计值
-            
+            Eigen::Vector3d state_zyx = quatToZyx(quat_);    // 姿态
+            Eigen::Vector3d state_pos = xHat_.segment<3>(0); // 位置估计值
+            Eigen::Vector3d state_vel = xHat_.segment<3>(3); // 速度估计值
+
             logger_->saveDataToCSV("state_pos.csv", "pos_x, pos_y, pos_z", state_pos);
             logger_->saveDataToCSV("state_vel.csv", "vel_x, vel_y, vel_z", state_vel);
             logger_->saveDataToCSV("state_zyx.csv", "yaw, pitch, roll", state_zyx);
@@ -204,7 +329,8 @@ namespace ocs2::legged_robot {
 
             // 观测残差 (ey = y - yModel)
             vector_t ey_log = ey;
-            for(int i = 0; i < 4; i++){
+            for (int i = 0; i < 4; i++)
+            {
                 // 足端位置观测残差 (body系)
                 Eigen::Vector3d foot_pos_residual = ey_log.segment<3>(3 * i);
                 logger_->saveDataToCSV("y_pos_residual_foot_" + std::to_string(i) + ".csv", "ey_x, ey_y, ey_z", foot_pos_residual);
@@ -212,7 +338,6 @@ namespace ocs2::legged_robot {
                 // 足端速度观测残差 (body系)
                 Eigen::Vector3d foot_vel_residual = ey_log.segment<3>(12 + 3 * i);
                 logger_->saveDataToCSV("y_vel_residual_foot_" + std::to_string(i) + ".csv", "eyv_x, eyv_y, eyv_z", foot_vel_residual);
-
             }
             Eigen::Vector4d foot_height_residual;
             for (int i = 0; i < 4; i++)
@@ -225,7 +350,7 @@ namespace ocs2::legged_robot {
                                    Eigen::Vector3d(foot_height_residual(1), foot_height_residual(3), 0.0));
 
             // ==================== Ground Truth 对比日志 ====================
-            if (ground_truth_enabled_)
+            if (ground_truth_enabled_ && sim_mode_)
             {
                 // Ground Truth 姿态 (欧拉角 ZYX)
                 Eigen::Vector3d gt_rot_zyx = quatToZyx(gt_orientation_);
@@ -247,6 +372,69 @@ namespace ocs2::legged_robot {
                 logger_->saveDataToCSV("angvelEstiTruthError.csv", "err_wx, err_wy, err_wz", angvel_error);
             }
 
+            // ==================== 接触状态对比日志 ====================
+            if (use_contact_estimator_ && contact_estimator_)
+            {
+                // 获取估计的接触标志和期望的接触标志
+                auto estimated_contact = contact_estimator_->getContactFlags();
+                auto expected_contact = contact_estimator_->getExpectedContact();
+                auto contact_probs = contact_estimator_->getContactProbabilities();
+                auto debug_info = contact_estimator_->getDebugInfo();
+
+                // 记录估计的接触状态 (0=摆动, 1=接触)
+                Eigen::Vector4d est_contact_vec;
+                for (int i = 0; i < 4; ++i)
+                {
+                    est_contact_vec(i) = estimated_contact[i] ? 1.0 : 0.0;
+                }
+                logger_->saveDataToCSV(
+                    "contact_estimated.csv",
+                    "est_FL, est_FR, est_RL, est_RR",
+                    {est_contact_vec(0), est_contact_vec(1), est_contact_vec(2), est_contact_vec(3)});
+
+                // 记录期望的接触状态 (来自 MPC)
+                Eigen::Vector4d exp_contact_vec;
+                for (int i = 0; i < 4; ++i)
+                {
+                    exp_contact_vec(i) = expected_contact[i] ? 1.0 : 0.0;
+                }
+                logger_->saveDataToCSV(
+                    "contact_expected.csv",
+                    "exp_FL, exp_FR, exp_RL, exp_RR",
+                    {exp_contact_vec(0), exp_contact_vec(1), exp_contact_vec(2), exp_contact_vec(3)});
+
+                // 记录接触状态误差 (估计值 - 期望值)
+                Eigen::Vector4d contact_error;
+                for (int i = 0; i < 4; ++i)
+                {
+                    contact_error(i) = est_contact_vec(i) - exp_contact_vec(i);
+                }
+                logger_->saveDataToCSV(
+                    "contact_error.csv",
+                    "err_FL, err_FR, err_RL, err_RR, mismatch_count",
+                    {contact_error(0), contact_error(1), contact_error(2), contact_error(3),
+                     static_cast<double>(contact_estimator_->getContactMismatchCount())});
+
+                // 记录接触概率 (卡尔曼滤波输出)
+                logger_->saveDataToCSV(
+                    "contact_prob.csv",
+                    "prob_FL, prob_FR, prob_RL, prob_RR",
+                    {contact_probs[0], contact_probs[1], contact_probs[2], contact_probs[3]});
+
+                // 记录三个观测概率 P_gait, P_height, P_force (用于调试)
+                logger_->saveDataToCSV(
+                    "P_gait.csv",
+                    "P_gait_FL, P_gait_FR, P_gait_RL, P_gait_RR",
+                    {debug_info.P_gait[0], debug_info.P_gait[1], debug_info.P_gait[2], debug_info.P_gait[3]});
+                logger_->saveDataToCSV(
+                    "P_height.csv",
+                    "P_h_FL, P_h_FR, P_h_RL, P_h_RR",
+                    {debug_info.P_position[0], debug_info.P_position[1], debug_info.P_position[2], debug_info.P_position[3]});
+                logger_->saveDataToCSV(
+                    "P_force.csv",
+                    "P_f_FL, P_f_FR, P_f_RL, P_f_RR",
+                    {debug_info.P_force[0], debug_info.P_force[1], debug_info.P_force[2], debug_info.P_force[3]});
+            }
         }
 
         updateLinear(xHat_.segment<3>(0), xHat_.segment<3>(3));
@@ -260,6 +448,28 @@ namespace ocs2::legged_robot {
         return rbd_state_;
     }
 
+    void KalmanFilterEstimate::computeForwardKinematics()
+    {
+        const auto &model = pinocchio_interface_.getModel();
+        auto &data = pinocchio_interface_.getData();
+        size_t actuatedDofNum = info_.actuatedDofNum;
+
+        vector_t qPino(info_.generalizedCoordinatesNum);
+        vector_t vPino(info_.generalizedCoordinatesNum);
+        qPino.setZero();
+        qPino.segment<3>(3) = rbd_state_.head<3>(); // Only set orientation, let position in origin.
+        qPino.tail(actuatedDofNum) = rbd_state_.segment(6, actuatedDofNum);
+
+        vPino.setZero();
+        vPino.segment<3>(3) = getEulerAnglesZyxDerivativesFromGlobalAngularVelocity<scalar_t>(
+            qPino.segment<3>(3),
+            rbd_state_.segment<3>(info_.generalizedCoordinatesNum));
+        // Only set angular velocity, let linear velocity be zero
+        vPino.tail(actuatedDofNum) = rbd_state_.segment(6 + info_.generalizedCoordinatesNum, actuatedDofNum);
+
+        forwardKinematics(model, data, qPino, vPino);
+        updateFramePlacements(model, data);
+    }
 
     void KalmanFilterEstimate::updateGroundTruth()
     {
@@ -326,8 +536,8 @@ namespace ocs2::legged_robot {
         ground_truth_pub_->publish(gt_msg);
     }
 
-
-    nav_msgs::msg::Odometry KalmanFilterEstimate::getOdomMsg() {
+    nav_msgs::msg::Odometry KalmanFilterEstimate::getOdomMsg()
+    {
         nav_msgs::msg::Odometry odom;
         odom.pose.pose.position.x = xHat_.segment<3>(0)(0);
         odom.pose.pose.position.y = xHat_.segment<3>(0)(1);
@@ -336,8 +546,10 @@ namespace ocs2::legged_robot {
         odom.pose.pose.orientation.y = quat_.y();
         odom.pose.pose.orientation.z = quat_.z();
         odom.pose.pose.orientation.w = quat_.w();
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 3; ++j) {
+        for (int i = 0; i < 3; ++i)
+        {
+            for (int j = 0; j < 3; ++j)
+            {
                 odom.pose.covariance[i * 6 + j] = p_(i, j);
                 odom.pose.covariance[6 * (3 + i) + (3 + j)] = orientationCovariance_(i * 3 + j);
             }
@@ -350,8 +562,10 @@ namespace ocs2::legged_robot {
         odom.twist.twist.angular.x = angular_vel_local_.x();
         odom.twist.twist.angular.y = angular_vel_local_.y();
         odom.twist.twist.angular.z = angular_vel_local_.z();
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 3; ++j) {
+        for (int i = 0; i < 3; ++i)
+        {
+            for (int j = 0; j < 3; ++j)
+            {
                 odom.twist.covariance[i * 6 + j] = p_.block<3, 3>(3, 3)(i, j);
                 odom.twist.covariance[6 * (3 + i) + (3 + j)] = angularVelCovariance_(i * 3 + j);
             }
@@ -359,21 +573,65 @@ namespace ocs2::legged_robot {
         return odom;
     }
 
-    void KalmanFilterEstimate::loadSettings(const std::string &task_file, const bool verbose) {
+    void KalmanFilterEstimate::loadSettings(const std::string &task_file, const bool verbose)
+    {
         boost::property_tree::ptree pt;
         read_info(task_file, pt);
         const std::string prefix = "kalmanFilter.";
-        if (verbose) {
+        if (verbose)
+        {
             std::cerr << "\n #### Kalman Filter Noise:";
             std::cerr << "\n #### =============================================================================\n";
         }
 
         loadData::loadPtreeValue(pt, foot_radius_, prefix + "footRadius", verbose);
+        loadData::loadPtreeValue(pt, sim_mode_, prefix + "sim_mode", verbose);
         loadData::loadPtreeValue(pt, imu_process_noise_position_, prefix + "imuProcessNoisePosition", verbose);
         loadData::loadPtreeValue(pt, imu_process_noise_velocity_, prefix + "imuProcessNoiseVelocity", verbose);
         loadData::loadPtreeValue(pt, footProcessNoisePosition_, prefix + "footProcessNoisePosition", verbose);
         loadData::loadPtreeValue(pt, footSensorNoisePosition_, prefix + "footSensorNoisePosition", verbose);
         loadData::loadPtreeValue(pt, footSensorNoiseVelocity_, prefix + "footSensorNoiseVelocity", verbose);
         loadData::loadPtreeValue(pt, footHeightSensorNoise_, prefix + "footHeightSensorNoise", verbose);
+        loadData::loadPtreeValue(pt, high_suspect_number_, prefix + "highSuspectNumber", verbose);
+
+        // 同步加载 ContactEstimator 相关参数（contactEstimator.*）
+        if (use_contact_estimator_ && contact_estimator_)
+        {
+            contact_estimator_->loadSettings(task_file, verbose);
+        }
     }
+
+    void KalmanFilterEstimate::getGaitPhaseFromMPC(scalar_t current_time,
+                                                   std::array<scalar_t, 4> &contact_phase,
+                                                   std::array<scalar_t, 4> &swing_phase)
+    {
+        // 默认值：假设所有腿在支撑相中间
+        // 使用 -1.0 表示"不在该相位"
+        contact_phase.fill(0.5); // 支撑相中间值
+        swing_phase.fill(-1.0);  // -1.0 表示不在摆动相
+
+        // 如果没有设置 ReferenceManager，使用默认值
+        if (!reference_manager_ptr_)
+        {
+            return;
+        }
+
+        // 从 MPC 获取 ModeSchedule
+        const auto &modeSchedule = reference_manager_ptr_->getModeSchedule();
+
+        // 获取每条腿的接触相位
+        const auto contactPhasePerLeg = getContactPhasePerLeg(current_time, modeSchedule);
+
+        // 获取每条腿的摆动相位
+        const auto swingPhasePerLeg = getSwingPhasePerLeg(current_time, modeSchedule);
+
+        // 转换为输出格式
+        for (size_t i = 0; i < 4; ++i)
+        {
+            // 直接传递原始值，保留 -1.0 语义
+            contact_phase[i] = contactPhasePerLeg[i].phase;
+            swing_phase[i] = swingPhasePerLeg[i].phase;
+        }
+    }
+
 } // namespace legged

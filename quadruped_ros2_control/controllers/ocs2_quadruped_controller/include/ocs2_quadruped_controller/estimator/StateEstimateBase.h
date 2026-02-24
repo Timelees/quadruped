@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <memory>
 #include <controller_common/CtrlInterfaces.h>
 #include <rclcpp/rclcpp.hpp>
 
@@ -19,6 +20,7 @@
 
 #include "control_input_msgs/msg/euler_angle.hpp"
 
+
 namespace ocs2::legged_robot
 {
     class StateEstimateBase
@@ -31,13 +33,26 @@ namespace ocs2::legged_robot
 
         virtual void updateJointStates();
 
-        virtual void updateContact();
+        virtual void updateContact();           // 更新接触状态标志
+
+        virtual void updateContactPhase();      // 更新接触相位
 
         virtual void updateImu();
 
         virtual vector_t update(const rclcpp::Time &time, const rclcpp::Duration &period) = 0;
 
         [[nodiscard]] size_t getMode() const { return stanceLeg2ModeNumber(contact_flag_); }
+
+        /**
+         * @brief 设置接触标志（从规划获取）
+         * @param contact_flag 规划的接触标志
+         */
+        void setContactFlags(const contact_flag_t& contact_flag) { contact_flag_ = contact_flag; }
+
+        /**
+         * @brief 获取接触标志
+         */
+        [[nodiscard]] const contact_flag_t& getContactFlags() const { return contact_flag_; }
 
     protected:
         void initPublishers();
@@ -55,13 +70,18 @@ namespace ocs2::legged_robot
         CtrlInterfaces &ctrl_component_;
         CentroidalModelInfo info_;
 
-        contact_flag_t contact_flag_{}; // 脚部接触状态标志
-        std::array<double, 4> contact_phase_{}; // 接触相位 [0,1]: 0=摆动开始, 1=支撑稳定
-        double feet_force_threshold_ = 0.5;  // 降低阈值以检测更多接触（原值5.0过高）
+        contact_flag_t contact_flag_{};     // 脚部接触状态标志
+        contact_phase_t contact_phase_{};   // 接触相位 [0,1]: 0=摆动开始, 1=支撑稳定
+        foot_force_t foot_forces{0, 0, 0, 0};         // 足端力
+
+        double feet_force_threshold_ = 5.0;
         double footFallPositionRecord[4][3] = {0}; // 记录足端初始落脚点位置
 
+       
+
         vector3_t zyx_offset_ = vector3_t::Zero();
-        vector_t rbd_state_;                               // 状态数据 [ 姿态zyx(3) | base位置(3) | 关节位置(12) | base角速度(3) | base线速度(3) | 关节速度(12) ]
+        vector_t rbd_state_;                               // 机器人状态数据 [ 姿态zyx(3) | base位置(3) | 关节位置(12) | base角速度(3) | base线速度(3) | 关节速度(12)]
+        vector_t joint_state_;                              // 关节数据 [ 位置(12) | 速度(12) | 力矩(12) ]
         Eigen::Quaternion<scalar_t> quat_;                 // IMU四元数姿态
         matrix3_t rotation_matrix;                           // IMU姿态对应的旋转矩阵（机体坐标系->世界坐标系）
         vector3_t angular_vel_local_, linear_accel_local_; // IMU线加速度、角加速度（机体坐标系）
@@ -70,7 +90,7 @@ namespace ocs2::legged_robot
 
         matrix3_t orientationCovariance_, angularVelCovariance_, linearAccelCovariance_;
 
-
+        std::vector<std::string> foot_frame_names_ = {"FL_foot", "FR_foot", "RL_foot", "RR_foot"};  // pinochhio获取足端索引
 
         rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
         rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pose_pub_;

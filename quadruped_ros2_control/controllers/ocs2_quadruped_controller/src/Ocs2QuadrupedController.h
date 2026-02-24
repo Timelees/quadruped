@@ -98,11 +98,12 @@ namespace ocs2::legged_robot {
         std::string foot_force_name_;
         std::vector<std::string> foot_force_interface_types_;
 
-        std::string estimator_type_ = "error_state_kalman";      // 估计器配置： extend_kalman, linear_kalman, error_state_kalman
+        std::string estimator_type_ = "linear_kalman";      // 估计器配置： extend_kalman, linear_kalman, error_state_kalman
         bool enable_perceptive_ = false;         // 是否启用感知
+        bool sim_mode_ = true;     // 仿真/实机模式,true：仿真， false：实机
 
         // Odometer Sensor (Ground Truth) - 获取Gazebo真实位姿用于与状态估计对比
-        bool gazebo_ground_truth = true;                         // 是否获取Gazebo真实位姿
+        bool gazebo_ground_truth_ = true;                         // 是否获取Gazebo真实位姿
         std::string odom_name_ = "ground_truth";
         std::vector<std::string> odom_interface_types_ = {
             "position.x", "position.y", "position.z",

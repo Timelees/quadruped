@@ -417,8 +417,8 @@ namespace ocs2::legged_robot
 
         // 噪声雅可比 B     噪声布局: [n_g(3), n_a(3), n_f1(3), n_f2(3), n_f3(3), n_f4(3), n_ba(3), n_bg(3)]
         B.setZero();
-        // B.block<3, 3>(ESKFNominalState::ROT_IDX, 0) = -Sophus::SO3d::exp(delta_theta).matrix() * dt; // 陀螺仪噪声 -> 姿态误差
-        B.block<3, 3>(ESKFNominalState::ROT_IDX, 0) = -Eigen::Matrix3d::Identity() * dt; // 陀螺仪噪声 -> 姿态误差
+        B.block<3, 3>(ESKFNominalState::ROT_IDX, 0) = -Sophus::SO3d::exp(delta_theta).matrix() * dt; // 陀螺仪噪声 -> 姿态误差
+        // B.block<3, 3>(ESKFNominalState::ROT_IDX, 0) = -Eigen::Matrix3d::Identity() * dt; // 陀螺仪噪声 -> 姿态误差
         B.block<3, 3>(ESKFNominalState::VEL_IDX, 3) = -R * dt;                           // 加速度噪声 -> 速度误差
         // 足端过程噪声 -> 足端位置误差 (世界系下的随机游走)
         B.block<3, 3>(ESKFNominalState::F1_IDX, 6) = -Eigen::Matrix3d::Identity() * dt;
@@ -489,17 +489,12 @@ namespace ocs2::legged_robot
 
         for (int i = 0; i < 4; ++i)
         {
-            double estimated_contact = 0.0;
-            if (contact_flag_[i])
-            {
-                // 触地时，置信度为1
-                estimated_contact = 1.0;
-            }
+            bool isContact = contact_flag_[i];
             // 基础足端过程噪声
             // double base_variance = dt * proc_noise_fpos_ * proc_noise_fpos_;
             double base_variance = (proc_noise_fpos_ * proc_noise_fpos_);
             // 根据接触置信度放大噪声
-            double foot_variance = (1.0 + (1.0 - estimated_contact) * high_suspect_number) * base_variance;
+            double foot_variance = (isContact ? 1.0 : high_suspect_number) * base_variance;
 
             // 对每条腿的 xyz 三个轴都设置相同的过程噪声
             Q.block<3, 3>(6 + 3 * i, 6 + 3 * i) = foot_variance * Eigen::Matrix3d::Identity();
@@ -607,8 +602,8 @@ namespace ocs2::legged_robot
             const Eigen::Vector3d fvel_body_meas = foot_vel_[i];                    // 运动学速度（关节速度产生）
             const Eigen::Vector3d omega_body = in.gyro - x.bg;                      // body角速度
             const Eigen::Vector3d omega_cross_r = omega_body.cross(fpos_body_meas); // 角速度产生的线速度 (rotational component)
-            const Eigen::Vector3d fvel_body_total = fvel_body_meas + omega_cross_r;                 // 仅使用运动学产生的足端速度
-            const Eigen::Vector3d fvel_world_pred = v_k + R_wb * fvel_body_total;   // world系预测速度 (不包含 omega x r)
+            const Eigen::Vector3d fvel_body_total = fvel_body_meas;   
+            const Eigen::Vector3d fvel_world_pred = v_k + R_wb * fvel_body_total;   // world系预测速度 
 
 
             if (isContact)
@@ -633,7 +628,7 @@ namespace ocs2::legged_robot
             if (isContact)
             {
                 const double fheight_pred = x.f[i].z();
-                y(ESKFNominalState::MEAS_FHEIGHT_IDX + i) = ( - fheight_pred);
+                y(ESKFNominalState::MEAS_FHEIGHT_IDX + i) = ( foot_radius_ - fheight_pred);
                 // y = z - h, dy/dfz = -1
                 C(ESKFNominalState::MEAS_FHEIGHT_IDX + i, foot_state_idx + 2) = 1.0;
             }

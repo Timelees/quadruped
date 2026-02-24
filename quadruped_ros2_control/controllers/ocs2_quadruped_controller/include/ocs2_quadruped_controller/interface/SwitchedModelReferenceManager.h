@@ -35,6 +35,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <ocs2_legged_robot/gait/GaitSchedule.h>
 #include <ocs2_legged_robot/gait/MotionPhaseDefinition.h>
 
+#include <rclcpp/rclcpp.hpp>
+
 #include "constraint/SwingTrajectoryPlanner.h"
 
 namespace ocs2::legged_robot {

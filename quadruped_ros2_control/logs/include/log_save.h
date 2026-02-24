@@ -9,6 +9,8 @@
 #include <iomanip>
 #include <sstream>
 #include <filesystem>
+#include <vector>
+#include <initializer_list>
 #include <eigen3/Eigen/Dense>
 #include <ocs2_core/Types.h>
 
@@ -36,6 +38,11 @@ public:
 
     // Save data to the csv file
     void saveDataToCSV(const std::string &filename, const std::string &header, const Eigen::Vector3d &data);
+
+    // Save variable-length row to CSV (more columns)
+    void saveDataToCSV(const std::string &filename, const std::string &header, const Eigen::VectorXd &data);
+    void saveDataToCSV(const std::string &filename, const std::string &header, const std::vector<double> &data);
+    void saveDataToCSV(const std::string &filename, const std::string &header, std::initializer_list<double> data);
 
     // Flush the underlying file stream.
     void flush();

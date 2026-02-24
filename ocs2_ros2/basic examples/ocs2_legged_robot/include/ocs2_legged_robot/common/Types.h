@@ -38,6 +38,8 @@ namespace ocs2::legged_robot {
     template<typename T>
     using feet_array_t = std::array<T, 4>;
     using contact_flag_t = feet_array_t<bool>;
+    using contact_phase_t = feet_array_t<double>;
+    using foot_force_t = feet_array_t<double>;
 
     using vector3_t = Eigen::Matrix<scalar_t, 3, 1>;
     using matrix3_t = Eigen::Matrix<scalar_t, 3, 3>;

@@ -15,7 +15,7 @@
 namespace ocs2::legged_robot
 {
     using config_type = controller_interface::interface_configuration_type;
-    // 指令接口配置，从gazebo.yaml文件中的joints和command_interfaces
+    // 指令接口配置，从gazebo.yaml/cyber_controllers.yaml文件中的joints和command_interfaces
     controller_interface::InterfaceConfiguration Ocs2QuadrupedController::command_interface_configuration() const
     {
         controller_interface::InterfaceConfiguration conf = {config_type::INDIVIDUAL, {}};
@@ -34,6 +34,7 @@ namespace ocs2::legged_robot
                 {
                     conf.names.push_back(joint_name + "/" += interface_type);
                 }
+     
             }
         }
         
@@ -41,7 +42,7 @@ namespace ocs2::legged_robot
         
         return conf;
     }
-    // 接口状态配置，从gazebo.yaml中state_interfaces
+    // 接口状态配置，从gazebo.yaml/cyber_controllers.yaml中state_interfaces
     controller_interface::InterfaceConfiguration Ocs2QuadrupedController::state_interface_configuration() const
     {
         controller_interface::InterfaceConfiguration conf = {config_type::INDIVIDUAL, {}};
@@ -61,7 +62,7 @@ namespace ocs2::legged_robot
             conf.names.push_back(imu_name_ + "/" += interface_type);
         }
         // 里程计接口
-        if (gazebo_ground_truth)
+        if (gazebo_ground_truth_ && sim_mode_)
         {
             for (const auto& interface_type : odom_interface_types_)
             {
@@ -127,8 +128,9 @@ namespace ocs2::legged_robot
 
         // Odometer Sensor (Ground Truth) - 用于获取Gazebo真实位姿进行对比
         estimator_type_ = auto_declare<std::string>("estimator_type", estimator_type_);
-        gazebo_ground_truth = auto_declare<bool>("gazebo_ground_truth", gazebo_ground_truth);
-        if (gazebo_ground_truth)
+        gazebo_ground_truth_ = auto_declare<bool>("gazebo_ground_truth", gazebo_ground_truth_);
+        sim_mode_ = auto_declare<bool>("sim_mode", sim_mode_);
+        if (gazebo_ground_truth_ && sim_mode_)     // 仿真模式下使用gazebo真值数据
         {
             odom_name_ = auto_declare<std::string>("odom_name", odom_name_);
             odom_interface_types_ = auto_declare<std::vector<std::string>>("odom_interfaces", odom_interface_types_);
@@ -151,7 +153,6 @@ namespace ocs2::legged_robot
         state_list_.fixedDown = std::make_shared<StateOCS2>(ctrl_interfaces_, ctrl_comp_);
 
         
-
         return CallbackReturn::SUCCESS;
     }
 

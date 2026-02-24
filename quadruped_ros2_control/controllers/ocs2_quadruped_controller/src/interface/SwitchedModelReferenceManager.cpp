@@ -29,6 +29,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "ocs2_quadruped_controller/interface/SwitchedModelReferenceManager.h"
 
+#include <algorithm>
+#include <cmath>
+
 /* 管理步态模式和摆动轨迹的参考信息 */
 namespace ocs2::legged_robot {
     SwitchedModelReferenceManager::SwitchedModelReferenceManager(std::shared_ptr<GaitSchedule> gaitSchedulePtr,
@@ -43,6 +46,7 @@ namespace ocs2::legged_robot {
     void SwitchedModelReferenceManager::setModeSchedule(const ModeSchedule &modeSchedule) {
         ReferenceManager::setModeSchedule(modeSchedule);
         gaitSchedulePtr_->setModeSchedule(modeSchedule);
+        
     }
 
     // 获取接触状态

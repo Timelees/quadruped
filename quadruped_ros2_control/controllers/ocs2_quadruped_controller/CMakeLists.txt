@@ -52,9 +52,9 @@ add_library(${PROJECT_NAME} SHARED
         src/estimator/LinearKalmanFilter.cpp
         src/estimator/StateEstimateBase.cpp
         src/estimator/FromOdomTopic.cpp
-        src/estimator/ExtendKalmanFilter.cpp
         src/estimator/ErrorStateKalmanFilter.cpp
-        src/estimator/STAObserver.cpp
+        src/estimator/ContactEstimator.cpp
+        # src/estimator/STAObserver.cpp
 
 
         src/wbc/HierarchicalWbc.cpp
@@ -73,7 +73,6 @@ add_library(${PROJECT_NAME} SHARED
         src/interface/LeggedRobotPreComputation.cpp
         src/interface/LeggedInterface.cpp
 
-        src/interface/io_interface/IOROS.cpp
 
         src/control/GaitManager.cpp
         src/control/TargetManager.cpp
@@ -91,6 +90,8 @@ add_library(${PROJECT_NAME} SHARED
         src/perceptive/synchronize/PlanarTerrainReceiver.cpp
         # include logs implementation so LogSave symbols are available at link time
         ../../logs/src/log_save.cpp
+
+
 )
 target_include_directories(${PROJECT_NAME}
         PUBLIC

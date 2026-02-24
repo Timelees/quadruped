@@ -1,7 +1,7 @@
 # Controller Manager configuration
 controller_manager:
   ros__parameters:
-    update_rate: 1000  # Hz
+    update_rate: 500  # Hz
 
     # Define the available controllers
     joint_state_broadcaster:
@@ -52,11 +52,22 @@ imu_sensor_broadcaster:
 
 ocs2_quadruped_controller:
   ros__parameters:
-    update_rate: 500  # Hz
+    update_rate: 250  # Hz
     robot_pkg: "cyberdog_description"
-    default_kd: 1.25   # 增大阻尼以减少振荡和漂移
-    default_kp: 30.0  # 增大刚度以提高位置跟踪精度
-    feet_force_threshold: 3.0  # 适当提高阈值以更准确检测接触
+    # hip  thigh  calf设置不同的P D
+   
+    # 增大刚度kp以提高位置跟踪精度  
+    default_hip_kp: 30.0    # hip 侧摆电机
+    default_thigh_kp: 30.0  # thigh 大腿电机
+    default_calf_kp: 30.0   # calf 小腿电机
+
+    # 增大阻尼kd以减少振荡和漂移
+    default_hip_kd: 2.0
+    default_thigh_kd: 2.0
+    default_calf_kd: 2.0
+
+    feet_force_threshold: 15.0      # 使用足端力传感器判断接触时的阈值
+    use_kalman_contact_estimator: true    # 使用卡尔曼滤波器进行接触状态估计
     joints:
       - FL_hip_joint
       - FL_thigh_joint
@@ -70,6 +81,7 @@ ocs2_quadruped_controller:
       - RR_hip_joint
       - RR_thigh_joint
       - RR_calf_joint
+
 
     command_interfaces:
       - effort
@@ -153,10 +165,13 @@ ocs2_quadruped_controller:
       - RR_foot_force
 
     # 状态估计器类型: error_state_kalman, linear_kalman, extend_kalman,ground_truth
-    estimator_type: "error_state_kalman"
+    estimator_type: "linear_kalman"
 
-    # 是否启动感知
+    # 是否启动感知 true: 感知运动  false: 盲走
     enable_perceptive: false
+
+    # 仿真/实机模式 true: 仿真  false: 实机
+    sim_mode: true
 
     # Gazebo Ground Truth - 获取Gazebo中的真实位姿用于与状态估计对比
     gazebo_ground_truth: true

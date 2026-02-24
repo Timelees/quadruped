@@ -1,4 +1,5 @@
 #include "ocs2_quadruped_controller/estimator/STAObserver.h"
+#include "ocs2_quadruped_controller/estimator/ErrorStateKalmanFilter.h" // for ESKFNominalState definition
 #include <cmath>
 #include <algorithm> // for clamp
 
@@ -6,48 +7,143 @@ namespace ocs2::legged_robot
 {
     void STAObserver::init(double k1, double k2)
     {
-        k1_ = k1;
-        k2_ = k2;
-        velocity_.setZero();
-        disturbance_.setZero();
+        // 初始化状态和扰动
+        z_ = STAStateVec::Zero();
+        z1_ = STADisturbanceVec::Zero();
+
+    // 初始化增益矩阵
+    K1_ = STAGainMatrix::Identity() * k1;
+    K2_ = STAGainMatrix::Identity() * k2;
+
+        // 初始化状态转移矩阵F和输出矩阵H
+        F_.setIdentity();
+        H_.setZero();
+        // 初始化扰动输入矩阵B_d和扰动协方差矩阵Q_d
+        Bd_.setIdentity();
+        Qd_.setIdentity();
+
+        disturbance_history_.reserve(max_history_size_);
+        disturbance_history_.clear();
+        disturbance_history_.push_back(z1_);
     }
 
-    void STAObserver::update(double dt, const Eigen::Vector3d &acc_body, const Eigen::Quaterniond &q_wb, const Eigen::Vector3d &vel_meas)
+    // STA更新过程
+    void STAObserver::update(const double dt, ESKFNominalState &state, Eigen::Vector3d &acc_world)
     {
-        // 1. 将机体加速度转换到世界系，并移除重力
-        // 假设 acc_body 包含重力分量 (静止时 z ~ 9.8)
-        // a_world_real = q * a_body + g_vec(0,0,-9.8)
-        Eigen::Vector3d acc_world = q_wb * acc_body + gravity_;
+        z_.segment<3>(STAState::POS_IDX) = state.p;
+        z_.segment<3>(STAState::VEL_IDX) = state.v;
+        z_.segment<4>(STAState::ROT_IDX) = state.q.coeffs();
 
-        // 2. 计算观测误差 (测量速度 - 估计速度)
-        Eigen::Vector3d error = vel_meas - velocity_;
+        std::cout << "ESKF 估计的状态state：" << std::endl;
+        std::cout << "----p = " << z_.segment<3>(STAState::POS_IDX).transpose() << std::endl;
+        std::cout << "----v = " << z_.segment<3>(STAState::VEL_IDX).transpose() << std::endl;
+        std::cout << "----q = " << z_.segment<4>(STAState::ROT_IDX).transpose() << std::endl;
 
-        // 3. Super-Twisting Algorithm (STA)
-        // 对应论文公式 (24) 和 (25) 的简化形式
-        Eigen::Vector3d correction_v;
-        Eigen::Vector3d correction_d;
+        double dt_ = dt;                               // 时间步长
+        Eigen::Vector3d delta_theta = acc_world * dt_; // 旋转增量
 
-        for (int i = 0; i < 3; ++i)
+        // 构建状态转移矩阵F
+        F_.setIdentity();
+        F_.block<3, 3>(STAState::POS_IDX, STAState::VEL_IDX) = dt_ * Eigen::Matrix3d::Identity();
+        F_.block<4, 4>(STAState::ROT_IDX, STAState::ROT_IDX) = Sophus::SO3d::exp(delta_theta).matrix();
+
+        // 构建输出矩阵H
+        H_.setZero();
+        H_.block<9, 9>(0, 0) = Eigen::MatrixXd::Identity(9, 9);
+
+    // 计算跟踪误差：先从名义状态构建 STAStateVec，再计算误差
+    STAStateVec x_vec = STAStateVec::Zero();
+    x_vec.segment<3>(STAState::POS_IDX) = state.p;
+    x_vec.segment<3>(STAState::VEL_IDX) = state.v;
+    x_vec.segment<4>(STAState::ROT_IDX) = state.q.coeffs();
+    STAStateVec e_ = H_ * x_vec - z_prev_;
+
+        // 归一化处理
+        double norm_sq = e_.squaredNorm();
+        if (norm_sq < 1e-6)
+        { // 避免除0
+            e_ /= 1e-6;
+        }
+        STAStateVec e1_norm_ = e_ / std::sqrt(norm_sq);
+        STAStateVec e2_norm_ = e_ / norm_sq;
+        // 更新扰动估计
+        z1_ = z1_prev_ + K2_ * e2_norm_ * dt_;
+
+        // 更新状态估计
+        z_ = F_ * z_prev_ + K1_ * e1_norm_ * dt_ + z1_ * dt_;
+
+        // 更新历史状态和扰动
+        z_prev_ = z_;
+        z1_prev_ = z1_;
+
+        // 保存扰动历史（用于自适应协方差计算）
+        disturbance_history_.push_back(z1_);
+        if (disturbance_history_.size() > max_history_size_)
         {
-            double e = error(i);
-            double sgn_e = (e > 0) ? 1.0 : ((e < 0) ? -1.0 : 0.0);
-            double sqrt_e = std::sqrt(std::abs(e));
+            disturbance_history_.erase(disturbance_history_.begin());
+        }
+    }
 
-            // STA 连续项
-            correction_v(i) = k1_ * sqrt_e * sgn_e;
-            // STA 积分项 (扰动导数)
-            correction_d(i) = k2_ * sgn_e;
+    // 设置增益矩阵
+    void STAObserver::setGains(const Eigen::MatrixXd &L)
+    {
+        // 论文中的增益选择准则：K1 = 1.1 * L, K2 = 1.5 * sqrt(L)
+        // 其中 L 是正定对角矩阵，代表观测器带宽
+
+        if (L.rows() != STAState::STATE_DIM || L.cols() != STAState::STATE_DIM)
+        {
+            // 如果维度不匹配，使用标量L
+            double L_scalar = L(0, 0);
+            K1_ = Eigen::MatrixXd::Identity(STAState::STATE_DIM, STAState::STATE_DIM) * (1.1 * L_scalar);
+            K2_ = Eigen::MatrixXd::Identity(STADisturbance::DISTURBANCE_DIM, STADisturbance::DISTURBANCE_DIM) * (1.5 * std::sqrt(L_scalar));
+        }
+        else
+        {
+            // 矩阵形式的带宽
+            K1_ = 1.1 * L;
+
+            // 计算sqrt(L)（对角矩阵的平方根）
+            Eigen::MatrixXd sqrt_L = Eigen::MatrixXd::Zero(STAState::STATE_DIM, STAState::STATE_DIM);
+            for (int i = 0; i < STAState::STATE_DIM; ++i)
+            {
+                sqrt_L(i, i) = std::sqrt(L(i, i));
+            }
+            K2_ = 1.5 * sqrt_L;
+        }
+    }
+
+    // 自适应计算扰动协方差矩阵
+    STADisturbanceCov STAObserver::computeDisturbanceCovariance(int window_size)
+    {
+        if (disturbance_history_.size() < 2)
+        {
+            return STADisturbanceCov::Identity() * 0.01;
         }
 
-        // 4. 更新估计值 (Euler积分)
-        // dot(v) = a + d + correction_v
-        velocity_ += (acc_world + disturbance_ + correction_v) * dt;
-        
-        // dot(d) = correction_d
-        disturbance_ += correction_d * dt;
+        int n = std::min(static_cast<int>(disturbance_history_.size()), window_size);
+        int start_idx = static_cast<int>(disturbance_history_.size()) - n;
 
-        // [优化] 添加扰动限幅，防止发散 (假设最大外力产生的加速度不超过 20 m/s^2)
-        double max_disturbance = 20.0;
-        disturbance_ = disturbance_.cwiseMax(-max_disturbance).cwiseMin(max_disturbance);
+        // 计算扰动均值
+        STADisturbanceVec mean = STADisturbanceVec::Zero();
+        for (int i = start_idx; i < static_cast<int>(disturbance_history_.size()); ++i)
+        {
+            mean += disturbance_history_[i];
+        }
+        mean /= static_cast<double>(n);
+
+        // 计算经验协方差
+        STADisturbanceCov Q_d = STADisturbanceCov::Zero();
+        for (int i = start_idx; i < static_cast<int>(disturbance_history_.size()); ++i)
+        {
+            STADisturbanceVec e = disturbance_history_[i] - mean;
+            Q_d += e * e.transpose();
+        }
+        Q_d /= static_cast<double>(n);
+
+        // 添加小正则化项确保正定性
+        Q_d += STADisturbanceCov::Identity() * 1e-6;
+
+        return Q_d;
     }
+
 }

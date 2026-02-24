@@ -11,7 +11,6 @@
 #include <ocs2_quadruped_controller/estimator/FromOdomTopic.h>
 #include <ocs2_quadruped_controller/estimator/GroundTruth.h>
 #include <ocs2_quadruped_controller/estimator/LinearKalmanFilter.h>
-#include <ocs2_quadruped_controller/estimator/ExtendKalmanFilter.h>
 #include <ocs2_quadruped_controller/estimator/ErrorStateKalmanFilter.h>
 
 #include <ocs2_centroidal_model/CentroidalModelRbdConversions.h>
@@ -82,22 +81,18 @@ namespace ocs2::legged_robot
         }
         else if (estimator_type == "linear_kalman")
         {
-            estimator_ = std::make_unique<KalmanFilterEstimate>(
+            auto kalman_estimator = std::make_unique<KalmanFilterEstimate>(
                 legged_interface_->getPinocchioInterface(),
                 legged_interface_->getCentroidalModelInfo(),
                 *ee_kinematics_, ctrl_interfaces_,
                 node_);
-            dynamic_cast<KalmanFilterEstimate&>(*estimator_).loadSettings(task_file_, verbose_);
-            RCLCPP_INFO(node_->get_logger(), "Using Kalman Filter Estimator");
-        }
-        else if (estimator_type == "extend_kalman"){
-            estimator_ = std::make_unique<ExtendKalmanFilter>(
-                legged_interface_->getPinocchioInterface(),
-                legged_interface_->getCentroidalModelInfo(),
-                *ee_kinematics_, ctrl_interfaces_,
-                node_);
-            dynamic_cast<ExtendKalmanFilter&>(*estimator_).loadSettings(task_file_, verbose_);
-            RCLCPP_INFO(node_->get_logger(), "Using Extend Kalman Filter Estimator");
+            kalman_estimator->loadSettings(task_file_, verbose_);
+            
+            // 设置 ReferenceManager 用于获取步态相位信息
+            kalman_estimator->setReferenceManager(legged_interface_->getSwitchedModelReferenceManagerPtr());
+            
+            estimator_ = std::move(kalman_estimator);
+            RCLCPP_INFO(node_->get_logger(), "Using Kalman Filter Estimator with MPC gait phase");
         }
         else if (estimator_type == "error_state_kalman" )
         {
@@ -130,6 +125,9 @@ namespace ocs2::legged_robot
         observation_.state = rbd_conversions_->computeCentroidalStateFromRbdModel(measured_rbd_state_);
         observation_.state(9) = yaw_last + angles::shortest_angular_distance(
             yaw_last, observation_.state(9));
+        
+   
+        
         observation_.mode = estimator_->getMode();
 
         visualizer_->update(observation_);
