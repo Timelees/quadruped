@@ -96,7 +96,7 @@ namespace ocs2::legged_robot
         scalar_t dt = period.seconds(); // 控制器时间周期
 
         updateJointStates();        // 更新关节状态
-        computeForwardKinematics(); // 计算前向运动学
+    
 
         // 使用 ContactEstimator 估计足端接触状态和足端力
         if (use_contact_estimator_ && contact_estimator_)
@@ -117,24 +117,19 @@ namespace ocs2::legged_robot
             contact_estimator_->updateAndComputeForce(dt);
 
             // 获取足端高度
-            // 注意：ee_kinematics_->getPosition() 返回的是 base 坐标系下的足端位置。
-            // ContactEstimator 的 P_h 期望输入“足端离地高度”(world z - ground_z)。
-            // 这里在平地假设 ground_z = 0 的条件下，将 base->foot 变换到 world，取 foot_world.z 作为 height。
-            const auto eePosBase = ee_kinematics_->getPosition(vector_t());
+            // ee_kinematics_->getPosition() 返回 data.oMf[].translation()
+            // 但注意: computeForwardKinematics() 中 qPino 的 base position 被设为零
+            // (只设了姿态和关节角)，所以 oMf 实际返回的是 R_wb * p_bf（旋转到 world 朝向，但没平移）
+            // 因此需要加上 base 的 world position 才能得到真实的 world 足端位置
+            const auto eePosRelWorld = ee_kinematics_->getPosition(vector_t());
             std::array<double, 4> foot_heights;
-
-            // base 在 world 中的姿态（用当前估计的 quat_ 更一致；如果你更希望用 rbd_state_ 的姿态，也可以替换）
-            const matrix3_t R_wb = getRotationMatrixFromZyxEulerAngles(quatToZyx(quat_));
-
-            // base 在 world 中的位置
-            const vector3_t p_wb = xHat_.segment<3>(0);
-
+            const vector3_t p_wb = xHat_.segment<3>(0); // base world position (来自 KF 估计)
             constexpr scalar_t ground_z = 0.0; // 平地假设；后续可接 elevation map / raycast
             for (int i = 0; i < 4; ++i)
             {
-                const vector3_t p_bf = eePosBase[i];
-                const vector3_t p_wf = p_wb + R_wb * p_bf;
-                foot_heights[i] = static_cast<double>(p_wf.z() - ground_z);
+                // eePosRelWorld[i] ≈ R_wb * p_bf (world 朝向下的相对位置, 但 base 在原点)
+                // 真实 world 足端位置 = p_wb + eePosRelWorld[i]
+                foot_heights[i] = static_cast<double>(p_wb.z() + eePosRelWorld[i].z() - ground_z);
             }
 
             // 从 MPC 的 ModeSchedule 获取接触相位和摆动相位
@@ -144,23 +139,23 @@ namespace ocs2::legged_robot
             getGaitPhaseFromMPC(current_time, contact_phase, swing_phase);
 
             // 从 MPC 获取期望接触状态并设置到 ContactEstimator
-            contact_flag_t expected_contact;
-            expected_contact.fill(false);
-            if (reference_manager_ptr_)
-            {
-                try
-                {
-                    const auto &modeSchedule = reference_manager_ptr_->getModeSchedule();
-                    const auto mode = modeSchedule.modeAtTime(current_time);
-                    expected_contact = modeNumber2StanceLeg(mode);
-                }
-                catch (const std::exception &e)
-                {
-                    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
-                                         "Failed to get expected contact from ModeSchedule: %s", e.what());
-                }
-            }
-            contact_estimator_->setExpectedContact(expected_contact);
+            // contact_flag_t expected_contact;
+            // expected_contact.fill(false);
+            // if (reference_manager_ptr_)
+            // {
+            //     try
+            //     {
+            //         const auto &modeSchedule = reference_manager_ptr_->getModeSchedule();
+            //         const auto mode = modeSchedule.modeAtTime(current_time);
+            //         expected_contact = modeNumber2StanceLeg(mode);
+            //     }
+            //     catch (const std::exception &e)
+            //     {
+            //         RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+            //                              "Failed to get expected contact from ModeSchedule: %s", e.what());
+            //     }
+            // }
+            // contact_estimator_->setExpectedContact(expected_contact);
 
             // std::cout << "[Linear KalmanFilter] contact_phase: [";
             // for (size_t i = 0; i < contact_phase.size(); ++i) {
@@ -195,26 +190,8 @@ namespace ocs2::legged_robot
                 contact_flag_[i] = contact_flags[i];
             }
         }
-        else
-        {   
-            // 设置关节力矩
-            Eigen::Matrix<double, 12, 1> joint_torques;
-            for (int i = 0; i < 12; ++i)
-            {
-                joint_torques(i) = ctrl_component_.joint_effort_state_interface_[i].get().get_value();
-            }
-            // std::cout << "[KalmanFilter] joint_torque: " << joint_torques.transpose() << std::endl;
-            contact_estimator_->setJointTorques(joint_torques);
-
-            // 设置机器人状态
-            contact_estimator_->setRbdState(rbd_state_);
-
-            // 更新动力学参数并计算足端力
-            contact_estimator_->updateAndComputeForce(dt);
-
-            // 获取足端力
-            foot_forces = contact_estimator_->getFootForces();
-            
+        else    // 原生legged controll逻辑
+        {
             updateContact(); // 使用原有的接触更新逻辑
         }
         updateImu(); // 获取 IMU 数据
@@ -226,7 +203,9 @@ namespace ocs2::legged_robot
         q_.block(3, 3, 3, 3) = (dt * 9.81f / 20.f) * matrix3_t::Identity();
         q_.block(6, 6, dimContacts_, dimContacts_) = dt * matrix_t::Identity(dimContacts_, dimContacts_);
 
-        // eePos和eeVel的值为负，使用时要取反才能正确表示足端位置和速度
+
+        computeForwardKinematics(); // 计算前向运动学
+        // 返回的是 以 base 为参考原点、但用 world 姿态旋转后的 相对位置,因为qPino的位置部分为0
         const auto eePos = ee_kinematics_->getPosition(vector_t());
         const auto eeVel = ee_kinematics_->getVelocity(vector_t(), vector_t());
 
@@ -260,8 +239,8 @@ namespace ocs2::legged_robot
             r.block(rIndex2, rIndex2, 3, 3) = (isContact ? 1. : high_suspect_number) * r.block(rIndex2, rIndex2, 3, 3);
             r(rIndex3, rIndex3) = (isContact ? 1. : high_suspect_number) * r(rIndex3, rIndex3);
 
-            ps_.segment(3 * i, 3) = -eePos[i];        // foot相较于base在下方，需要取反
-            ps_.segment(3 * i, 3)[2] += foot_radius_; // body质心高度
+            ps_.segment(3 * i, 3) = -eePos[i];
+            ps_.segment(3 * i, 3)[2] += foot_radius_;
             vs_.segment(3 * i, 3) = -eeVel[i];
         }
 

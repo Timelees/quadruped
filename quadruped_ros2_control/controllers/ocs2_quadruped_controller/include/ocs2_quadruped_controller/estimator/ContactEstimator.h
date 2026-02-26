@@ -40,11 +40,9 @@ namespace ocs2::legged_robot
     {
         EIGEN_MAKE_ALIGNED_OPERATOR_NEW
         Eigen::Matrix<double, 3, 18> Jc;     // 足端接触雅可比 (3×nv)，线性部分
-        Eigen::Matrix<double, 3, 18> Sl;     // 关节选择矩阵 (3×nv)，仅该腿关节对应位置为I
         Eigen::Vector3d fi;                  // 足端力 (3×1)
         
         LegParameters() : Jc(Eigen::Matrix<double, 3, 18>::Zero()), 
-                          Sl(Eigen::Matrix<double, 3, 18>::Zero()),
                           fi(Eigen::Vector3d::Zero()) {}
     };
 
@@ -211,7 +209,6 @@ namespace ocs2::legged_robot
         CentroidalModelInfo info_;          // 模型信息
         CtrlInterfaces& ctrl_component_;    // 控制接口
         vector_t rbd_state_;                // 机器人状态向量
-
         PinocchioInterface pinocchio_interface_;                        // 机器人运动学/动力学模型
         std::unique_ptr<PinocchioEndEffectorKinematics> ee_kinematics_; // 脚部运动学计算器
         DynamicParameters dynamics_parameters_;                          // 动力学参数
@@ -240,10 +237,10 @@ namespace ocs2::legged_robot
         scalar_t mu_c1_ = 1.0, sigma_c1_ = 0.01; // 支撑相后期参数
         scalar_t mu_s0_ = 0.0, sigma_s0_ = 0.01; // 摆动相早期参数
         scalar_t mu_s1_ = 1.0, sigma_s1_ = 0.01; // 摆动相后期参数
-        scalar_t mu_hz_ = 0.025, sigma_hz_ = 0.01; // 足端高度参数：正常触地约0.019m，mu稍大于触地高度
+        scalar_t mu_hz_ = 0.02, sigma_hz_ = 0.01; // 足端高度参数：正常触地约0.019m，mu稍大于触地高度
         // 足端力参数
         std::array<scalar_t, NUM_LEGS> mu_fz_ = {0, 0, 0, 0};
-        scalar_t sigma_fz_ = 10.0;
+        scalar_t sigma_fz_ = 15.0;
         LegParameters leg_parameters_[4];   // 各腿参数
         scalar_t gamma_, lambda_ = 200.0;           // 低通滤波参数
 
@@ -252,14 +249,13 @@ namespace ocs2::legged_robot
         vector_t vPino_;                    // 广义速度向量 (18)
         vector_t zeroVel_;                  // 零速度向量 (18)
         Eigen::Matrix<double, 6, Eigen::Dynamic> J_full_;  // 完整雅可比矩阵 (6×nv)
-    std::array<std::size_t, NUM_LEGS> ee_frame_ids_;  // 足端帧索引（缓存，避免在头文件包含 pinocchio）
+        std::array<std::size_t, NUM_LEGS> ee_frame_ids_;  // 足端帧索引（缓存，避免在头文件包含 pinocchio）
         
         // computeFootForce 预分配变量
         Eigen::Matrix<double, 18, 1> qdot_;      // 广义速度
         Eigen::Matrix<double, 18, 1> tau_input_; // 输入力矩
 
-        Eigen::Matrix<double, 12, 18> S_;   // 选择矩阵: 从广义坐标空间提取关节部分
-        Eigen::Matrix<double, 18, 12> ST_;  // 选择矩阵转置
+        Eigen::Matrix<double, 12, 18> Jc_stack_;  // 堆叠接触雅可比 [Jc0; Jc1; Jc2; Jc3] (12×nv)
         Eigen::Matrix<double, 12, 1> tauAct_;    // 关节力矩
         Eigen::Matrix<double, 18, 1> rd_;   // 扰动力 (广义外力估计)
         Eigen::Matrix<double, 18, 1> Pk_;   // 动量 M * qdot

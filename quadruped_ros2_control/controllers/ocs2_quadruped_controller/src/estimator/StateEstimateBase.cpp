@@ -78,36 +78,12 @@ namespace ocs2::legged_robot
 
     void StateEstimateBase::updateContact()
     {
-        // for (size_t i = 0; i < 4; ++i) {
-        //     std::cout << "foot " << i << " contact flag: " << contact_flag_[i] << std::endl;
-        // }
-
+    
         const size_t size = ctrl_component_.foot_force_state_interface_.size();
-        // ========== 使用简单阈值判断 ==========
-        constexpr double force_max = 50.0; // 最大足端力参考值 (N)
-        constexpr double force_min = 0.5;  // 最小足端力阈值 (N)
-
-        for (size_t i = 0; i < std::min(size, static_cast<size_t>(4)); ++i)
+        for (int i = 0; i < size; i++)
         {
-            // double foot_force = ctrl_component_.foot_force_state_interface_[i].get().get_value();
-            double foot_force = foot_forces[i];
-            contact_flag_[i] = foot_force > feet_force_threshold_;
-
-            // 计算接触相位 (0~1): 基于归一化足端力
-            if (foot_force <= force_min)
-            {
-                contact_phase_[i] = 0.0;
-            }
-            else if (foot_force >= force_max)
-            {
-                contact_phase_[i] = 1.0;
-            }
-            else
-            {
-                contact_phase_[i] = (foot_force - force_min) / (force_max - force_min);
-            }
-
-            // std::cout << "Foot " << i << " Force: " << foot_force << " Contact Flag: " << contact_flag_[i] << std::endl;
+            contact_flag_[i] = ctrl_component_.foot_force_state_interface_[i].get().get_value() >
+                feet_force_threshold_;
         }
     }
 
