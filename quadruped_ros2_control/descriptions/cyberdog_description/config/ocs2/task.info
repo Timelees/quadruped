@@ -322,25 +322,17 @@ weight
 contactEstimator
 {
     ; 高斯分布参数
-    phaseSigma        0.01        ; 支撑相位概率估计参数 (sigma越小，步态信号越清晰)
-    swingPhaseSigma   0.01        ; 摆动相位概率估计参数
-    footHeightMu      0.02       ; 足端触地高度阈值 (m)，正常触地约0.019m，
-    footHeightSigma   0.01        ; 足端高度概率sigma (m)，控制高度区分灵敏度
-    footForceSigma    10.0        ; 足端力概率sigma (N)，控制力→概率过渡带宽度
-    footForceThreshold 15.0       ; 足端力阈值 (N)，力>阈值时概率>0.5
-
-    ; 力低通滤波参数
-    forceFilterAlpha        0.5   ; 滤波系数，越大响应越快
-    swingForceDecay         0.8   ; 摆动相力衰减系数(暂未用)
+    contactPhaseSigma        0.01        ; 支撑相位概率估计参数
+    swingPhaseSigma          0.01        ; 摆动相位概率估计参数
+    footHeightMu             0.019       ; 足端触地高度阈值
+    footHeightSigma          0.01        ; 足端高度概率sigma
+    footForceSigma           10.0        ; 足端力概率sigma
+    footForceThreshold       15.0        ; 足端力阈值 (N)，力>阈值时概率>0.5
 
     ; 卡尔曼滤波噪声参数
     contactProcessNoise        0.998   ; 过程噪声，越大 Kalman 增益越大
     tauMeasureNoise            0.93    ; 力观测噪声
     fheightMeasureNoise        0.841   ; 高度观测噪声
-
-    ; 接触判定与观测器参数
-    contactThreshold           0.5     ; 接触概率阈值 (>threshold 判定为接触)
-    observerCutoffFreq         200.0   ; 动量观测器截止频率 (Hz)
 }
 
 

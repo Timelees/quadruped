@@ -1,6 +1,6 @@
-//
-// Kalman filter based contact estimation for quadruped robots
-//
+/*
+ * Kalman filter based contact estimation for quadruped robots
+*/
 
 #include "ocs2_quadruped_controller/estimator/ContactEstimator.h"
 #include <cmath>
@@ -11,16 +11,12 @@
 #include <limits>
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
-#include <pinocchio/algorithm/rnea.hpp> // 逆动力学（重力、科氏力）
-#include <pinocchio/algorithm/crba.hpp> // 质量矩阵
+#include <pinocchio/algorithm/rnea.hpp> 
+#include <pinocchio/algorithm/crba.hpp> 
 #include <utility>
 #include <chrono>
 #include <atomic>
-
-
-
 #include <ocs2_core/misc/LoadData.h>
-
 #include <ocs2_robotic_tools/common/RotationDerivativesTransforms.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
 
@@ -62,19 +58,8 @@ namespace ocs2::legged_robot
         X_est_.setZero();
         P_est_.setIdentity();
         
-        
         mu_fz_.fill(force_threshold_);
         
-        // 力低通滤波参数
-        force_filtered_.fill(0.0);
-        force_filter_alpha_ = 0.3;   // 滤波系数，越大响应越快
-        swing_force_decay_ = 0.7;    // 摆动相力衰减系数
-        
-        // 足端力估计的历史值初始化
-        foot_force_z_filtered_.fill(0.0);
-
-   
-        // ========== 预分配向量/矩阵初始化 ==========
         qPino_ = vector_t::Zero(info_.generalizedCoordinatesNum);
         vPino_ = vector_t::Zero(info_.generalizedCoordinatesNum);
         zeroVel_ = vector_t::Zero(nv);
@@ -113,10 +98,6 @@ namespace ocs2::legged_robot
 
         ee_kinematics_->setPinocchioInterface(pinocchio_interface_);
 
-   
-        
-        logger.setEnabled(true);
-
         initialized_ = true;
     }
 
@@ -131,13 +112,8 @@ namespace ocs2::legged_robot
         Eigen::Matrix<scalar_t, NUM_LEGS, 1> U;     // 输入：步态相位概率
         Eigen::Matrix<scalar_t, NUM_LEGS * 2, 1> Z; // 观测：[高度概率; 力概率]
 
-        // std::array<bool, NUM_LEGS> is_swing_array;
-        // std::array<scalar_t, NUM_LEGS> gait_phase_array;
-    
-        
         for (int i = 0; i < NUM_LEGS; ++i)
         {
-            // 选择当前有效的相位值
             scalar_t gait_phase;
             if (swing_phase[i] == -1.0)  // 处于接触相
             {
@@ -157,27 +133,16 @@ namespace ocs2::legged_robot
                 is_contact = 1;
                 is_swing = 0;
             }
-            // std::cout << "======== leg " << i << " ========" << std::endl;
-            // 计算各概率
-            scalar_t P_gait = computeGaitPhaseProbability(gait_phase, i, is_swing, is_contact);
-            // std::cout << "相位phase: " << gait_phase << ", 接触相： " << is_contact << std::endl;
-            // std::cout << "计算的步态相位概率: " << P_gait << std::endl;
-            scalar_t P_height = computeHeightProbability(foot_heights[i], i);
-            // std::cout << "足端高度: " << foot_heights[i] << std::endl;
-            // std::cout << "计算的足端高度概率: " << P_height << std::endl;
-            scalar_t P_force = computeForceProbability(foot_forces[i], i, is_swing); 
-            // std::cout << "足端力: " << foot_forces[i] << std::endl;
-            // std::cout << "计算的足端力概率: " << P_force << std::endl;
 
-            // NaN 保护
+            scalar_t P_gait = computeGaitPhaseProbability(gait_phase, i, is_swing, is_contact); // 基于步态相位的接触概率
+            scalar_t P_height = computeHeightProbability(foot_heights[i], i);                   // 基于足端高度的接触概率
+            scalar_t P_force = computeForceProbability(foot_forces[i], i, is_swing);            // 基于足端力的接触概率
+
+            // std::cout << "Foot " << i << " - P_gait: " << P_gait << ", P_height: " << P_height << ", P_force: " << P_force << std::endl;
+
             if (std::isnan(P_gait)) P_gait = 0.0;
             if (std::isnan(P_height)) P_height = 0.0;
             if (std::isnan(P_force)) P_force = 0.0;
-
-            // 存储调试信息
-            debug_info_.P_gait[i] = P_gait;
-            debug_info_.P_position[i] = P_height;
-            debug_info_.P_force[i] = P_force;
 
             // 构建输入和观测向量
             U(i) = P_gait;
@@ -185,72 +150,34 @@ namespace ocs2::legged_robot
             Z(i + NUM_LEGS) = P_force;
         }
 
-
-
-        // ========== 重新设置噪声协方差（与参考代码保持一致，每次更新重置） ==========
         Q_.setZero();
         Q_.block(0, 0, NUM_LEGS, NUM_LEGS) = contact_process_noise_ * Eigen::Matrix<scalar_t, NUM_LEGS, NUM_LEGS>::Identity();
         R_.setZero();
         R_.block(0, 0, NUM_LEGS, NUM_LEGS) = fheight_measure_noise_ * Eigen::Matrix<scalar_t, NUM_LEGS, NUM_LEGS>::Identity();
         R_.block(NUM_LEGS, NUM_LEGS, NUM_LEGS, NUM_LEGS) = tau_measure_noise_ * Eigen::Matrix<scalar_t, NUM_LEGS, NUM_LEGS>::Identity();
 
-        // ========== 卡尔曼滤波 ==========
-        // 预测步骤（平滑先验）
+        // 预测步骤
         X_pre_ = A_ * X_est_ + B_ * U;
         P_pre_ = A_ * P_est_ * A_.transpose() + Q_;
-
         // 更新步骤
         Vector8 Z_pred = H_ * X_pre_;
         Vector8 ey = Z - Z_pred;
-
         // 创新协方差
         Eigen::Matrix<scalar_t, NUM_LEGS * 2, NUM_LEGS * 2> S = H_ * P_pre_ * H_.transpose() + R_;
-
         // 卡尔曼增益 (使用LU分解求解)
         Vector8 S_inv_ey = S.lu().solve(ey);
         X_est_ = X_pre_ + P_pre_ * H_.transpose() * S_inv_ey;
-
         Eigen::Matrix<scalar_t, NUM_LEGS * 2, NUM_LEGS> S_inv_H = S.lu().solve(H_);
         P_est_ = (I_ - P_pre_ * H_.transpose() * S_inv_H) * P_pre_;
-
         // 确保协方差矩阵对称
         P_est_ = (P_est_ + P_est_.transpose()) * 0.5;
 
-        
-
-        // ========== 输出结果 ==========
         for (int i = 0; i < NUM_LEGS; ++i)
         {
-            // 限制估计值在 [0, 1] 范围内
             contact_prob_[i] = std::clamp(X_est_(i), 0.0, 1.0);
             contact_flags_[i] = (contact_prob_[i] > contact_threshold_);
             contact_phase_out_[i] = contact_prob_[i];
-
-            debug_info_.X_est[i] = X_est_(i);
         }
-        // 限频打印原始量，用于确认单位/坐标系是否一致，否则 P_position/P_force 很容易长期饱和。
-        // static int printDecimator = 0;
-        // if (++printDecimator >= 5) { 
-        //     printDecimator = 0;
-        //     std::cout << std::fixed << std::setprecision(4);
-        //     std::cout << "┌────────────────────────────────────────────────────────────────────────────────────────────────┐\n";
-        //     std::cout << "│ Leg │ height(m) │ est_Fz(N) │ raw_Fz(N) │ P_gait │  P_h   │  P_f   │ Kalman P │ Contact │\n";
-        //     std::cout << "├─────┼───────────┼───────────┼───────────┼────────┼────────┼────────┼──────────┼─────────┤\n";
-        //     for (int i = 0; i < NUM_LEGS; ++i) {
-        //         const char* est_str = contact_flags_[i] ? "YES" : "NO ";
-        //         std::cout << "│  " << i << "  │   " << std::setw(7) << foot_heights[i]
-        //                   << " │  " << std::setw(7) << foot_forces_[i]
-        //                   << "  │  " << std::setw(7) << std::abs(foot_forces[i])
-        //                   << "  │ " << std::setw(6) << debug_info_.P_gait[i]
-        //                   << " │ " << std::setw(6) << debug_info_.P_position[i]
-        //                   << " │ " << std::setw(6) << debug_info_.P_force[i]
-        //                   << " │  " << std::setw(6) << X_est_(i)
-        //                   << "  │  " << est_str
-        //                   << "    │\n";
-        //     }
-        //     std::cout << "└─────┴───────────┴───────────┴───────────┴────────┴────────┴────────┴──────────┴─────────┘\n";
-        // }
-
     }
 
     // 动力学参数更新
@@ -261,11 +188,7 @@ namespace ocs2::legged_robot
         const size_t actuatedDofNum = info_.actuatedDofNum;
         const size_t nv = model.nv; // 广义速度维度 (18)
 
-        // ========== 1. 构建广义位置和速度向量 ==========
-        // 与 OCS2 CentroidalModelRbdConversions::computeCentroidalStateFromRbdModel() 保持一致：
-        //   qPino = [position(3), eulerZYX(3), joint_pos]
-        //   vPino = [v_linear(3), eulerRates(3), joint_vel]
-        // rbd_state_ 布局: [eulerZYX(3), pos(3), joint_pos(n) | ω_world(3), v_world(3), joint_vel(n)]
+        // 构建广义位置和速度向量
         qPino_.head<3>() = rbd_state_.segment<3>(3);                         // base position
         qPino_.segment<3>(3) = rbd_state_.head<3>();                         // 姿态 ZYX
         qPino_.tail(actuatedDofNum) = rbd_state_.segment(6, actuatedDofNum); // 关节位置
@@ -276,34 +199,29 @@ namespace ocs2::legged_robot
             rbd_state_.segment<3>(info_.generalizedCoordinatesNum));                      // 全局角速度 → 欧拉角速率
         vPino_.tail(actuatedDofNum) = rbd_state_.segment(6 + info_.generalizedCoordinatesNum, actuatedDofNum); // 关节速度
 
-        // ========== 2. 前向运动学和雅可比计算 ==========
+        // 前向运动学和雅可比计算
         pinocchio::forwardKinematics(model, data, qPino_, vPino_);
         pinocchio::computeJointJacobians(model, data, qPino_);
         pinocchio::updateFramePlacements(model, data);
 
-        // ========== 3. 足端接触雅可比矩阵提取 (3×nv 线性部分) ==========
+        // 足端接触雅可比矩阵提取 (3×nv 线性部分)
         for (int i = 0; i < NUM_LEGS; i++)
         {
             J_full_.setZero();
             const auto frameId = static_cast<pinocchio::FrameIndex>(ee_frame_ids_[i]);
-
-            // LOCAL_WORLD_ALIGNED: 雅可比在世界坐标系下表达
             pinocchio::getFrameJacobian(model, data, frameId, pinocchio::LOCAL_WORLD_ALIGNED, J_full_);
-
-            // 提取雅可比矩阵线速度部分（3×nv）
-            leg_parameters_[i].Jc = J_full_.topRows<3>();
-
-            // 同时填充堆叠雅可比 Jc_stack_ (12×nv): [Jc0; Jc1; Jc2; Jc3]
+            leg_parameters_[i].Jc = J_full_.topRows<3>();   // 雅可比矩阵线速度部分（3×nv）
+            // 填充堆叠雅可比 Jc_stack_ (12×nv): [Jc0; Jc1; Jc2; Jc3]
             Jc_stack_.block<3, 18>(3 * i, 0) = leg_parameters_[i].Jc;
         }
 
-        // ========== 4. 质量矩阵 ==========
+        // 质量矩阵
         pinocchio::crba(model, data, qPino_);
         // pinocchio 的 CRBA 只填充上三角，使用 triangularView 高效对称化
         data.M.triangularView<Eigen::StrictlyLower>() = data.M.transpose().triangularView<Eigen::StrictlyLower>();
         dynamics_parameters_.M = data.M;
 
-        // ========== 6. 非线性效应 (科氏力 + 重力) ==========
+        // 非线性效应 (科氏力 + 重力)
         pinocchio::nonLinearEffects(model, data, qPino_, vPino_);
         dynamics_parameters_.nle = data.nle; // C(q,v)*v + g(q)
 
@@ -311,9 +229,8 @@ namespace ocs2::legged_robot
         pinocchio::computeCoriolisMatrix(model, data, qPino_, vPino_);
         dynamics_parameters_.C = data.C;
         
-        // ========== 5. 重力项 G(q) ==========
+        // 重力项 G(q)
        dynamics_parameters_.grav = dynamics_parameters_.nle - dynamics_parameters_.C * vPino_;
-
     }
 
     // 计算足端力 - 基于动量观测器
@@ -321,16 +238,15 @@ namespace ocs2::legged_robot
     {
         const size_t actuatedDofNum = info_.actuatedDofNum;
 
-        // ========== 1. 构建广义速度向量 ==========
+        // 构建广义速度向量
         qdot_ = vPino_;
 
-        // ========== 2. 构建广义力向量 (仅关节力矩) ==========
+        // 构建广义力向量 (仅关节力矩)
         tau_input_.setZero();
         tau_input_.tail(actuatedDofNum) = tauAct_;
 
-        // ========== 3. 动量观测器 (Momentum Observer) ==========
-        // 动量: P = M * qdot
-        Pk_ = dynamics_parameters_.M * qdot_;
+        // 动量观测器 (Momentum Observer)
+        Pk_ = dynamics_parameters_.M * qdot_;   // 动量: P = M * qdot
         
         // 滤波器系数
         dt_ = dt;
@@ -338,29 +254,16 @@ namespace ocs2::legged_robot
         const scalar_t beta = (1.0 - gamma_) / (gamma_ * dt_);
 
         // 未滤波外力估计:
-        // X = beta * P + tau_input + C^T * qdot - g(q)
         Xn_ = beta * Pk_ + tau_input_ + dynamics_parameters_.C.transpose() * qdot_ - dynamics_parameters_.grav;
 
         // 一阶低通滤波 (指数滑动平均)
         Yn_1_ = Yn_;
         Yn_ = (1.0 - gamma_) * Xn_ + gamma_ * Yn_1_;
         
-        // 最终扰动力估计 (广义外力)
-        // rd = beta * P - Y  (这是对系统外广义力的估计)
+        // 最终扰动力估计 
         rd_ = beta * Pk_ - Yn_;
 
-        // ========== 4. 从广义外力计算各腿足端力 ==========
-        // 关系: rd ≈ Jc_stack^T * f_stack (虚功原理)
-        // 使用质量矩阵加权伪逆 (dynamically consistent pseudo-inverse):
-        //   M_inv = M^{-1}
-        //   Lambda = (Jc * M_inv * Jc^T)^{-1}   (operational space inertia)
-        //   f_stack = Lambda * Jc * M_inv * rd
-        //
-        // 物理意义: 在操作空间惯性加权下求解足端力，
-        //   保留了 base-joint 的动力学耦合，比 Sl 选择矩阵方法更准确。
-
-        // M^{-1} * rd  (18×1)
-        // 使用 LLT 分解求解，避免显式求逆
+        // 从广义外力计算各腿足端力
         const Eigen::Matrix<double, 18, 18>& M = dynamics_parameters_.M;
         Eigen::LLT<Eigen::Matrix<double, 18, 18>> M_llt(M);
         Eigen::Matrix<double, 18, 1> Minv_rd = M_llt.solve(rd_);
@@ -371,11 +274,9 @@ namespace ocs2::legged_robot
         {
             Minv_JcT.row(col) = M_llt.solve(Jc_stack_.row(col).transpose()).transpose();
         }
-        // 注: 上面等价于 Minv_JcT = (M^{-1} * Jc^T)^T, 即每行是 M^{-1} * Jc^T 的列
-        // 更直观的做法:
         Eigen::Matrix<double, 12, 12> Lambda_inv = Jc_stack_ * M_llt.solve(Jc_stack_.transpose());
 
-        // 添加正则化防止奇异 (腿接近运动学奇异时)
+        // 正则化防止奇异
         constexpr double reg_eps = 1e-6;
         Lambda_inv.diagonal().array() += reg_eps;
 
@@ -384,7 +285,7 @@ namespace ocs2::legged_robot
         Eigen::LLT<Eigen::Matrix<double, 12, 12>> Lambda_inv_llt(Lambda_inv);
         Eigen::Matrix<double, 12, 1> f_stack = Lambda_inv_llt.solve(Jc_Minv_rd);
 
-        // ========== 5. 提取各腿足端力并低通滤波 ==========
+        // 提取各腿足端力并低通滤波
         for (int i = 0; i < NUM_LEGS; i++)
         {
             leg_parameters_[i].fi = f_stack.segment<3>(3 * i);
@@ -397,7 +298,6 @@ namespace ocs2::legged_robot
     scalar_t ContactEstimator::computeGaitPhaseProbability(scalar_t gait_phase, int leg_idx, int is_swing, int is_contact) 
     {
         // 使用误差函数计算概率
-        // erf(x) 将高斯分布映射到 [-1, 1]，再归一化到 [0, 1]
         constexpr scalar_t sqrt2 = 1.41421356237;
 
         scalar_t P_c0 = std::erf((gait_phase - mu_c0_) / (sigma_c0_ * sqrt2));
@@ -422,21 +322,17 @@ namespace ocs2::legged_robot
 
     scalar_t ContactEstimator::computeForceProbability(scalar_t foot_force, int leg_idx, bool is_swing)
     {
-        // 力概率计算：
+        // 力概率计算
         constexpr scalar_t sqrt2 = 1.41421356237;
 
         const scalar_t force = foot_force;
         const scalar_t sigma = std::max<scalar_t>(sigma_fz_, 1e-6);
         
-        // 直接的高斯 CDF 概率，不做额外的缩放
-        // force_threshold_ 作为判定接触的力阈值（通常 10~20N）
         scalar_t raw_prob = 0.5 * (1.0 + std::erf((force - force_threshold_) / (sigma * sqrt2)));
         
         // 一阶低通滤波平滑概率变化，避免抖动
-        constexpr scalar_t prob_alpha = 0.4; // 滤波系数
+        constexpr scalar_t prob_alpha = 0.5; // 滤波系数
         P_force_[leg_idx] = prob_alpha * raw_prob + (1.0 - prob_alpha) * P_force_[leg_idx];
-
-        P_force_[leg_idx] = std::clamp(P_force_[leg_idx], 0.0, 1.0);
 
         return P_force_[leg_idx];
     }
@@ -454,18 +350,14 @@ namespace ocs2::legged_robot
         loadData::loadPtreeValue(pt, contact_process_noise_, prefix + "contactProcessNoise", verbose);
         loadData::loadPtreeValue(pt, tau_measure_noise_, prefix + "tauMeasureNoise", verbose);
         loadData::loadPtreeValue(pt, fheight_measure_noise_, prefix + "fheightMeasureNoise", verbose);
-        loadData::loadPtreeValue(pt, sigma_c0_, prefix + "phaseSigma", verbose);
-        loadData::loadPtreeValue(pt, sigma_c1_, prefix + "phaseSigma", verbose);
+        loadData::loadPtreeValue(pt, sigma_c0_, prefix + "contactPhaseSigma", verbose);
+        loadData::loadPtreeValue(pt, sigma_c1_, prefix + "contactPhaseSigma", verbose);
         loadData::loadPtreeValue(pt, sigma_s0_, prefix + "swingPhaseSigma", verbose);
         loadData::loadPtreeValue(pt, sigma_s1_, prefix + "swingPhaseSigma", verbose);
         loadData::loadPtreeValue(pt, mu_hz_, prefix + "footHeightMu", verbose);
         loadData::loadPtreeValue(pt, sigma_hz_, prefix + "footHeightSigma", verbose);
         loadData::loadPtreeValue(pt, sigma_fz_, prefix + "footForceSigma", verbose);
-        loadData::loadPtreeValue(pt, force_filter_alpha_, prefix + "forceFilterAlpha", verbose);
-        loadData::loadPtreeValue(pt, swing_force_decay_, prefix + "swingForceDecay", verbose);
         loadData::loadPtreeValue(pt, force_threshold_, prefix + "footForceThreshold", verbose);
-        loadData::loadPtreeValue(pt, contact_threshold_, prefix + "contactThreshold", verbose);
-        loadData::loadPtreeValue(pt, lambda_, prefix + "observerCutoffFreq", verbose);
     }
 
 } // namespace ocs2::legged_robot

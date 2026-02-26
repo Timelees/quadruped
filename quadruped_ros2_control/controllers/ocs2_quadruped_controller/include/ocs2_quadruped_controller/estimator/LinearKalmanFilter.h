@@ -38,39 +38,12 @@ namespace ocs2::legged_robot
 
         void loadSettings(const std::string &task_file, bool verbose);
 
-        /**
-         * @brief 设置 SwitchedModelReferenceManager 用于获取步态相位信息
-         * @param reference_manager_ptr 引用管理器指针
-         */
+        // 设置 SwitchedModelReferenceManager 用于获取步态相位信息
         void setReferenceManager(std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr) {
             reference_manager_ptr_ = reference_manager_ptr;
         }
 
     protected:
-        /**
-         * @brief 零速度更新 (ZUPT - Zero Velocity Update)
-         * 当检测到机器人处于静止或稳定接触状态时，约束速度估计以防止积分漂移
-         */
-        void applyZeroVelocityUpdate();
-
-        /**
-         * @brief 约束协方差矩阵，防止不确定性无限增长
-         */
-        void constrainCovariance();
-
-        /**
-         * @brief 检测四足站立状态并校准位置
-         */
-        void checkFourLegStand(const std::vector<vector3_t>& eePos);
-
-        /**
-         * @brief 计算基于相位的信任度
-         * @param phase 接触相位 [0, 1]
-         * @param trust_window 信任窗口
-         * @return 信任度 [0, 1]
-         */
-        scalar_t computeTrust(scalar_t phase, scalar_t trust_window);
-
         nav_msgs::msg::Odometry getOdomMsg();
 
         PinocchioInterface pinocchio_interface_;                        // 机器人运动学/动力学模型
@@ -87,11 +60,6 @@ namespace ocs2::legged_robot
         scalar_t footSensorNoiseVelocity_ = 0.1;
         scalar_t footHeightSensorNoise_ = 0.01;
         scalar_t high_suspect_number_ = 1000.0;
-
-
-        
-        
-
 
     private:
         // 接触点数量（3D 接触 + 6D 接触：4）、接触点总维度（每足端 3D 位置：12）、状态向量维度（6D 基座状态 + 足端位置：18）、	观测向量维度（足端位置、速度和高度：28  ）
@@ -121,19 +89,15 @@ namespace ocs2::legged_robot
 
         // 接触估计器
         std::unique_ptr<ContactEstimator> contact_estimator_;
-        bool use_contact_estimator_ = false;  // 是否使用接触估计器
+        bool use_contact_estimator_ = true;  // 是否使用接触估计器
 
         // 步态相位信息获取
         std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr_;
         scalar_t mpc_start_time_ = 0.0;  // MPC计划的起始时间
         scalar_t mpc_current_time_ = 0.0; // MPC当前时间
         
-        /**
-         * @brief 从 MPC 的 ModeSchedule 获取支撑相和摆动相
-         * @param[in] current_time 当前时间
-         * @param[out] contact_phase 支撑相位 [0,1]，-1 表示不在支撑相
-         * @param[out] swing_phase 摆动相位 [0,1]，-1 表示不在摆动相
-         */
+    
+        // 从 MPC 的 ModeSchedule 获取支撑相和摆动相
         void getGaitPhaseFromMPC(scalar_t current_time,
                                   std::array<scalar_t, 4>& contact_phase,
                                   std::array<scalar_t, 4>& swing_phase);

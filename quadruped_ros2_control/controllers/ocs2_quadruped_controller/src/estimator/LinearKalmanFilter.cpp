@@ -1,7 +1,3 @@
-//
-// Created by qiayuan on 2022/7/24.
-//
-
 #include <map>
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
@@ -33,7 +29,7 @@ namespace ocs2::legged_robot
           numObserve_(2 * dimContacts_ + numContacts_)
     {
 
-        // 日志保存器初始化
+        // 日志初始化
         logger_ = std::make_unique<quadruped::logs::LogSave>();
         if (is_logger_enabled_)
         {
@@ -78,57 +74,43 @@ namespace ocs2::legged_robot
         }
 
         // 初始化接触估计器
-        
-        // 创建 ContactEstimator 需要单独的 PinocchioInterface 副本
-        PinocchioInterface pinocchio_interface_copy(pinocchio_interface_);
-        contact_estimator_ = std::make_unique<ContactEstimator>(
-                std::move(pinocchio_interface_copy),
-                info_,
-                ee_kinematics,
+        if(use_contact_estimator_)
+        {
+            PinocchioInterface pinocchio_interface_copy(pinocchio_interface_);
+            contact_estimator_ = std::make_unique<ContactEstimator>(
+                    std::move(pinocchio_interface_copy),
+                    info_,
+                    ee_kinematics,
                 ctrl_component,
                 node);
-        RCLCPP_INFO(node_->get_logger(), "ContactEstimator initialized successfully.");
-        
+            RCLCPP_INFO(node_->get_logger(), "ContactEstimator initialized successfully.");
+        }
     }
 
     vector_t KalmanFilterEstimate::update(const rclcpp::Time &time, const rclcpp::Duration &period)
     {
         scalar_t dt = period.seconds(); // 控制器时间周期
-
         updateJointStates();        // 更新关节状态
     
-
         // 使用 ContactEstimator 估计足端接触状态和足端力
         if (use_contact_estimator_ && contact_estimator_)
         {
-            // 设置关节力矩
             Eigen::Matrix<double, 12, 1> joint_torques;
             for (int i = 0; i < 12; ++i)
             {
                 joint_torques(i) = ctrl_component_.joint_effort_state_interface_[i].get().get_value();
             }
-            // std::cout << "[KalmanFilter] joint_torque: " << joint_torques.transpose() << std::endl;
-            contact_estimator_->setJointTorques(joint_torques);
+            contact_estimator_->setJointTorques(joint_torques); // 设置关节力矩
+            contact_estimator_->setRbdState(rbd_state_);    // 设置机器人状态
+            contact_estimator_->updateAndComputeForce(dt);  // 更新动力学参数并计算足端力
 
-            // 设置机器人状态
-            contact_estimator_->setRbdState(rbd_state_);
-
-            // 更新动力学参数并计算足端力
-            contact_estimator_->updateAndComputeForce(dt);
-
-            // 获取足端高度
-            // ee_kinematics_->getPosition() 返回 data.oMf[].translation()
-            // 但注意: computeForwardKinematics() 中 qPino 的 base position 被设为零
-            // (只设了姿态和关节角)，所以 oMf 实际返回的是 R_wb * p_bf（旋转到 world 朝向，但没平移）
-            // 因此需要加上 base 的 world position 才能得到真实的 world 足端位置
+            // 获取足端高度(坐标系方向与world对齐，值是相较于base)
             const auto eePosRelWorld = ee_kinematics_->getPosition(vector_t());
             std::array<double, 4> foot_heights;
             const vector3_t p_wb = xHat_.segment<3>(0); // base world position (来自 KF 估计)
-            constexpr scalar_t ground_z = 0.0; // 平地假设；后续可接 elevation map / raycast
+            constexpr scalar_t ground_z = 0.0;          // 平地假设；后续可接 elevation map / raycast
             for (int i = 0; i < 4; ++i)
             {
-                // eePosRelWorld[i] ≈ R_wb * p_bf (world 朝向下的相对位置, 但 base 在原点)
-                // 真实 world 足端位置 = p_wb + eePosRelWorld[i]
                 foot_heights[i] = static_cast<double>(p_wb.z() + eePosRelWorld[i].z() - ground_z);
             }
 
@@ -138,47 +120,8 @@ namespace ocs2::legged_robot
             const double current_time = time.seconds();
             getGaitPhaseFromMPC(current_time, contact_phase, swing_phase);
 
-            // 从 MPC 获取期望接触状态并设置到 ContactEstimator
-            // contact_flag_t expected_contact;
-            // expected_contact.fill(false);
-            // if (reference_manager_ptr_)
-            // {
-            //     try
-            //     {
-            //         const auto &modeSchedule = reference_manager_ptr_->getModeSchedule();
-            //         const auto mode = modeSchedule.modeAtTime(current_time);
-            //         expected_contact = modeNumber2StanceLeg(mode);
-            //     }
-            //     catch (const std::exception &e)
-            //     {
-            //         RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
-            //                              "Failed to get expected contact from ModeSchedule: %s", e.what());
-            //     }
-            // }
-            // contact_estimator_->setExpectedContact(expected_contact);
-
-            // std::cout << "[Linear KalmanFilter] contact_phase: [";
-            // for (size_t i = 0; i < contact_phase.size(); ++i) {
-            //     if (i) std::cout << ", ";
-            //     std::cout << contact_phase[i];
-            // }
-            // std::cout << "]" << std::endl;
-            // std::cout << "[Linear KalmanFilter] swing_phase: [";
-            // for (size_t i = 0; i < swing_phase.size(); ++i) {
-            //     if (i) std::cout << ", ";
-            //     std::cout << swing_phase[i];
-            // }
-            // std::cout << "]" << std::endl;
-
             // 获取估计的足端力
             auto foot_forces = contact_estimator_->getFootForces();
-
-            // std::cout << "[Linear KalmanFilter] estimate foot_forces: [";
-            // for (size_t i = 0; i < foot_forces.size(); ++i) {
-            //     if (i) std::cout << ", ";
-            //     std::cout << foot_forces[i];
-            // }
-            // std::cout << "]" << std::endl;
 
             // 更新接触估计
             contact_estimator_->update(foot_forces, foot_heights, contact_phase, swing_phase);
@@ -350,70 +293,6 @@ namespace ocs2::legged_robot
                 Eigen::Vector3d angvel_error = angular_vel_local_ - gt_angular_velocity_;
                 logger_->saveDataToCSV("angvelEstiTruthError.csv", "err_wx, err_wy, err_wz", angvel_error);
             }
-
-            // ==================== 接触状态对比日志 ====================
-            if (use_contact_estimator_ && contact_estimator_)
-            {
-                // 获取估计的接触标志和期望的接触标志
-                auto estimated_contact = contact_estimator_->getContactFlags();
-                auto expected_contact = contact_estimator_->getExpectedContact();
-                auto contact_probs = contact_estimator_->getContactProbabilities();
-                auto debug_info = contact_estimator_->getDebugInfo();
-
-                // 记录估计的接触状态 (0=摆动, 1=接触)
-                Eigen::Vector4d est_contact_vec;
-                for (int i = 0; i < 4; ++i)
-                {
-                    est_contact_vec(i) = estimated_contact[i] ? 1.0 : 0.0;
-                }
-                logger_->saveDataToCSV(
-                    "contact_estimated.csv",
-                    "est_FL, est_FR, est_RL, est_RR",
-                    {est_contact_vec(0), est_contact_vec(1), est_contact_vec(2), est_contact_vec(3)});
-
-                // 记录期望的接触状态 (来自 MPC)
-                Eigen::Vector4d exp_contact_vec;
-                for (int i = 0; i < 4; ++i)
-                {
-                    exp_contact_vec(i) = expected_contact[i] ? 1.0 : 0.0;
-                }
-                logger_->saveDataToCSV(
-                    "contact_expected.csv",
-                    "exp_FL, exp_FR, exp_RL, exp_RR",
-                    {exp_contact_vec(0), exp_contact_vec(1), exp_contact_vec(2), exp_contact_vec(3)});
-
-                // 记录接触状态误差 (估计值 - 期望值)
-                Eigen::Vector4d contact_error;
-                for (int i = 0; i < 4; ++i)
-                {
-                    contact_error(i) = est_contact_vec(i) - exp_contact_vec(i);
-                }
-                logger_->saveDataToCSV(
-                    "contact_error.csv",
-                    "err_FL, err_FR, err_RL, err_RR, mismatch_count",
-                    {contact_error(0), contact_error(1), contact_error(2), contact_error(3),
-                     static_cast<double>(contact_estimator_->getContactMismatchCount())});
-
-                // 记录接触概率 (卡尔曼滤波输出)
-                logger_->saveDataToCSV(
-                    "contact_prob.csv",
-                    "prob_FL, prob_FR, prob_RL, prob_RR",
-                    {contact_probs[0], contact_probs[1], contact_probs[2], contact_probs[3]});
-
-                // 记录三个观测概率 P_gait, P_height, P_force (用于调试)
-                logger_->saveDataToCSV(
-                    "P_gait.csv",
-                    "P_gait_FL, P_gait_FR, P_gait_RL, P_gait_RR",
-                    {debug_info.P_gait[0], debug_info.P_gait[1], debug_info.P_gait[2], debug_info.P_gait[3]});
-                logger_->saveDataToCSV(
-                    "P_height.csv",
-                    "P_h_FL, P_h_FR, P_h_RL, P_h_RR",
-                    {debug_info.P_position[0], debug_info.P_position[1], debug_info.P_position[2], debug_info.P_position[3]});
-                logger_->saveDataToCSV(
-                    "P_force.csv",
-                    "P_f_FL, P_f_FR, P_f_RL, P_f_RR",
-                    {debug_info.P_force[0], debug_info.P_force[1], debug_info.P_force[2], debug_info.P_force[3]});
-            }
         }
 
         updateLinear(xHat_.segment<3>(0), xHat_.segment<3>(3));
@@ -573,7 +452,6 @@ namespace ocs2::legged_robot
         loadData::loadPtreeValue(pt, footHeightSensorNoise_, prefix + "footHeightSensorNoise", verbose);
         loadData::loadPtreeValue(pt, high_suspect_number_, prefix + "highSuspectNumber", verbose);
 
-        // 同步加载 ContactEstimator 相关参数（contactEstimator.*）
         if (use_contact_estimator_ && contact_estimator_)
         {
             contact_estimator_->loadSettings(task_file, verbose);
@@ -584,12 +462,10 @@ namespace ocs2::legged_robot
                                                    std::array<scalar_t, 4> &contact_phase,
                                                    std::array<scalar_t, 4> &swing_phase)
     {
-        // 默认值：假设所有腿在支撑相中间
         // 使用 -1.0 表示"不在该相位"
         contact_phase.fill(0.5); // 支撑相中间值
         swing_phase.fill(-1.0);  // -1.0 表示不在摆动相
 
-        // 如果没有设置 ReferenceManager，使用默认值
         if (!reference_manager_ptr_)
         {
             return;
@@ -604,10 +480,8 @@ namespace ocs2::legged_robot
         // 获取每条腿的摆动相位
         const auto swingPhasePerLeg = getSwingPhasePerLeg(current_time, modeSchedule);
 
-        // 转换为输出格式
         for (size_t i = 0; i < 4; ++i)
         {
-            // 直接传递原始值，保留 -1.0 语义
             contact_phase[i] = contactPhasePerLeg[i].phase;
             swing_phase[i] = swingPhasePerLeg[i].phase;
         }
