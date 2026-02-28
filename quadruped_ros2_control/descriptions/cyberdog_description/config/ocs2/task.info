@@ -339,8 +339,8 @@ contactEstimator
 ; State Estimation
 kalmanFilter
 {
-    is_enabled_logger           false        ; 是否开启日志
-    sim_mode                    false        ; 仿真/实机模式
+    is_enabled_logger           true        ; 是否开启日志
+    sim_mode                    true        ; 仿真/实机模式
 
     ; LinearKalmanFilter parameters
     footRadius                  0.02

@@ -12,6 +12,7 @@
 #include <ocs2_legged_robot/gait/LegLogic.h>
 
 #include <tf2_ros/transform_broadcaster.h>
+#include <realtime_tools/realtime_tools/realtime_buffer.hpp>
 
 #include "log_save.h"
 #include <rclcpp/rclcpp.hpp>
@@ -45,6 +46,7 @@ namespace ocs2::legged_robot
 
     protected:
         nav_msgs::msg::Odometry getOdomMsg();
+        nav_msgs::msg::Odometry getGroundTruthOdomMsg();
 
         PinocchioInterface pinocchio_interface_;                        // 机器人运动学/动力学模型
         std::unique_ptr<PinocchioEndEffectorKinematics> ee_kinematics_; // 脚部运动学计算器
@@ -70,17 +72,26 @@ namespace ocs2::legged_robot
         vector_t xHat_, ps_, vs_;
 
         
+        // 外部定位话题订阅 (异步接收, 通过 RealtimeBuffer 线程安全传递)
+        void updateFromTopic();                     // 从外部定位话题更新位姿状态
+        rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr localization_sub_;
+        realtime_tools::RealtimeBuffer<nav_msgs::msg::Odometry> localization_buffer_;
+        bool topicUpdated_ = false;                 // 是否有新的定位数据到达
+        
+
         // Ground Truth (从Gazebo获取真实位姿用于对比)
-        void updateGroundTruth();
+        void updateGroundTruth();                   // 从 odom_state_interface_ 读取真值 (用于日志对比)
         void publishGroundTruth(const rclcpp::Time &time);
+        // Ground Truth 发布
         rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr ground_truth_pub_;
+        // Ground Truth 缓存 (用于日志对比)
         Eigen::Vector3d gt_position_ = Eigen::Vector3d::Zero();
         Eigen::Vector3d gt_linear_velocity_ = Eigen::Vector3d::Zero();
         Eigen::Quaterniond gt_orientation_ = Eigen::Quaterniond::Identity();
         Eigen::Vector3d gt_angular_velocity_ = Eigen::Vector3d::Zero();
         bool ground_truth_enabled_ = false; // 是否启用Ground Truth对比
         bool is_initialized_ = false;      // 状态是否已初始化
-
+        
 
         // 日志记录
         std::unique_ptr<quadruped::logs::LogSave> logger_;

@@ -66,23 +66,26 @@ namespace ocs2::legged_robot
         ee_kinematics_->setPinocchioInterface(pinocchio_interface_);
         initPublishers();
 
-        // 初始化 Ground Truth 发布器 (用于与状态估计对比)
+        // 初始化 Ground Truth 发布器 (用于状态估计效果对比)
         if (sim_mode_)
         {
             ground_truth_pub_ = node_->create_publisher<nav_msgs::msg::Odometry>("Ground_Truth", 10);
             ground_truth_enabled_ = true; // 启用 Ground Truth 对比
         }
-
+        // 订阅外部的定位话题，通过 RealtimeBuffer 异步接收数据
+        // 当前使用仿真真值，后续替换视觉里程计的数据
+        localization_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
+                "Ground_Truth", 10,
+                [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
+                    localization_buffer_.writeFromNonRT(*msg);
+                    topicUpdated_ = true;
+                });
         // 初始化接触估计器
         if(use_contact_estimator_)
         {
             PinocchioInterface pinocchio_interface_copy(pinocchio_interface_);
-            contact_estimator_ = std::make_unique<ContactEstimator>(
-                    std::move(pinocchio_interface_copy),
-                    info_,
-                    ee_kinematics,
-                ctrl_component,
-                node);
+            contact_estimator_ = std::make_unique<ContactEstimator>(std::move(pinocchio_interface_copy), info_,
+                                                                     ee_kinematics, ctrl_component, node);
             RCLCPP_INFO(node_->get_logger(), "ContactEstimator initialized successfully.");
         }
     }
@@ -217,9 +220,11 @@ namespace ocs2::legged_robot
 
         if (sim_mode_)
         {
-            // 更新 Ground Truth 数据 (在日志记录之前更新，确保数据有效)
+            // 从 odom_state_interface_ 读取 Gazebo 真值，并发布到 "Ground_Truth" 话题
             updateGroundTruth();
+            publishGroundTruth(time);
         }
+        
 
         // 日志记录
         static int log_counter = 0;
@@ -295,6 +300,13 @@ namespace ocs2::legged_robot
             }
         }
 
+        // 融合外部定位数据到 KF 状态量
+        if (topicUpdated_)
+        {
+            updateFromTopic();
+            topicUpdated_ = false;
+        }
+
         updateLinear(xHat_.segment<3>(0), xHat_.segment<3>(3));
 
         auto odom = getOdomMsg();
@@ -302,6 +314,8 @@ namespace ocs2::legged_robot
         odom.header.frame_id = "odom";
         odom.child_frame_id = "base";
         publishMsgs(odom);
+        
+
 
         return rbd_state_;
     }
@@ -362,6 +376,37 @@ namespace ocs2::legged_robot
         }
     }
 
+    void KalmanFilterEstimate::updateFromTopic()
+    {
+        // 从 RealtimeBuffer 中读取订阅到的定位数据
+        const auto msg = *localization_buffer_.readFromRT();
+        
+        // TODO: 外部定位数据坐标系可能需要做一些转换使其数据到base上，当前使用gazebo真值从world上转换到base上，launch中用了静态变换，暂时不用哪些处理
+
+        // 从 msg 中提取base位置 (world 坐标系)
+        vector3_t newPos(msg.pose.pose.position.x,
+                         msg.pose.pose.position.y,
+                         msg.pose.pose.position.z);
+        
+        // 将位置直接赋值到 KF 状态估计 (消除位置漂移)
+        xHat_.segment<3>(0) = newPos;
+        
+        // 重新计算足端位置 (基于校正后的位置状态)
+        const auto eePos = ee_kinematics_->getPosition(vector_t());
+        
+        for (size_t i = 0; i < numContacts_; ++i)
+        {
+            // 更新状态向量中的足端位置 (world 系绝对位置)
+            xHat_.segment<3>(6 + i * 3) = newPos + eePos[i];
+            xHat_(6 + i * 3 + 2) -= foot_radius_;  // 减去足端半径
+            // 如果足端接触地面，更新足端高度测量值
+            if (contact_flag_[i])
+            {
+                feet_heights_[i] = xHat_(6 + i * 3 + 2);
+            }
+        }
+    }
+
     void KalmanFilterEstimate::publishGroundTruth(const rclcpp::Time &time)
     {
 
@@ -392,6 +437,37 @@ namespace ocs2::legged_robot
         gt_msg.twist.twist.angular.z = gt_angular_velocity_(2);
 
         ground_truth_pub_->publish(gt_msg);
+    }
+    nav_msgs::msg::Odometry KalmanFilterEstimate::getGroundTruthOdomMsg()
+    {
+        nav_msgs::msg::Odometry odom;
+        
+        // ===================== Pose (odom 坐标系下) =====================
+        // 位置: 使用 Gazebo 真值位置
+        odom.pose.pose.position.x = gt_position_.x();
+        odom.pose.pose.position.y = gt_position_.y();
+        odom.pose.pose.position.z = gt_position_.z();
+
+        // 姿态: 使用 IMU 融合后的四元数 (与 getOdomMsg 保持一致)
+        odom.pose.pose.orientation.x = quat_.x();
+        odom.pose.pose.orientation.y = quat_.y();
+        odom.pose.pose.orientation.z = quat_.z();
+        odom.pose.pose.orientation.w = quat_.w();
+
+        // ===================== Twist (base 坐标系下) =====================
+        // ROS Odometry 规范: twist 应在 child_frame_id (base) 坐标系下
+        // 线速度: world -> body 转换 (与 getOdomMsg 保持一致)
+        vector_t twist_linear = getRotationMatrixFromZyxEulerAngles(quatToZyx(quat_)).transpose() * gt_linear_velocity_;
+        odom.twist.twist.linear.x = twist_linear.x();
+        odom.twist.twist.linear.y = twist_linear.y();
+        odom.twist.twist.linear.z = twist_linear.z();
+        
+        // 角速度: 使用 IMU 的 body 系角速度 (与 getOdomMsg 保持一致)
+        odom.twist.twist.angular.x = angular_vel_local_.x();
+        odom.twist.twist.angular.y = angular_vel_local_.y();
+        odom.twist.twist.angular.z = angular_vel_local_.z();
+        
+        return odom;
     }
 
     nav_msgs::msg::Odometry KalmanFilterEstimate::getOdomMsg()
@@ -443,6 +519,7 @@ namespace ocs2::legged_robot
         }
 
         loadData::loadPtreeValue(pt, foot_radius_, prefix + "footRadius", verbose);
+        loadData::loadPtreeValue(pt, is_logger_enabled_, prefix + "is_enabled_logger", verbose);
         loadData::loadPtreeValue(pt, sim_mode_, prefix + "sim_mode", verbose);
         loadData::loadPtreeValue(pt, imu_process_noise_position_, prefix + "imuProcessNoisePosition", verbose);
         loadData::loadPtreeValue(pt, imu_process_noise_velocity_, prefix + "imuProcessNoiseVelocity", verbose);

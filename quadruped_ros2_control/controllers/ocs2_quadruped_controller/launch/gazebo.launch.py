@@ -84,33 +84,14 @@ def launch_setup(context, *args, **kwargs):
         arguments=["ocs2_quadruped_controller", "--controller-manager", "/controller_manager"]
     )
     
-    # elevation_launch_mapping_launch = IncludeLaunchDescription(
-    #     PythonLaunchDescriptionSource(
-    #         [PathJoinSubstitution([FindPackageShare('ocs2_quadruped_controller'),
-    #                                'launch',
-    #                                'elevation_mapping.launch.py'])]),
+    elevation_launch_mapping_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            [PathJoinSubstitution([FindPackageShare('ocs2_quadruped_controller'),
+                                   'launch',
+                                   'elevation_mapping.launch.py'])]),
   
-    # )
+    )
 
-
-    # plot_terrain - 发布高程图数据用于地形感知
-    # 注意：publish_tf设置为false，因为TF变换已在本文件中发布
-    # plot_terrain_launch = IncludeLaunchDescription(
-    #     PythonLaunchDescriptionSource(
-    #         [PathJoinSubstitution([FindPackageShare('plot_terrain'),
-    #                                'launch',
-    #                                'convex.launch.py'])]),
-    #     launch_arguments={
-    #         'publish_tf': 'false',  # 不发布TF，避免与本文件中的TF冲突
-    #         'terrain_name': 'stepping_stones.png',  # 确保与Gazebo世界地形一致
-    #     }.items(),
-    # )
-    
-    # ============ TF树结构 ============
-    # 正确的TF树: world -> map -> odom -> base -> body -> ...
-    # - Gazebo/ros_gz_bridge 发布: odom -> base
-    # - robot_state_publisher 发布: base -> body -> 各关节
-    # - 我们需要发布: world -> map, map -> odom
     
     # Static transform publisher: world -> map (identity transform)
     # 连接Gazebo世界坐标系和ROS的map坐标系
@@ -125,16 +106,12 @@ def launch_setup(context, *args, **kwargs):
     
     # Static transform publisher: map -> odom (identity transform)
     # 连接map坐标系和odom坐标系
-    # NOTE: 
-    #   - 状态估计器使用 Ground Truth 初始化，输出的 odom→base 已经是 world 坐标系下的位置
-    #   - 因此 map → odom 应该是单位变换
-    #   - 如果状态估计器从 (0,0,0) 开始，则需要设置为机器人初始位置 (x, y, 0)
     map_to_odom_tf_publisher = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='map_to_odom_tf_publisher',
         # x y z qx qy qz qw parent_frame child_frame
-        arguments=['-0', '-0', '0.0', '0.0', '0.0', '0.0', '1.0', 'map', 'odom'],
+        arguments=['0.0', '0.0', '0.0', '0.0', '0.0', '0.0', '1.0', 'map', 'odom'],
         output='screen'
     )
 
@@ -161,11 +138,7 @@ def launch_setup(context, *args, **kwargs):
             )
         ),
         # elevation_launch_mapping_launch,
-        # plot_terrain 启动 - 在控制器启动后延迟启动以确保TF树可用
-        # TimerAction(
-        #     period=3.0,  # 等待3秒，确保仿真和TF树已经初始化
-        #     actions=[plot_terrain_launch],
-        # ),
+
         world_to_map_tf_publisher,
         map_to_odom_tf_publisher,
     ]
@@ -188,12 +161,12 @@ def generate_launch_description():
     # robot initial position
     x_pos = DeclareLaunchArgument(
     'x',
-    default_value='-0.0',
+    default_value='0.0',
     description='Initial X position'
     )
     y_pos = DeclareLaunchArgument(
         'y',
-        default_value='-0.0',
+        default_value='0.0',
         description='Initial Y position'
     )
     z_pos = DeclareLaunchArgument(
@@ -228,10 +201,10 @@ def generate_launch_description():
             "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
             # "/scan@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan",        # 单线激光雷达数据
             # "/scan/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked",    # 3D点云数据
-            # "/depth_camera/color/image_raw@sensor_msgs/msg/Image@gz.msgs.Image",
-            # "/depth_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
-            # "/depth_camera/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked",
-            # "/depth_camera/depth/image_raw@sensor_msgs/msg/Image@gz.msgs.Image",
+            "/depth_camera/color/image_raw@sensor_msgs/msg/Image@gz.msgs.Image",
+            "/depth_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
+            "/depth_camera/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked",
+            "/depth_camera/depth/image_raw@sensor_msgs/msg/Image@gz.msgs.Image",
         ],
         output="screen",
     )

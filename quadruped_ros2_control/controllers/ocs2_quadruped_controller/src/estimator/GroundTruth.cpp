@@ -47,24 +47,6 @@ namespace ocs2::legged_robot
             ctrl_component_.odom_state_interface_[4].get().get_value(),
             ctrl_component_.odom_state_interface_[5].get().get_value()
         };
-
-
-
-        // 日志记录（每隔50次记录一次）
-        static int log_counter = 0;
-        log_counter++;
-        if (is_logger_enabled_ && (log_counter % 10 == 0))
-        {
-            Eigen::Vector3d position = position_;
-            Eigen::Vector3d linear_velocity = linear_velocity_;
-            Eigen::Quaterniond quat = quat_;
-            Eigen::Vector3d zyx = quatToZyx(quat_);
-            logger_->saveDataToCSV("position.csv", "pos_x, pos_y, pos_z", position);
-            logger_->saveDataToCSV("velocity.csv", "vel_x, vel_y, vel_z", linear_velocity);
-            logger_->saveDataToCSV("zyx.csv", "yaw, pitch, roll", zyx);
-        }
-\
-
        
         updateLinear(position_, linear_velocity_);
 
