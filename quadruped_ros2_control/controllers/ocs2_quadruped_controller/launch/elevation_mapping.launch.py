@@ -13,39 +13,6 @@ def launch_setup(context, *args, **kwargs):
     # Get the package share directory for controllers
     pkg_legged_controllers = get_package_share_directory('ocs2_quadruped_controller')
 
-    # Component container 对激光雷达数据进行过滤
-    # container = ComposableNodeContainer(
-    #     name='point_cloud_manager',
-    #     namespace='',
-    #     package='rclcpp_components',
-    #     executable='component_container',
-    #     composable_node_descriptions=[
-    #         # Livox right filter component
-    #         ComposableNode(
-    #             package='sensor_filters',
-    #             plugin='sensor_filters::PointCloud2FilterChain',
-    #             name='livox_right_filter',
-    #             remappings=[
-    #                 ('input', '/livox/lidar_192_168_8_101'),
-    #                 ('output', '/livox/right')
-    #             ],
-    #             parameters=[os.path.join(pkg_legged_controllers, 'config', 'body_filter.yaml')]
-    #         ),
-    #         # Livox left filter component
-    #         ComposableNode(
-    #             package='sensor_filters',
-    #             plugin='sensor_filters::PointCloud2FilterChain',
-    #             name='livox_left_filter',
-    #             remappings=[
-    #                 ('input', '/livox/lidar_192_168_8_102'),
-    #                 ('output', '/livox/left')
-    #             ],
-    #             parameters=[os.path.join(pkg_legged_perceptive_controllers, 'config', 'body_filter.yaml')]
-    #         )
-    #     ],
-    #     output='screen'
-    # )
-
     # Elevation mapping node
     elevation_mapping_yaml = os.path.join(pkg_legged_controllers, 'config', 'elevation_mapping.yaml')
     elevation_mapping = Node(
@@ -89,7 +56,6 @@ def launch_setup(context, *args, **kwargs):
     #---------------------------------------------------------------------------------
     
     return [
-        # container,
         elevation_mapping,
         convex_plane_decomposition_launch,
         odom_tf_publisher,
@@ -97,14 +63,8 @@ def launch_setup(context, *args, **kwargs):
     ]
 
 def generate_launch_description():
-    # Declare launch arguments
-    # container_name_arg = DeclareLaunchArgument(
-    #     name='container_name',
-    #     default_value='point_cloud_container',
-    #     description='Name of the component container'
-    # )
 
     return LaunchDescription([
-        # container_name_arg,
+
         OpaqueFunction(function=launch_setup)
     ])

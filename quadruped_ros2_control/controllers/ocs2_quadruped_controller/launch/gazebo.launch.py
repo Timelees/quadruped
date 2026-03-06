@@ -209,18 +209,6 @@ def generate_launch_description():
         output="screen",
     )
 
-    # gz_image_bridge_node = Node(
-    #     package="ros_gz_image",
-    #     executable="image_bridge",
-    #     arguments=[
-    #         '/depth_camera/color/image_raw',  # Gazebo 侧话题
-    #         '/depth_camera/color/image_raw',  # ROS 侧话题
-    #     ],
-    #     output="screen",
-    #     parameters=[
-    #         {'use_sim_time': True}
-    #     ],
-    # )
 
     return LaunchDescription([
         world,
@@ -232,6 +220,5 @@ def generate_launch_description():
         roll,
         pitch,
         gz_bridge_node,
-        # gz_image_bridge_node,
         OpaqueFunction(function=launch_setup),
     ])

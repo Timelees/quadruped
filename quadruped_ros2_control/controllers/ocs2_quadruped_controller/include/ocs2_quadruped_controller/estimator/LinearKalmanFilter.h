@@ -54,14 +54,14 @@ namespace ocs2::legged_robot
         vector_t feet_heights_; // 脚部高度测量值
 
         // Kalman Filter 参数
-        scalar_t foot_radius_ = 0.02;
+        scalar_t foot_radius_ = 0.019;
         scalar_t imu_process_noise_position_ = 0.02;
         scalar_t imu_process_noise_velocity_ = 0.02;
         scalar_t footProcessNoisePosition_ = 0.002;
         scalar_t footSensorNoisePosition_ = 0.005;
         scalar_t footSensorNoiseVelocity_ = 0.1;
         scalar_t footHeightSensorNoise_ = 0.01;
-        scalar_t high_suspect_number_ = 1000.0;
+        scalar_t high_suspect_number_ = 10000.0;
 
     private:
         // 接触点数量（3D 接触 + 6D 接触：4）、接触点总维度（每足端 3D 位置：12）、状态向量维度（6D 基座状态 + 足端位置：18）、	观测向量维度（足端位置、速度和高度：28  ）
@@ -89,7 +89,7 @@ namespace ocs2::legged_robot
         Eigen::Vector3d gt_linear_velocity_ = Eigen::Vector3d::Zero();
         Eigen::Quaterniond gt_orientation_ = Eigen::Quaterniond::Identity();
         Eigen::Vector3d gt_angular_velocity_ = Eigen::Vector3d::Zero();
-        bool ground_truth_enabled_ = false; // 是否启用Ground Truth对比
+        bool ground_truth_enabled_ = true; // 是否启用Ground Truth对比
         bool is_initialized_ = false;      // 状态是否已初始化
         
 

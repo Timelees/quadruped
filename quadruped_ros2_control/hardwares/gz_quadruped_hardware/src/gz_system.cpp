@@ -627,11 +627,12 @@ namespace gz_quadruped_hardware
                             {
                                 this->dataPtr->ecm->CreateComponent(_entity, sim::components::WorldLinearVelocity());
                             }
-                            // 确保该link有AngularVelocity组件
+                            // 确保该link有WorldAngularVelocity组件（与WorldPose/WorldLinearVelocity保持一致）
+                            // 注意：混用 world-frame 线速度 + body-frame 角速度会导致下游估计/控制出现系统性漂移。
                             if (!this->dataPtr->ecm->EntityHasComponentType(
-                                _entity, sim::components::AngularVelocity().TypeId()))
+                                _entity, sim::components::WorldAngularVelocity().TypeId()))
                             {
-                                this->dataPtr->ecm->CreateComponent(_entity, sim::components::AngularVelocity());
+                                this->dataPtr->ecm->CreateComponent(_entity, sim::components::WorldAngularVelocity());
                             }
                             return false;  // 找到后停止遍历
                         }
@@ -836,7 +837,7 @@ namespace gz_quadruped_hardware
                 this->dataPtr->odoms_[i]->sim_link_);
 
             // Get the world angular velocity of the link
-            const auto* worldAngVel = this->dataPtr->ecm->Component<sim::components::AngularVelocity>(
+            const auto* worldAngVel = this->dataPtr->ecm->Component<sim::components::WorldAngularVelocity>(
                 this->dataPtr->odoms_[i]->sim_link_);
 
             if (worldPose)
@@ -861,7 +862,7 @@ namespace gz_quadruped_hardware
 
             if (worldAngVel)
             {
-                // Angular velocity (body frame in Gazebo)
+                // Angular velocity (world frame)
                 this->dataPtr->odoms_[i]->odom_data_[10] = worldAngVel->Data().X();
                 this->dataPtr->odoms_[i]->odom_data_[11] = worldAngVel->Data().Y();
                 this->dataPtr->odoms_[i]->odom_data_[12] = worldAngVel->Data().Z();

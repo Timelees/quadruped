@@ -75,26 +75,28 @@ namespace ocs2::legged_robot
         // 订阅外部的定位话题，通过 RealtimeBuffer 异步接收数据
         // 当前使用仿真真值，后续替换视觉里程计的数据
         localization_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
-                "Ground_Truth", 10,
-                [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
-                    localization_buffer_.writeFromNonRT(*msg);
-                    topicUpdated_ = true;
-                });
+            "Ground_Truth", 10,
+            [this](const nav_msgs::msg::Odometry::SharedPtr msg)
+            {
+                localization_buffer_.writeFromNonRT(*msg);
+                topicUpdated_ = true;
+            });
         // 初始化接触估计器
-        if(use_contact_estimator_)
+        if (use_contact_estimator_)
         {
             PinocchioInterface pinocchio_interface_copy(pinocchio_interface_);
             contact_estimator_ = std::make_unique<ContactEstimator>(std::move(pinocchio_interface_copy), info_,
-                                                                     ee_kinematics, ctrl_component, node);
+                                                                    ee_kinematics, ctrl_component, node);
             RCLCPP_INFO(node_->get_logger(), "ContactEstimator initialized successfully.");
         }
     }
 
     vector_t KalmanFilterEstimate::update(const rclcpp::Time &time, const rclcpp::Duration &period)
     {
+ 
         scalar_t dt = period.seconds(); // 控制器时间周期
-        updateJointStates();        // 更新关节状态
-    
+        updateJointStates();            // 更新关节状态
+
         // 使用 ContactEstimator 估计足端接触状态和足端力
         if (use_contact_estimator_ && contact_estimator_)
         {
@@ -104,8 +106,8 @@ namespace ocs2::legged_robot
                 joint_torques(i) = ctrl_component_.joint_effort_state_interface_[i].get().get_value();
             }
             contact_estimator_->setJointTorques(joint_torques); // 设置关节力矩
-            contact_estimator_->setRbdState(rbd_state_);    // 设置机器人状态
-            contact_estimator_->updateAndComputeForce(dt);  // 更新动力学参数并计算足端力
+            contact_estimator_->setRbdState(rbd_state_);        // 设置机器人状态
+            contact_estimator_->updateAndComputeForce(dt);      // 更新动力学参数并计算足端力
 
             // 获取足端高度(坐标系方向与world对齐，值是相较于base)
             const auto eePosRelWorld = ee_kinematics_->getPosition(vector_t());
@@ -136,7 +138,7 @@ namespace ocs2::legged_robot
                 contact_flag_[i] = contact_flags[i];
             }
         }
-        else    // 原生legged controll逻辑
+        else // 原生legged controll逻辑
         {
             updateContact(); // 使用原有的接触更新逻辑
         }
@@ -149,9 +151,8 @@ namespace ocs2::legged_robot
         q_.block(3, 3, 3, 3) = (dt * 9.81f / 20.f) * matrix3_t::Identity();
         q_.block(6, 6, dimContacts_, dimContacts_) = dt * matrix_t::Identity(dimContacts_, dimContacts_);
 
-
         computeForwardKinematics(); // 计算前向运动学
-        // 返回的是 以 base 为参考原点、但用 world 姿态旋转后的 相对位置,因为qPino的位置部分为0
+        // 从基座坐标系原点（世界系原点）到足端的向量（世界系），用于观测模型
         const auto eePos = ee_kinematics_->getPosition(vector_t());
         const auto eeVel = ee_kinematics_->getVelocity(vector_t(), vector_t());
 
@@ -169,6 +170,13 @@ namespace ocs2::legged_robot
         r.block(2 * dimContacts_, 2 * dimContacts_, numContacts_, numContacts_) =
             r_.block(2 * dimContacts_, 2 * dimContacts_, numContacts_, numContacts_) * footHeightSensorNoise_;
 
+        // Get contact probabilities from ContactEstimator (if available) to compute trust
+        std::array<scalar_t, 4> contact_prob = {0., 0., 0., 0.};
+        if (use_contact_estimator_ && contact_estimator_)
+        {
+            contact_prob = contact_estimator_->getContactProbabilities();
+        }
+
         for (int i = 0; i < numContacts_; i++)
         {
             int i1 = 3 * i;
@@ -179,15 +187,29 @@ namespace ocs2::legged_robot
             int rIndex3 = 2 * dimContacts_ + i;
             bool isContact = contact_flag_[i];
 
-            scalar_t high_suspect_number(100);
-            q.block(qIndex, qIndex, 3, 3) = (isContact ? 1. : high_suspect_number) * q.block(qIndex, qIndex, 3, 3);
-            r.block(rIndex1, rIndex1, 3, 3) = (isContact ? 1. : high_suspect_number) * r.block(rIndex1, rIndex1, 3, 3);
-            r.block(rIndex2, rIndex2, 3, 3) = (isContact ? 1. : high_suspect_number) * r.block(rIndex2, rIndex2, 3, 3);
-            r(rIndex3, rIndex3) = (isContact ? 1. : high_suspect_number) * r(rIndex3, rIndex3);
+            q.block(qIndex, qIndex, 3, 3) = (isContact ? 1. : high_suspect_number_) * q.block(qIndex, qIndex, 3, 3);
+            r.block(rIndex1, rIndex1, 3, 3) = (isContact ? 1. : high_suspect_number_) * r.block(rIndex1, rIndex1, 3, 3);
+            r.block(rIndex2, rIndex2, 3, 3) = (isContact ? 1. : high_suspect_number_) * r.block(rIndex2, rIndex2, 3, 3);
+            r(rIndex3, rIndex3) = (isContact ? 1. : high_suspect_number_) * r(rIndex3, rIndex3);
 
+            // Foot position observation (same as before)
             ps_.segment(3 * i, 3) = -eePos[i];
             ps_.segment(3 * i, 3)[2] += foot_radius_;
-            vs_.segment(3 * i, 3) = -eeVel[i];
+
+            // Compute trust from contact probability similar to PositionVelocityEstimator
+            scalar_t phase = contact_prob[i];
+            scalar_t trust = 1.0;
+            const scalar_t trust_window = 0.2;
+            if (phase < trust_window)
+            {
+                trust = phase / trust_window;
+            }
+            else if (phase > (1.0 - trust_window))
+            {
+                trust = (1.0 - phase) / trust_window;
+            }
+
+            vs_.segment(3 *i, 3) = (1 - trust) * xHat_.segment<3>(3) + trust * (-eeVel[i]);
         }
 
         vector3_t g(0, 0, -9.81);
@@ -224,7 +246,6 @@ namespace ocs2::legged_robot
             updateGroundTruth();
             publishGroundTruth(time);
         }
-        
 
         // 日志记录
         static int log_counter = 0;
@@ -314,8 +335,6 @@ namespace ocs2::legged_robot
         odom.header.frame_id = "odom";
         odom.child_frame_id = "base";
         publishMsgs(odom);
-        
-
 
         return rbd_state_;
     }
@@ -380,29 +399,30 @@ namespace ocs2::legged_robot
     {
         // 从 RealtimeBuffer 中读取订阅到的定位数据
         const auto msg = *localization_buffer_.readFromRT();
-        
+
         // TODO: 外部定位数据坐标系可能需要做一些转换使其数据到base上，当前使用gazebo真值从world上转换到base上，launch中用了静态变换，暂时不用哪些处理
 
         // 从 msg 中提取base位置 (world 坐标系)
         vector3_t newPos(msg.pose.pose.position.x,
                          msg.pose.pose.position.y,
                          msg.pose.pose.position.z);
-        
+
         // 将位置直接赋值到 KF 状态估计 (消除位置漂移)
         xHat_.segment<3>(0) = newPos;
-        
+
         // 重新计算足端位置 (基于校正后的位置状态)
         const auto eePos = ee_kinematics_->getPosition(vector_t());
-        
+
         for (size_t i = 0; i < numContacts_; ++i)
         {
             // 更新状态向量中的足端位置 (world 系绝对位置)
             xHat_.segment<3>(6 + i * 3) = newPos + eePos[i];
-            xHat_(6 + i * 3 + 2) -= foot_radius_;  // 减去足端半径
+            xHat_(6 + i * 3 + 2) -= foot_radius_; // 减去足端半径
             // 如果足端接触地面，更新足端高度测量值
             if (contact_flag_[i])
             {
                 feet_heights_[i] = xHat_(6 + i * 3 + 2);
+                // std::cout << "Foot " << i << " height: " << feet_heights_[i] << std::endl;
             }
         }
     }
@@ -441,7 +461,7 @@ namespace ocs2::legged_robot
     nav_msgs::msg::Odometry KalmanFilterEstimate::getGroundTruthOdomMsg()
     {
         nav_msgs::msg::Odometry odom;
-        
+
         // ===================== Pose (odom 坐标系下) =====================
         // 位置: 使用 Gazebo 真值位置
         odom.pose.pose.position.x = gt_position_.x();
@@ -461,12 +481,12 @@ namespace ocs2::legged_robot
         odom.twist.twist.linear.x = twist_linear.x();
         odom.twist.twist.linear.y = twist_linear.y();
         odom.twist.twist.linear.z = twist_linear.z();
-        
+
         // 角速度: 使用 IMU 的 body 系角速度 (与 getOdomMsg 保持一致)
         odom.twist.twist.angular.x = angular_vel_local_.x();
         odom.twist.twist.angular.y = angular_vel_local_.y();
         odom.twist.twist.angular.z = angular_vel_local_.z();
-        
+
         return odom;
     }
 

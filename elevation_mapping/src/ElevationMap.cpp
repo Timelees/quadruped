@@ -525,10 +525,6 @@ void ElevationMap::move(const Eigen::Vector2d& position) {
 }
 
 
-
-
-
-
 void ElevationMap::setRawSubmapHeight(const grid_map::Position& initPosition, float mapHeight, double lengthInXSubmap,
                                       double lengthInYSubmap, double margin) {
   // Set a submap area (lengthInYSubmap + margin, lengthInXSubmap + margin) with a constant height (mapHeight).

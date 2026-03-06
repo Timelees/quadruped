@@ -117,7 +117,6 @@ namespace ocs2::legged_robot
         rotation_matrix = getRotationMatrixFromZyxEulerAngles(quatToZyx(quat_)); // body->world
 
         const vector3_t zyx = quatToZyx(quat_) - zyx_offset_;
-        // std::cout << "IMU Orientation (Local): " << zyx.transpose() << std::endl;
         const vector3_t angularVelGlobal = getGlobalAngularVelocityFromEulerAnglesZyxDerivatives<scalar_t>(
             zyx, getEulerAnglesZyxDerivativesFromLocalAngularVelocity<scalar_t>(quatToZyx(quat_), angular_vel_local_));
 

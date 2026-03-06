@@ -57,16 +57,16 @@ ocs2_quadruped_controller:
     # hip  thigh  calf设置不同的P D
    
     # 增大刚度kp以提高位置跟踪精度  
-    default_hip_kp: 10.0    # hip 侧摆电机
-    default_thigh_kp: 10.0  # thigh 大腿电机
-    default_calf_kp: 10.0   # calf 小腿电机
+    default_hip_kp: 30.0    # hip 侧摆电机
+    default_thigh_kp: 30.0  # thigh 大腿电机
+    default_calf_kp: 30.0   # calf 小腿电机
 
     # 增大阻尼kd以减少振荡和漂移
-    default_hip_kd: 1.0
-    default_thigh_kd: 1.0
-    default_calf_kd: 1.0
+    default_hip_kd: 1.7
+    default_thigh_kd: 1.7
+    default_calf_kd: 1.7
 
-    feet_force_threshold: 10.0      # 使用足端力传感器判断接触时的阈值
+    feet_force_threshold: 15.0      # 使用足端力传感器判断接触时的阈值
     use_kalman_contact_estimator: true    # 使用卡尔曼滤波器进行接触状态估计,暂时未配置
     joints:
       - FL_hip_joint
@@ -161,7 +161,7 @@ ocs2_quadruped_controller:
       - RR_foot_force
 
     # 状态估计器类型: error_state_kalman, linear_kalman, ground_truth
-    estimator_type: "ground_truth"
+    estimator_type: "error_state_kalman"
 
     # 是否启动感知 true: 感知运动  false: 盲走
     enable_perceptive: false

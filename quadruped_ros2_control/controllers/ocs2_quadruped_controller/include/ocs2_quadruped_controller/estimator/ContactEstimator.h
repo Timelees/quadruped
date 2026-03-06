@@ -92,13 +92,7 @@ namespace ocs2::legged_robot
         // 获取接触概率  四条腿的接触概率 [0,1]
         [[nodiscard]] std::array<scalar_t, NUM_LEGS> getContactProbabilities() const { return contact_prob_; }
 
-        /**
-         * @brief 获取接触相位
-         * @return 四条腿的接触相位 [0,1], 0=摆动/低置信度, 1=稳定支撑/高置信度
-         */
-        [[nodiscard]] std::array<scalar_t, NUM_LEGS> getContactPhase() const { return contact_phase_out_; }
 
-       
         // 获取估计的足端力 (z方向分量)
         [[nodiscard]] std::array<scalar_t, NUM_LEGS> getFootForces() const { return foot_forces_; }
 
@@ -204,7 +198,6 @@ namespace ocs2::legged_robot
         // 输出
         contact_flag_t contact_flags_{};
         std::array<scalar_t, NUM_LEGS> contact_prob_{};
-        std::array<scalar_t, NUM_LEGS> contact_phase_out_{};
         std::array<scalar_t, NUM_LEGS> foot_forces_{};  // 估计的足端力z分量（正值=接触力）
         std::array<scalar_t, NUM_LEGS> foot_force_z_filtered_{}; // 足端力z低通滤波值
 

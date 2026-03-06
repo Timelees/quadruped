@@ -94,7 +94,6 @@ namespace ocs2::legged_robot
         // 输出初始化
         contact_flags_.fill(false);
         contact_prob_.fill(0.0);
-        contact_phase_out_.fill(0.0);
 
         ee_kinematics_->setPinocchioInterface(pinocchio_interface_);
 
@@ -176,7 +175,6 @@ namespace ocs2::legged_robot
         {
             contact_prob_[i] = std::clamp(X_est_(i), 0.0, 1.0);
             contact_flags_[i] = (contact_prob_[i] > contact_threshold_);
-            contact_phase_out_[i] = contact_prob_[i];
         }
     }
 

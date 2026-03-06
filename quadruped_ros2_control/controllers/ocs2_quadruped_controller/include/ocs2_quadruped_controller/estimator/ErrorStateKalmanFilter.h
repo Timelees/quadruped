@@ -15,10 +15,12 @@
 #include <vector>
 #include <array>
 #include <optional>
+#include <cstdint>
+#include <string>
 
 #include <Eigen/Dense>
 
-// 基于李群李代数的 ESKF 实现
+
 #include <sophus/so3.hpp>
 // #include "STAObserver.h"
 
@@ -70,7 +72,7 @@ namespace ocs2::legged_robot
         static constexpr int MEAS_FOOT_POS_DIM = 12;   // 足端位置观测维度
         static constexpr int MEAS_FOOT_VEL_DIM = 12;   // 足端速度观测维度
         static constexpr int MEAS_FOOT_HEIGHT_DIM = 4; // 足端高度观测维度
-        static constexpr int MEAS_DIM = 28;            // 总观测维度 (12 + 12 + 4 = 28)
+        static constexpr int MEAS_DIM = 28;            // 总观测维度 
        
 
         // 观测向量索引
@@ -127,14 +129,15 @@ namespace ocs2::legged_robot
         void loadSettings(const std::string &task_file, const bool verbose);
 
     private:
-        // 基于李群李代数的 ESKF 实现
-        // std::shared_ptr<LieGroupESKF> kf_;
-
         PinocchioInterface pinocchio_interface_;
         std::unique_ptr<PinocchioEndEffectorKinematics> ee_kinematics_; // 使用pinocchio接口计算运动学
-
-        // 腿部运动学模型 (使用解析方法替代 Pinocchio)
-        std::unique_ptr<QuadrupedRobotModel> leg_kinematics_;
+        // 足端帧名称
+        const std::array<std::string, 4> foot_frame_names_ = {
+            "FL_foot", "FR_foot", "RL_foot", "RR_foot"
+        };
+        std::array<std::size_t, 4> ee_frame_ids_;  // 足端帧索引（缓存，避免在头文件包含 pinocchio）
+        Eigen::Matrix<double, 6, Eigen::Dynamic> J_full_;  // 完整雅可比矩阵 (6×nv)
+        std::vector<Eigen::Matrix<double, 3, Eigen::Dynamic>> Jc;                    // 足端接触雅可比矩阵 (3×nv)
 
         // 运动学计算的足端位置和速度（body frame）
         std::vector<vector3_t> foot_pos_;
@@ -149,18 +152,8 @@ namespace ocs2::legged_robot
         Eigen::Matrix3d R_imu_to_body_ = imu_to_body_rotation_.toRotationMatrix();
 
         // contact edge detection
-        contact_flag_t prev_contact_flag_{};
         bool feet_world_initialized_ = false;
 
-       
-
-        // 初始化误差协方差矩阵P的参数
-        double init_pos_sigma_ = 0.01;
-        double init_vel_sigma_ = 0.01;
-        double init_rot_sigma_ = 0.01;
-        double init_fpos_sigma_ = 0.01;
-        double init_bg_sigma_ = 0.01; // 增大以适应较大的陀螺仪偏置不确定性
-        double init_ba_sigma_ = 0.01;
 
 
         // imu_sanity_check 测量的IMU偏置
@@ -175,23 +168,15 @@ namespace ocs2::legged_robot
         bool bias_initialized_ = false;                   // 偏置是否已初始化
 
         // 加速度过程噪声
-        double proc_noise_acc_x_ = 0.017;
-        double proc_noise_acc_y_ = 0.017;
-        double proc_noise_acc_z_ = 0.017;
+        double proc_noise_acc_ = 0.017;
         // 角速度过程噪声
-        double proc_noise_gyro_x_ = 0.002;
-        double proc_noise_gyro_y_ = 0.002;
-        double proc_noise_gyro_z_ = 0.5211;
+        double proc_noise_gyro_ = 0.002;
         // 足端位置过程噪声
         double proc_noise_fpos_ = 0.05;
         // 加速度偏置过程噪声
-        double proc_noise_ba_x_ = 0.0001;
-        double proc_noise_ba_y_ = 0.0001;
-        double proc_noise_ba_z_ = 0.0001;
+        double proc_noise_ba_ = 0.0001;
         // 陀螺仪偏置过程噪声
-        double proc_noise_bg_x_ = 0.001;
-        double proc_noise_bg_y_ = 0.001;
-        double proc_noise_bg_z_ = 0.5211;
+        double proc_noise_bg_ = 0.001;
 
         double meas_noise_fvel_ = 0.1;     // 足端速度测量噪声
         double meas_noise_fpos_ = 0.1;     // 足端位置测量噪声
@@ -199,8 +184,9 @@ namespace ocs2::legged_robot
         double meas_noise_ba_ = 0.0001;    // 加速度偏置测量噪声
         double meas_noise_bg_ = 0.0001;    // 陀螺仪偏置测量噪声
         double meas_noise_encoder_ = 0.02; // 编码器测量噪声
+        double meas_noise_attitude_ = 0.01; // IMU姿态软约束噪声 (小值=强约束, 大值=弱约束)
 
-        double high_suspect_number = 100.0;
+        double high_suspect_number = 10000.0;
 
         // 足端参数
         double foot_radius_ = 0.019; // 足端半径，用于高度约束
@@ -239,6 +225,9 @@ namespace ocs2::legged_robot
 
         void resetErrorState(const StateVec &dx);
 
+        /** IMU 姿态软约束：独立卡尔曼更新，将 ESKF 旋转柔性约束到 IMU 输出 */
+        void fuseImuAttitude();
+
         /**基于运动学的观测模型
          * 计算观测残差、雅可比和噪声协方差
          * @param x 当前名义状态
@@ -270,5 +259,6 @@ namespace ocs2::legged_robot
         // 日志保存
         std::unique_ptr<quadruped::logs::LogSave> logger_;
         bool is_logger_enabled_ = true;
+
     };
 }
