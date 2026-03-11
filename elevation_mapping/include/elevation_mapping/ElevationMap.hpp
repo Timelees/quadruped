@@ -240,8 +240,7 @@ class ElevationMap {
    * @param lengthInYSubmap Length of the submap in Y direction.
    * @param margin Extra margin that gets added to the submap boundaries.
    */
-  void setRawSubmapHeight(const grid_map::Position& initPosition, float mapHeight, double lengthInXSubmap, double lengthInYSubmap,
-                          double margin);
+  void setRawSubmapHeight(const grid_map::Position& initPosition, float mapHeight, float variance, double lengthInXSubmap, double lengthInYSubmap);
 
   // 获取定时器
   const Timer& getAddPointTimer() const { return addPointTimer_; }
@@ -335,6 +334,9 @@ class ElevationMap {
   bool enableContinuousCleanup_;
   double visibilityCleanupDuration_;
   double scanningDuration_;
+  double increaseHeightAlpha_;
+  double fuseSubmapHeightOffset_{0.0};
+  double elevationClampThreshold_{0.0};  // Clamp elevation to 0 when |elevation| < threshold
 
   // 性能分析定时器
   Timer addPointTimer_;

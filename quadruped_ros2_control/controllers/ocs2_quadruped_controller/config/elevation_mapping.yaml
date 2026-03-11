@@ -1,10 +1,9 @@
 # Robot.
 elevation_mapping:
   ros__parameters:
-    map_frame_id: odom
-    robot_base_frame_id: base
-    robot_pose_with_covariance_topic: /pose # The topic where the robot pose with covariance is published.
-    
+    map_frame_id: odom                      # 地图坐标系
+    robot_base_frame_id: base               # 机器人基座坐标系
+    robot_pose_with_covariance_topic: /pose # 机器人带协方差的位姿话题
     input_sources: ["depth_camera"]  # List of input sources to be used for elevation mapping.
     # input_sources
     depth_camera: # A name to identify the input source
@@ -29,7 +28,7 @@ elevation_mapping:
 
         # 高度阈值滤波
         ignore_points_above: 2.5     # 高度上限，单位米
-        ignore_points_below: -0.5     # 高度下限，单位米 
+        ignore_points_below: -0.5     # 高度下限，单位米（相对于base高度）
 
         # 空间盒子滤波
         ignore_points_inside_min_x: -0.35  
@@ -50,23 +49,23 @@ elevation_mapping:
     #   ignore_points_below: -0.5
 
     # 地图跟随
-    track_point_frame_id: base
+    track_point_frame_id: base      # 高程图跟随的点的坐标系
     track_point_x: 0.0
     track_point_y: 0.0
     track_point_z: 0.0
-    time_tolerance: 0.1
-    robot_pose_cache_size: 300
-    scanning_duration: 0.2
-    visibility_cleanup_rate: 2.0  # 清理可见性点的速率
+    time_tolerance: 0.001        # 允许用略早于最后更新时间的数据做更新。
+    robot_pose_cache_size: 300  # 缓存机器人位姿的缓存大小
+    scanning_duration: 0.1
+    visibility_cleanup_rate: 5.0  # 控制可见性清理线程多久运行一次
 
     # Map.
     length_in_x: 3.0
     length_in_y: 3.0
     position_x: 0.0
     position_y: 0.0
-    resolution: 0.025
+    resolution: 0.01
 
-    mahalanobis_distance_threshold: 1.0
+    mahalanobis_distance_threshold: 2.5
 
     # 方差限制
     min_variance: 0.0001
@@ -76,7 +75,7 @@ elevation_mapping:
     # min_horizontal_variance: 0.000225  # pow(resolution / 2.0 , 2)
     max_horizontal_variance: 0.005
 
-    multi_height_noise: 0.01       # 多高度噪声
+    multi_height_noise: 0.001       # 多高度噪声
     
     surface_normal_positive_axis: z
     
@@ -86,12 +85,15 @@ elevation_mapping:
     length_in_x_init_submap: 3.0
     length_in_y_init_submap: 3.0
     margin_init_submap: 0.0
-    init_submap_height_offset: -0.0 # 高程图初始化子图的高度偏移（以米为单位）
-    target_frame_init_submap: odom
+    init_submap_variance: 1e-3
+    init_submap_height_offset: 0.0   # 高程图初始化子图的高度偏移（以米为单位）
+    fuse_submap_height_offset: 0.0365   # 融合子图时的高度偏移（以米为单位）——弥补点云的高度偏移
+    elevation_clamp_threshold: 0.01    # 点云融合后高程绝对值小于此阈值则钳位为0（抑制地面附近的点云噪声）
+    target_frame_init_submap: odom    # 初始化子图的目标坐标系
+    increase_height_alpha: 0.0        # 当新观测高度高于当前地图高度时，增加高度的权重，alpha越大越倾向于增加高度
 
-
-    enable_visibility_cleanup: true
-    enable_continuous_cleanup: false
+    enable_visibility_cleanup: true       # 开关可见性清理
+    enable_continuous_cleanup: false      # 每来一帧点云先 clear map，再只保留最新观测
     
     num_callback_threads: 2 # 处理点云回调的线程数
     postprocessor_num_threads: 8 # 处理点云后处理的线程数

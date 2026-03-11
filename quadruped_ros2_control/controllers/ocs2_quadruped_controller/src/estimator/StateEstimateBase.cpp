@@ -27,33 +27,6 @@ namespace ocs2::legged_robot
             node_->declare_parameter("feet_force_threshold", feet_force_threshold_);
         }
         feet_force_threshold_ = node_->get_parameter("feet_force_threshold").as_double();
-
-
-        // 协方差更新
-        // Declare and retrieve covariance parameters
-        std::vector<double> static_covariance_orientation(9, 0.0);
-        std::vector<double> static_covariance_angular_velocity(9, 0.0);
-        std::vector<double> static_covariance_linear_acceleration(9, 0.0);
-        if (!node_->has_parameter("static_covariance_orientation"))
-        {
-            node_->declare_parameter("static_covariance_orientation", static_covariance_orientation);
-        }
-        if (!node_->has_parameter("static_covariance_angular_velocity"))
-        {
-            node_->declare_parameter("static_covariance_angular_velocity", static_covariance_angular_velocity);
-        }
-        if (!node_->has_parameter("static_covariance_linear_acceleration"))
-        {
-            node_->declare_parameter("static_covariance_linear_acceleration", static_covariance_linear_acceleration);
-        }
-        // Retrieve covariance parameters
-        static_covariance_orientation = node_->get_parameter("static_covariance_orientation").as_double_array();
-        static_covariance_angular_velocity = node_->get_parameter("static_covariance_angular_velocity").as_double_array();
-        static_covariance_linear_acceleration = node_->get_parameter("static_covariance_linear_acceleration").as_double_array();
-
-        orientationCovariance_ = Eigen::Map<const matrix3_t>(static_covariance_orientation.data());
-        angularVelCovariance_ = Eigen::Map<const matrix3_t>(static_covariance_angular_velocity.data());
-        linearAccelCovariance_ = Eigen::Map<const matrix3_t>(static_covariance_linear_acceleration.data());
     }
 
     void StateEstimateBase::updateJointStates()
@@ -103,16 +76,18 @@ namespace ocs2::legged_robot
             ctrl_component_.imu_state_interface_[4].get().get_value(),
             ctrl_component_.imu_state_interface_[5].get().get_value(),
             ctrl_component_.imu_state_interface_[6].get().get_value()};
-        // std::cout << "IMU Angular Velocity (Local): " << angular_vel_local_.transpose() << std::endl;
+
         linear_accel_local_ = {
             ctrl_component_.imu_state_interface_[7].get().get_value(),
             ctrl_component_.imu_state_interface_[8].get().get_value(),
             ctrl_component_.imu_state_interface_[9].get().get_value()};
-        // std::cout << "IMU Linear Acceleration (Local): " << linear_accel_local_.transpose() << std::endl;
 
-        // orientationCovariance_ = orientationCovariance;
-        // angularVelCovariance_ = angularVelCovariance;
-        // linearAccelCovariance_ = linearAccelCovariance;
+        // 从硬件接口读取协方差矩阵
+        for (size_t i = 0; i < 9; ++i) {
+            orientationCovariance_(i) = ctrl_component_.imu_state_interface_[10 + i].get().get_value();
+            angularVelCovariance_(i) = ctrl_component_.imu_state_interface_[19 + i].get().get_value();
+            linearAccelCovariance_(i) = ctrl_component_.imu_state_interface_[28 + i].get().get_value();
+        }
 
         rotation_matrix = getRotationMatrixFromZyxEulerAngles(quatToZyx(quat_)); // body->world
 
@@ -148,7 +123,7 @@ namespace ocs2::legged_robot
 
         nav_msgs::msg::Odometry pose;
         pose.header = odom.header;
-        pose.pose.pose = odom.pose.pose;
+        pose.pose = odom.pose;
         pose_pub_->publish(pose);
     }
 } // namespace legged

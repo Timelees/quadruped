@@ -158,6 +158,10 @@ namespace cyber_quadruped_hardware
             double orientation[4] = {1, 0, 0, 0}; // w, x, y, z (与 LCM 消息 quat 顺序一致)
             double angular_velocity[3] = {0, 0, 0};
             double linear_acceleration[3] = {0, 0, 0};
+            // 协方差矩阵 (3x3, row-major)
+            double orientation_covariance[9] = {0};
+            double angular_velocity_covariance[9] = {0};
+            double linear_acceleration_covariance[9] = {0};
         };
 
         // 足端力数据存储

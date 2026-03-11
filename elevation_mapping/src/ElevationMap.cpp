@@ -44,14 +44,15 @@ ElevationMap::ElevationMap(std::shared_ptr<rclcpp::Node> nodeHandle)
       hasUnderlyingMap_(false),
       minVariance_(0.000009),
       maxVariance_(0.0009),
-      mahalanobisDistanceThreshold_(1.5),
+      mahalanobisDistanceThreshold_(2.5),
       multiHeightNoise_(0.000009),
       minHorizontalVariance_(0.0001),
       maxHorizontalVariance_(0.05),
       enableVisibilityCleanup_(true),
       enableContinuousCleanup_(false),
       visibilityCleanupDuration_(0.0),
-      scanningDuration_(1.0) {
+      scanningDuration_(1.0),
+      increaseHeightAlpha_(1.0) {
   rawMap_.setBasicLayers({"elevation", "variance"});
   fusedMap_.setBasicLayers({"elevation", "upper_bound", "lower_bound"});
   clear();
@@ -113,8 +114,11 @@ bool ElevationMap::add(const PointCloudType::Ptr pointCloud, Eigen::VectorXf& po
     basicLayers_.push_back(rawMap_.get(layer));
   }
 
+  const float heightOffset = static_cast<float>(fuseSubmapHeightOffset_);
+
   for (unsigned int i = 0; i < pointCloud->size(); ++i) {
     auto& point = pointCloud->points[i];
+    const float pointZ = point.z + heightOffset;  // Apply point cloud height offset
     grid_map::Index index;
     grid_map::Position position(point.x, point.y);  // NOLINT(cppcoreguidelines-pro-type-union-access)
     // RCLCPP_INFO(nodeHandle_->get_logger(), "Position in grid map: %f, %f", position.x(), position.y());
@@ -135,15 +139,15 @@ bool ElevationMap::add(const PointCloudType::Ptr pointCloud, Eigen::VectorXf& po
     auto& sensorYatLowestScan = sensorYatLowestScanLayer(index(0), index(1));
     auto& sensorZatLowestScan = sensorZatLowestScanLayer(index(0), index(1));
 
-    const float& pointVariance = 1e-11 * pointCloudVariances(i);
+    const float& pointVariance = pointCloudVariances(i);
     bool isValid = std::all_of(basicLayers_.begin(), basicLayers_.end(),
                                [&](Eigen::Ref<const grid_map::Matrix> layer) { 
                                 return std::isfinite(layer(index(0), index(1))); });
     if (!isValid) {
       // No prior information in elevation map, use measurement.
       // RCLCPP_INFO(nodeHandle_->get_logger(), "No prior information in elevation map, using measurement.");
-      elevation = point.z;  // NOLINT(cppcoreguidelines-pro-type-union-access)
-      // RCLCPP_INFO(nodeHandle_->get_logger(), "Elevation is %f", elevation);
+      elevation = pointZ;
+      // RCLCPP_INFO(nodeHandle_->get_logger(), "Pos: （%f, %f）Elevation is %f", point.x, point.y, elevation);
       variance = pointVariance;
       horizontalVarianceX = minHorizontalVariance_;
       horizontalVarianceY = minHorizontalVariance_;
@@ -154,20 +158,20 @@ bool ElevationMap::add(const PointCloudType::Ptr pointCloud, Eigen::VectorXf& po
 
     // RCLCPP_INFO(nodeHandle_->get_logger(), "Elevation: %f, Point Z: %f, Variance: %f", elevation, point.z, variance);
     // Deal with multiple heights in one cell.
-    const double mahalanobisDistance = fabs(point.z - elevation) / sqrt(variance);  // NOLINT(cppcoreguidelines-pro-type-union-access)
+    const double mahalanobisDistance = fabs(pointZ - elevation) / sqrt(variance);
     // RCLCPP_INFO(nodeHandle_->get_logger(), "Mahalanobis Distance: %f", mahalanobisDistance);
     if (mahalanobisDistance > mahalanobisDistanceThreshold_) {
       // RCLCPP_INFO(nodeHandle_->get_logger(), "Mahalanobis distance exceeds threshold.");
       if (scanTimeSinceInitialization - time <= scanningDuration_ &&
-          elevation > point.z) {  // NOLINT(cppcoreguidelines-pro-type-union-access)
+          elevation > pointZ) {
           // RCLCPP_INFO(nodeHandle_->get_logger(), "Ignoring point, lower than existing elevation and within scanning duration.");
         // Ignore point if measurement is from the same point cloud (time comparison) and
         // if measurement is lower then the elevation in the map.
       } else if (scanTimeSinceInitialization - time <= scanningDuration_) {
         // RCLCPP_INFO(nodeHandle_->get_logger(), "Point is higher, updating elevation and variance.");
         // If point is higher.
-        elevation = point.z;  // NOLINT(cppcoreguidelines-pro-type-union-access)
-        variance = pointVariance;
+        elevation = increaseHeightAlpha_ * elevation + (1 - increaseHeightAlpha_) * pointZ;
+        variance = increaseHeightAlpha_ * variance + (1 - increaseHeightAlpha_) * pointVariance;
         
       } else {
         // RCLCPP_INFO(nodeHandle_->get_logger(), "Increasing variance due to multi-height noise.");
@@ -177,7 +181,7 @@ bool ElevationMap::add(const PointCloudType::Ptr pointCloud, Eigen::VectorXf& po
     }
 
     // Store lowest points from scan for visibility checking.
-    const float pointHeightPlusUncertainty =  point.z + 3.0 * sqrt(pointVariance);  // 3 sigma. // NOLINT(cppcoreguidelines-pro-type-union-access)
+    const float pointHeightPlusUncertainty =  pointZ + 3.0 * sqrt(pointVariance);  // 3 sigma.
     if (std::isnan(lowestScanPoint) || pointHeightPlusUncertainty < lowestScanPoint) {
       // RCLCPP_INFO(nodeHandle_->get_logger(), "Updating lowest scan point.");
       lowestScanPoint = pointHeightPlusUncertainty;
@@ -190,7 +194,7 @@ bool ElevationMap::add(const PointCloudType::Ptr pointCloud, Eigen::VectorXf& po
     // RCLCPP_INFO(nodeHandle_->get_logger(), "Fusing measurement with elevation map data.");
     // Fuse measurement with elevation map data. aka kalman filter
     elevation =
-        (variance * point.z + pointVariance * elevation) / (variance + pointVariance);  // NOLINT(cppcoreguidelines-pro-type-union-access)
+        (variance * pointZ + pointVariance * elevation) / (variance + pointVariance);
     variance = (pointVariance * variance) / (pointVariance + variance);
     // TODO(max): Add color fusion.
     grid_map::colorVectorToValue(point.getRGBVector3i(), color);
@@ -201,6 +205,11 @@ bool ElevationMap::add(const PointCloudType::Ptr pointCloud, Eigen::VectorXf& po
     horizontalVarianceX = minHorizontalVariance_;
     horizontalVarianceY = minHorizontalVariance_;
     horizontalVarianceXY = 0.0;
+
+    // Clamp small elevation values to zero (suppress point cloud noise near ground).
+    if (elevationClampThreshold_ > 0.0 && std::fabs(elevation) < elevationClampThreshold_) {
+      elevation = 0.0f;
+    }
     // RCLCPP_INFO(nodeHandle_->get_logger(), "Updated map cell: Elevation = %f, Variance = %f", elevation, variance);
   }
 
@@ -525,8 +534,7 @@ void ElevationMap::move(const Eigen::Vector2d& position) {
 }
 
 
-void ElevationMap::setRawSubmapHeight(const grid_map::Position& initPosition, float mapHeight, double lengthInXSubmap,
-                                      double lengthInYSubmap, double margin) {
+void ElevationMap::setRawSubmapHeight(const grid_map::Position& initPosition, float mapHeight, float variance, double lengthInXSubmap, double lengthInYSubmap) {
   // Set a submap area (lengthInYSubmap + margin, lengthInXSubmap + margin) with a constant height (mapHeight).
   boost::recursive_mutex::scoped_lock scopedLockForRawData(rawMapMutex_);
 
@@ -537,8 +545,8 @@ void ElevationMap::setRawSubmapHeight(const grid_map::Position& initPosition, fl
 
   // Calculate submap area.
   const double resolution = rawMap_.getResolution();
-  const int lengthInXSubmapI = static_cast<int>(lengthInXSubmap / resolution + 2 * margin);
-  const int lengthInYSubmapI = static_cast<int>(lengthInYSubmap / resolution + 2 * margin);
+  const int lengthInXSubmapI = static_cast<int>(lengthInXSubmap / resolution);
+  const int lengthInYSubmapI = static_cast<int>(lengthInYSubmap / resolution);
   const Eigen::Array2i submapBufferSize(lengthInYSubmapI, lengthInXSubmapI);
 
   // Iterate through submap and fill height values.
@@ -547,7 +555,7 @@ void ElevationMap::setRawSubmapHeight(const grid_map::Position& initPosition, fl
   for (grid_map::SubmapIterator iterator(rawMap_, submapTopLeftIndex, submapBufferSize); !iterator.isPastEnd(); ++iterator) {
     const grid_map::Index index(*iterator);
     elevationData(index(0), index(1)) = mapHeight;
-    varianceData(index(0), index(1)) = 0.0;
+    varianceData(index(0), index(1)) = variance;
   }
 }
 

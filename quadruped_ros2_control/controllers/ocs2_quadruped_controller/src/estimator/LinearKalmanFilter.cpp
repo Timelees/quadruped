@@ -4,6 +4,8 @@
 #include <pinocchio/algorithm/rnea.hpp>
 #include <utility>
 #include <sstream>
+#include <iomanip>
+#include <cstring>
 
 #include <ocs2_quadruped_controller/estimator/LinearKalmanFilter.h>
 #include <ocs2_quadruped_controller/interface/SwitchedModelReferenceManager.h>
@@ -89,6 +91,32 @@ namespace ocs2::legged_robot
                                                                     ee_kinematics, ctrl_component, node);
             RCLCPP_INFO(node_->get_logger(), "ContactEstimator initialized successfully.");
         }
+
+        // 订阅高程图话题 (用于调试足端高度与高程图的差异)
+        elevation_map_sub_ = node_->create_subscription<grid_map_msgs::msg::GridMap>(
+            "elevation_map_raw", rclcpp::QoS(1).best_effort(),
+            [this](const grid_map_msgs::msg::GridMap::SharedPtr msg)
+            {
+                std::lock_guard<std::mutex> lock(elevation_map_mutex_);
+                grid_map::GridMapRosConverter::fromMessage(*msg, elevation_map_);
+                elevation_map_received_ = true;
+            });
+        RCLCPP_INFO(node_->get_logger(), "[ElevationMapDebug] Subscribed to elevation_map_raw topic.");
+
+        // TF2 初始化 (用于点云坐标变换)
+        tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
+        tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
+        // 订阅深度相机点云话题 (用于调试足端位置处的点云高度)
+        pointcloud_sub_ = node_->create_subscription<sensor_msgs::msg::PointCloud2>(
+            "/depth_camera/points", rclcpp::QoS(1).best_effort(),
+            [this](const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+            {
+                std::lock_guard<std::mutex> lock(pointcloud_mutex_);
+                latest_pointcloud_ = msg;
+                pointcloud_received_ = true;
+            });
+        RCLCPP_INFO(node_->get_logger(), "[PointCloudDebug] Subscribed to /depth_camera/points topic.");
     }
 
     vector_t KalmanFilterEstimate::update(const rclcpp::Time &time, const rclcpp::Duration &period)
@@ -196,7 +224,7 @@ namespace ocs2::legged_robot
             ps_.segment(3 * i, 3) = -eePos[i];
             ps_.segment(3 * i, 3)[2] += foot_radius_;
 
-            // Compute trust from contact probability similar to PositionVelocityEstimator
+    
             scalar_t phase = contact_prob[i];
             scalar_t trust = 1.0;
             const scalar_t trust_window = 0.2;
@@ -319,6 +347,58 @@ namespace ocs2::legged_robot
                 Eigen::Vector3d angvel_error = angular_vel_local_ - gt_angular_velocity_;
                 logger_->saveDataToCSV("angvelEstiTruthError.csv", "err_wx, err_wy, err_wz", angvel_error);
             }
+        }
+
+        // ==================== 高程图足端调试 ====================
+        // 每隔500次(约0.5s@1000Hz)查询并打印足端位置处的高程图高度
+        static int elev_debug_counter = 0;
+        elev_debug_counter++;
+        if (elevation_map_received_ && (elev_debug_counter % 500 == 0))
+        {
+            std::lock_guard<std::mutex> lock(elevation_map_mutex_);
+            const auto eePos_world = ee_kinematics_->getPosition(vector_t());
+            const vector3_t base_pos = xHat_.segment<3>(0);
+            const std::array<std::string, 4> foot_names = {"FR", "FL", "RR", "RL"};
+
+            std::ostringstream oss;
+            oss << "\n[ElevationMapDebug] base_z(KF)=" << std::fixed << std::setprecision(4) << base_pos.z();
+            if (sim_mode_) {
+                oss << " base_z(GT)=" << gt_position_.z();
+            }
+            oss << "\n";
+
+            for (int i = 0; i < 4; ++i)
+            {
+                // 世界系下的足端位置
+                Eigen::Vector3d foot_world = base_pos + eePos_world[i];
+                foot_world.z() -= foot_radius_;  // 减去足端半径得到接触地面的高度
+
+                grid_map::Position foot_pos_2d(foot_world.x(), foot_world.y());
+                oss << "  " << foot_names[i] << ": foot_z=" << foot_world.z();
+
+                if (elevation_map_.isInside(foot_pos_2d))
+                {
+                    try {
+                        float elev_height = elevation_map_.atPosition("elevation", foot_pos_2d);
+                        if (std::isfinite(elev_height)) {
+                            float diff = foot_world.z() - elev_height;
+                            oss << " map_z=" << elev_height
+                                << " diff=" << diff;
+                        } else {
+                            oss << " map_z=NaN(未融合区域)";
+                        }
+                    } catch (const std::exception& e) {
+                        oss << " query_error=" << e.what();
+                    }
+                }
+                else
+                {
+                    oss << " outside_map";
+                }
+                oss << " | contact=" << (contact_flag_[i] ? "1" : "0");
+                oss << "\n";
+            }
+            RCLCPP_INFO(node_->get_logger(), "%s", oss.str().c_str());
         }
 
         // 融合外部定位数据到 KF 状态量

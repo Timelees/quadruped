@@ -10,6 +10,7 @@
 
 #include <cmath>
 #include <string>
+#include <sstream>
 
 #include <grid_map_msgs/msg/grid_map.h>
 #include <pcl/PCLPointCloud2.h>
@@ -59,7 +60,8 @@ ElevationMapping::ElevationMapping(std::shared_ptr<rclcpp::Node>& nodeHandle) :
       lengthInXInitSubmap_(1.2),
       lengthInYInitSubmap_(1.8),
       marginInitSubmap_(0.3),  
-      initSubmapHeightOffset_(0.0)
+      initSubmapHeightOffset_(0.0),
+      initSubmapVariance_(0.01)
        {
 #ifndef NDEBUG
   // Print a warning if built in debug.
@@ -298,6 +300,8 @@ bool ElevationMapping::readParameters() {
   nodeHandle_->declare_parameter("enable_visibility_cleanup", true);
   nodeHandle_->declare_parameter("enable_continuous_cleanup", false);
   nodeHandle_->declare_parameter("scanning_duration", 1.0);
+  nodeHandle_->declare_parameter("increase_height_alpha", 1.0);
+  nodeHandle_->declare_parameter("elevation_clamp_threshold", 0.0);
   nodeHandle_->declare_parameter("masked_replace_service_mask_layer_name", std::string("mask"));
 
   nodeHandle_->get_parameter("min_variance", map_.minVariance_);
@@ -310,6 +314,8 @@ bool ElevationMapping::readParameters() {
   nodeHandle_->get_parameter("enable_visibility_cleanup", map_.enableVisibilityCleanup_);
   nodeHandle_->get_parameter("enable_continuous_cleanup", map_.enableContinuousCleanup_);
   nodeHandle_->get_parameter("scanning_duration", map_.scanningDuration_);
+  nodeHandle_->get_parameter("increase_height_alpha", map_.increaseHeightAlpha_);
+  nodeHandle_->get_parameter("elevation_clamp_threshold", map_.elevationClampThreshold_);
   nodeHandle_->get_parameter("masked_replace_service_mask_layer_name", maskedReplaceServiceMaskLayerName_);
 
   // Settings for initializing elevation map
@@ -319,14 +325,20 @@ bool ElevationMapping::readParameters() {
   nodeHandle_->declare_parameter("length_in_y_init_submap", 1.8);
   nodeHandle_->declare_parameter("margin_init_submap", 0.3);
   nodeHandle_->declare_parameter("init_submap_height_offset", 0.0);
+  nodeHandle_->declare_parameter("fuse_submap_height_offset", 0.0);
+  nodeHandle_->declare_parameter("init_submap_variance", 0.01);
   nodeHandle_->declare_parameter("target_frame_init_submap", std::string("/footprint"));
 
   nodeHandle_->get_parameter("initialize_elevation_map", initializeElevationMap_);
   nodeHandle_->get_parameter("initialization_method", initializationMethod_);
   nodeHandle_->get_parameter("length_in_x_init_submap", lengthInXInitSubmap_);
   nodeHandle_->get_parameter("length_in_y_init_submap", lengthInYInitSubmap_);
-  nodeHandle_->get_parameter("margin_init_submap", marginInitSubmap_);
   nodeHandle_->get_parameter("init_submap_height_offset", initSubmapHeightOffset_);
+  nodeHandle_->get_parameter("fuse_submap_height_offset", fuseSubmapHeightOffset_);
+  map_.fuseSubmapHeightOffset_ = fuseSubmapHeightOffset_;
+  nodeHandle_->get_parameter("init_submap_variance", initSubmapVariance_);
+
+  nodeHandle_->get_parameter("margin_init_submap", marginInitSubmap_);
   nodeHandle_->get_parameter("target_frame_init_submap", targetFrameInitSubmap_);
 
   nodeHandle_->declare_parameter("robot_base_frame_id", std::string("/robot"));
@@ -397,12 +409,6 @@ bool ElevationMapping::initialize() {
  
 void ElevationMapping::pointCloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr pointCloudMsg, bool publishPointCloud,
                                           const SensorProcessorBase::Ptr& sensorProcessor_) {
-  // 线程与num_callback_threads有关                                         
-  // pid_t tid = syscall(SYS_gettid);
-  // RCLCPP_INFO(nodeHandle_->get_logger(),
-  //             "pointCloudCallback in Linux thread tid: %d (htop LWP)", tid);
-
-
   // RCLCPP_INFO(nodeHandle_->get_logger(), "Processing data from: %s", pointCloudMsg->header.frame_id.c_str());
   
   pointCloudCallbackTimer_.startTimer();
@@ -464,9 +470,10 @@ void ElevationMapping::pointCloudCallback(sensor_msgs::msg::PointCloud2::ConstSh
       }
       return;
     }
-    //std::cout<<poseMessage->pose.covariance.data()<<std::endl;
+
+
     robotPoseCovariance = Eigen::Map<const Eigen::MatrixXd>(poseMessage->pose.covariance.data(), 6, 6);
-  //robotPoseCovariance.Zero();
+
   }
 
   // Process point cloud.
@@ -487,8 +494,6 @@ void ElevationMapping::pointCloudCallback(sensor_msgs::msg::PointCloud2::ConstSh
     return;
   }
   
-  // RCLCPP_INFO_STREAM(nodeHandle_->get_logger(),"measurement Variance is:"<<measurementVariances[0]<<" , "<<measurementVariances[10]<<" , "<<measurementVariances[100]<<" , "<<measurementVariances[110]<<" , "<<measurementVariances[120]);
-
   boost::recursive_mutex::scoped_lock scopedLock(map_.getRawDataMutex());
 
   // Update map location.
@@ -797,8 +802,9 @@ bool ElevationMapping::initializeElevationMap() {
         // updateMapLocation().
         map_.move(positionRobot);
         
-        map_.setRawSubmapHeight(positionRobot, transform.getOrigin().z() + initSubmapHeightOffset_, lengthInXInitSubmap_,
-                                lengthInYInitSubmap_, marginInitSubmap_);
+        map_.setRawSubmapHeight(positionRobot, transform.getOrigin().z() + initSubmapHeightOffset_, initSubmapVariance_, lengthInXInitSubmap_,
+                                lengthInYInitSubmap_);
+        
         return true;
       } catch (tf2::TransformException& ex) {
         RCLCPP_DEBUG(nodeHandle_->get_logger(), "%s", ex.what());

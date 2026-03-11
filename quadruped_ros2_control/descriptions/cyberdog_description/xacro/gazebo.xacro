@@ -151,6 +151,36 @@
       <state_interface name="linear_acceleration.x"/>
       <state_interface name="linear_acceleration.y"/>
       <state_interface name="linear_acceleration.z"/>
+      <state_interface name="orientation_covariance.0"/>
+      <state_interface name="orientation_covariance.1"/>
+      <state_interface name="orientation_covariance.2"/>
+      <state_interface name="orientation_covariance.3"/>
+      <state_interface name="orientation_covariance.4"/>
+      <state_interface name="orientation_covariance.5"/>
+      <state_interface name="orientation_covariance.6"/>
+      <state_interface name="orientation_covariance.7"/>
+      <state_interface name="orientation_covariance.8"/>
+      <state_interface name="angular_velocity_covariance.0"/>
+      <state_interface name="angular_velocity_covariance.1"/>
+      <state_interface name="angular_velocity_covariance.2"/>
+      <state_interface name="angular_velocity_covariance.3"/>
+      <state_interface name="angular_velocity_covariance.4"/>
+      <state_interface name="angular_velocity_covariance.5"/>
+      <state_interface name="angular_velocity_covariance.6"/>
+      <state_interface name="angular_velocity_covariance.7"/>
+      <state_interface name="angular_velocity_covariance.8"/>
+      <state_interface name="linear_acceleration_covariance.0"/>
+      <state_interface name="linear_acceleration_covariance.1"/>
+      <state_interface name="linear_acceleration_covariance.2"/>
+      <state_interface name="linear_acceleration_covariance.3"/>
+      <state_interface name="linear_acceleration_covariance.4"/>
+      <state_interface name="linear_acceleration_covariance.5"/>
+      <state_interface name="linear_acceleration_covariance.6"/>
+      <state_interface name="linear_acceleration_covariance.7"/>
+      <state_interface name="linear_acceleration_covariance.8"/>
+      <param name="orientation_covariance">0.0012</param>
+      <param name="angular_velocity_covariance">0.0004</param>
+      <param name="linear_acceleration_covariance">0.01</param>
     </sensor>
 
 
@@ -220,34 +250,34 @@
           <x>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <!-- <stddev>2e-3</stddev>     
+              <stddev>2e-3</stddev>     
               <bias_mean>0.0000075</bias_mean>
-              <bias_stddev>0.0000008</bias_stddev> -->
-              <stddev>0</stddev>     
+              <bias_stddev>0.0000008</bias_stddev>
+              <!-- <stddev>0</stddev>     
               <bias_mean>0.00000</bias_mean>
-              <bias_stddev>0.000000</bias_stddev>
+              <bias_stddev>0.000000</bias_stddev> -->
             </noise>
           </x>
           <y>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <!-- <stddev>2e-3</stddev>     
+              <stddev>2e-3</stddev>     
               <bias_mean>0.0000075</bias_mean>
-              <bias_stddev>0.0000008</bias_stddev> -->
-              <stddev>0</stddev>     
+              <bias_stddev>0.0000008</bias_stddev>
+              <!-- <stddev>0</stddev>     
               <bias_mean>0.00000</bias_mean>
-              <bias_stddev>0.000000</bias_stddev>
+              <bias_stddev>0.000000</bias_stddev> -->
             </noise>
           </y>
           <z>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <!-- <stddev>2e-3</stddev>     
+              <stddev>2e-3</stddev>     
               <bias_mean>0.0000075</bias_mean>
-              <bias_stddev>0.0000008</bias_stddev> -->
-              <stddev>0</stddev>     
+              <bias_stddev>0.0000008</bias_stddev>
+              <!-- <stddev>0</stddev>     
               <bias_mean>0.00000</bias_mean>
-              <bias_stddev>0.000000</bias_stddev>
+              <bias_stddev>0.000000</bias_stddev> -->
             </noise>
           </z>
         </angular_velocity>
@@ -255,34 +285,34 @@
           <x>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <!-- <stddev>1.7e-2</stddev>
+              <stddev>1.7e-2</stddev>
               <bias_mean>0.01</bias_mean>
-              <bias_stddev>0.001</bias_stddev> -->
-              <stddev>0.0</stddev>
+              <bias_stddev>0.001</bias_stddev>
+              <!-- <stddev>0.0</stddev>
               <bias_mean>0.0</bias_mean>
-              <bias_stddev>0.0</bias_stddev>
+              <bias_stddev>0.0</bias_stddev> -->
             </noise>
           </x>
           <y>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <!-- <stddev>1.7e-2</stddev>
+              <stddev>1.7e-2</stddev>
               <bias_mean>0.01</bias_mean>
-              <bias_stddev>0.001</bias_stddev> -->
-              <stddev>0.0</stddev>
+              <bias_stddev>0.001</bias_stddev>
+              <!-- <stddev>0.0</stddev>
               <bias_mean>0.0</bias_mean>
-              <bias_stddev>0.0</bias_stddev>
+              <bias_stddev>0.0</bias_stddev> -->
             </noise>
           </y>
           <z>
             <noise type="gaussian">
               <mean>0.0</mean>
-              <!-- <stddev>1.7e-2</stddev>
+              <stddev>1.7e-2</stddev>
               <bias_mean>0.01</bias_mean>
-              <bias_stddev>0.001</bias_stddev> -->
-              <stddev>0.0</stddev>
+              <bias_stddev>0.001</bias_stddev>
+              <!-- <stddev>0.0</stddev>
               <bias_mean>0.0</bias_mean>
-              <bias_stddev>0.0</bias_stddev>
+              <bias_stddev>0.0</bias_stddev> -->
             </noise>
           </z>
         </linear_acceleration>
@@ -360,21 +390,21 @@
             <format>R8G8B8</format>
           </image>
           <clip>
-            <near>0.01</near>
-            <far>300</far>
+            <near>0.05</near>
+            <far>5.0</far>
           </clip>
           <depth_camera>
             <clip>
               <near>0.05</near>
-              <far>10</far>
+              <far>5.0</far>
             </clip>
           </depth_camera>
           <noise>
             <type>gaussian</type>
             <mean>0</mean>
-            <stddev>0.00</stddev>   
+            <stddev>0.0001</stddev>   
           </noise>
-          <optical_frame_id>RGB_camera_link</optical_frame_id>
+          <optical_frame_id>D435_camera_link</optical_frame_id>
         </camera>
         
       </sensor>

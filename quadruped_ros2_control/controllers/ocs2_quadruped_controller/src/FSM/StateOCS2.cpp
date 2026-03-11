@@ -103,9 +103,6 @@ namespace ocs2::legged_robot
                        interface_joint_order[wbc_to_interface_map_[i]].c_str());
         }
 
-        // // 初始化发布者
-        // desired_base_pub_ = node_->create_publisher<control_input_msgs::msg::SimBase>(
-        //     "/desired_base_state", 10);
     }
 
     void StateOCS2::enter()

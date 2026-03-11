@@ -96,12 +96,16 @@ namespace ocs2::legged_robot
         }
         else if (estimator_type == "error_state_kalman" )
         {
-            estimator_ = std::make_unique<ErrorStateKalmanFilter>(
+            auto error_state_kalman_estimator = std::make_unique<ErrorStateKalmanFilter>(
                 legged_interface_->getPinocchioInterface(),
                 legged_interface_->getCentroidalModelInfo(),
                 *ee_kinematics_, ctrl_interfaces_,
                 node_);
-            dynamic_cast<ErrorStateKalmanFilter&>(*estimator_).loadSettings(task_file_, verbose_);
+
+            error_state_kalman_estimator->loadSettings(task_file_, verbose_);
+            error_state_kalman_estimator->setReferenceManager(legged_interface_->getSwitchedModelReferenceManagerPtr());
+
+            estimator_ = std::move(error_state_kalman_estimator);
             RCLCPP_INFO(node_->get_logger(), "Using Error State Kalman Filter Estimator");
         }
         else

@@ -53,6 +53,19 @@ hardware_interface::CallbackReturn CyberSystem::on_init(
     if (!info_.sensors.empty())
     {
         imu_data_.name = info_.sensors[0].name;
+
+        // 从 URDF <param> 中读取 IMU 协方差，如果没有则使用默认值
+        const auto& params = info_.sensors[0].parameters;
+        auto readCovarianceParam = [&](const std::string& key, double* out, size_t n) {
+            auto it = params.find(key);
+            if (it != params.end()) {
+                double val = std::stod(it->second);
+                for (size_t i = 0; i < n; ++i) out[i] = (i % 4 == 0) ? val : 0.0;  // 对角矩阵
+            }
+        };
+        readCovarianceParam("orientation_covariance", imu_data_.orientation_covariance, 9);
+        readCovarianceParam("angular_velocity_covariance", imu_data_.angular_velocity_covariance, 9);
+        readCovarianceParam("linear_acceleration_covariance", imu_data_.linear_acceleration_covariance, 9);
     }
 
     // 初始化机器人状态
@@ -230,6 +243,20 @@ std::vector<hardware_interface::StateInterface> CyberSystem::export_state_interf
         imu_data_.name, "linear_acceleration.y", &imu_data_.linear_acceleration[1]);
     state_interfaces.emplace_back(
         imu_data_.name, "linear_acceleration.z", &imu_data_.linear_acceleration[2]);
+
+    // 导出 IMU 协方差接口
+    for (int i = 0; i < 9; ++i) {
+        state_interfaces.emplace_back(
+            imu_data_.name, "orientation_covariance." + std::to_string(i), &imu_data_.orientation_covariance[i]);
+    }
+    for (int i = 0; i < 9; ++i) {
+        state_interfaces.emplace_back(
+            imu_data_.name, "angular_velocity_covariance." + std::to_string(i), &imu_data_.angular_velocity_covariance[i]);
+    }
+    for (int i = 0; i < 9; ++i) {
+        state_interfaces.emplace_back(
+            imu_data_.name, "linear_acceleration_covariance." + std::to_string(i), &imu_data_.linear_acceleration_covariance[i]);
+    }
 
     // 导出足端力状态接口
     // 顺序与配置文件中 foot_force_interfaces 一致: FL, RL, FR, RR

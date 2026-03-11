@@ -388,6 +388,11 @@ class ElevationMapping {
   //tf2_ros::TransformBroadcaster tf_broadcaster_;
   //! Additional offset of the height value
   double initSubmapHeightOffset_;
+    
+  double fuseSubmapHeightOffset_;
+  //! Initial variance when setting a submap.
+  double initSubmapVariance_;
+
   rmw_qos_profile_t qos_profile{
     RMW_QOS_POLICY_HISTORY_KEEP_LAST,
     1,

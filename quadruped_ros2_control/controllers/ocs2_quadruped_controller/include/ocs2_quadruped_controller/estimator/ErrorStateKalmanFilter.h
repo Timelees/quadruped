@@ -1,9 +1,11 @@
 #pragma once
 
 #include "StateEstimateBase.h"
+#include "ContactEstimator.h"
 
 #include <ocs2_centroidal_model/CentroidalModelPinocchioMapping.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematics.h>
+#include <ocs2_legged_robot/gait/LegLogic.h>
 
 #include <rclcpp/rclcpp.hpp>
 #include <ocs2_core/misc/LoadData.h>
@@ -25,9 +27,12 @@
 // #include "STAObserver.h"
 
 #include "log_save.h"
+#include <rclcpp/rclcpp.hpp>
 
-// 腿部运动学计算
-#include "controller_common/common/leg.h"
+// 前向声明
+namespace ocs2::legged_robot {
+    class SwitchedModelReferenceManager;
+}
 
 namespace ocs2::legged_robot
 {
@@ -124,9 +129,15 @@ namespace ocs2::legged_robot
 
         vector_t update(const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
+    
+        
         void init();
 
         void loadSettings(const std::string &task_file, const bool verbose);
+
+        void setReferenceManager(std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr) {
+            reference_manager_ptr_ = reference_manager_ptr;
+        }
 
     private:
         PinocchioInterface pinocchio_interface_;
@@ -153,30 +164,19 @@ namespace ocs2::legged_robot
 
         // contact edge detection
         bool feet_world_initialized_ = false;
+        // 接触估计器
+        std::unique_ptr<ContactEstimator> contact_estimator_;
+        bool use_contact_estimator_ = true;  // 是否使用接触估计器
+        std::array<double, 4> contact_prob_ = {0.0, 0.0, 0.0, 0.0}; // 接触概率
+        // 步态相位信息获取
+        std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr_;
 
 
-
-        // imu_sanity_check 测量的IMU偏置
-        Eigen::Vector3d imu_acc_mean_ = Eigen::Vector3d(0.0, 0.0, 9.790); // ba   (-0.011, 0.011, 9.790)
-        Eigen::Vector3d imu_gyro_mean_ = Eigen::Vector3d(0.0, 0.0, 0.0);  // bg   (-0.0001, -0.0001, -0.52)
-
-        // ==================== 启动静止期IMU偏置采样 ====================
-        static constexpr int BIAS_INIT_SAMPLES = 200;     // 采样帧数（约0.2秒@1kHz）
-        int bias_init_sample_count_ = 0;                  // 当前采样计数
-        Eigen::Vector3d gyro_sum_ = Eigen::Vector3d::Zero();  // 陀螺仪累加
-        Eigen::Vector3d acc_sum_ = Eigen::Vector3d::Zero();   // 加速度计累加
-        bool bias_initialized_ = false;                   // 偏置是否已初始化
-
-        // 加速度过程噪声
-        double proc_noise_acc_ = 0.017;
-        // 角速度过程噪声
-        double proc_noise_gyro_ = 0.002;
-        // 足端位置过程噪声
-        double proc_noise_fpos_ = 0.05;
-        // 加速度偏置过程噪声
-        double proc_noise_ba_ = 0.0001;
-        // 陀螺仪偏置过程噪声
-        double proc_noise_bg_ = 0.001;
+        double proc_noise_acc_ = 0.017; // 加速度过程噪声
+        double proc_noise_gyro_ = 0.002; // 角速度过程噪声
+        double proc_noise_fpos_ = 0.05; // 足端位置过程噪声
+        double proc_noise_ba_ = 0.0001; // 加速度偏置过程噪声
+        double proc_noise_bg_ = 0.001; // 陀螺仪偏置过程噪声
 
         double meas_noise_fvel_ = 0.1;     // 足端速度测量噪声
         double meas_noise_fpos_ = 0.1;     // 足端位置测量噪声
@@ -190,14 +190,9 @@ namespace ocs2::legged_robot
 
         // 足端参数
         double foot_radius_ = 0.019; // 足端半径，用于高度约束
-
-        double slip_threshold_ = 0.05; // 滑移阈值
-        double slip_inflate_ = 10.0;   // 支撑相滑移膨胀系数
+            double min_contact_trust_ = 0.05; // 接触概率下限，避免观测被完全关闭
         double swing_inflate_ = 100.0; // 摆动相膨胀系数
         
-        // 滑动检测状态（用于日志和调试）
-        std::array<bool, 4> slip_flag_ = {false, false, false, false};
-        std::array<double, 4> foot_world_speed_ = {0.0, 0.0, 0.0, 0.0};
 
         ESKFNominalState xHat_;                            // 滤波器状态估计值
         StateVec dx;                                       // 误差状态
@@ -229,19 +224,17 @@ namespace ocs2::legged_robot
         void fuseImuAttitude();
 
         /**基于运动学的观测模型
-         * 计算观测残差、雅可比和噪声协方差
-         * @param x 当前名义状态
-         * @param y [out] 观测残差
-         * @param C [out] 观测雅可比
-         * @param R [out] 观测噪声协方差
+         * 根据当前名义状态x和输入in，计算观测残差y、雅可比C和噪声协方差R
          */
-        void measurementModelKinematics(const ESKFNominalState &x,
-                                        const ESKFInput &in,
-                                        MeasVec &y,
-                                        MeasJacobian &C,
-                                        MeasCov &R);
+        void measurementModelKinematics(const ESKFNominalState &x,const ESKFInput &in,
+                                        MeasVec &y, MeasJacobian &C, MeasCov &R);
 
         nav_msgs::msg::Odometry getOdomMsg();
+
+        void footStateEstimation(const rclcpp::Time &time, const rclcpp::Duration &period);     // 足端力和接触状态估计
+        
+
+
 
         // Ground Truth (从Gazebo获取真实位姿用于对比)
         void updateGroundTruth();

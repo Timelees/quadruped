@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <sdf version='1.10'>
-  <world name='step'>
+  <world name='stair15cm'>
     <physics name='1ms' type='ignored'>
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1</real_time_factor>
@@ -75,9 +75,9 @@
     </model>
 
     <!-- Staircase made of boxes -->
-    <model name='stair_1'>
-      <pose>2 0 0.05 0 0 0</pose>
-      <link name='stair_1_link'>
+    <model name='stair_15cm_1'>
+      <pose>2.5 0 0.075 0 0 0</pose>
+      <link name='stair_15cm_1_link'>
         <inertial>
           <inertia>
             <ixx>0.755208</ixx>
@@ -90,10 +90,10 @@
           <mass>1</mass>
           <pose>0 0 0 0 0 0</pose>
         </inertial>
-        <collision name='stair_1_collision'>
+        <collision name='stair_15cm_1_collision'>
           <geometry>
             <box>
-              <size>0.5 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <surface>
@@ -104,10 +104,10 @@
             <contact/>
           </surface>
         </collision>
-        <visual name='stair_1_visual'>
+        <visual name='stair_15cm_1_visual'>
           <geometry>
             <box>
-              <size>0.5 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <material>
@@ -123,9 +123,9 @@
       <self_collide>false</self_collide>
     </model>
 
-    <model name='stair_2'>
-      <pose>2.5 0 0.15 0 0 0</pose>
-      <link name='stair_2_link'>
+    <model name='stair_15cm_2'>
+      <pose>3.0 0 0.225 0 0 0</pose>
+      <link name='stair_15cm_2_link'>
         <inertial>
           <inertia>
             <ixx>0.755208</ixx>
@@ -138,10 +138,10 @@
           <mass>1</mass>
           <pose>0 0 0 0 0 0</pose>
         </inertial>
-        <collision name='stair_2_collision'>
+        <collision name='stair_15cm_2_collision'>
           <geometry>
             <box>
-              <size>0.5 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <surface>
@@ -152,10 +152,10 @@
             <contact/>
           </surface>
         </collision>
-        <visual name='stair_2_visual'>
+        <visual name='stair_15cm_2_visual'>
           <geometry>
             <box>
-              <size>0.5 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <material>
@@ -171,9 +171,9 @@
       <self_collide>false</self_collide>
     </model>
 
-    <model name='stair_3'>
-      <pose>3.0 0 0.25 0 0 0</pose>
-      <link name='stair_3_link'>
+    <model name='stair_15cm_3'>
+      <pose>3.5 0 0.375 0 0 0</pose>
+      <link name='stair_15cm_3_link'>
         <inertial>
           <inertia>
             <ixx>0.755208</ixx>
@@ -186,10 +186,10 @@
           <mass>1</mass>
           <pose>0 0 0 0 0 0</pose>
         </inertial>
-        <collision name='stair_3_collision'>
+        <collision name='stair_15cm_3_collision'>
           <geometry>
             <box>
-              <size>0.5 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <surface>
@@ -200,10 +200,10 @@
             <contact/>
           </surface>
         </collision>
-        <visual name='stair_3_visual'>
+        <visual name='stair_15cm_3_visual'>
           <geometry>
             <box>
-              <size>0.5 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <material>
@@ -219,9 +219,9 @@
       <self_collide>false</self_collide>
     </model>
 
-    <model name='stair_4'>
-      <pose>3.5 0 0.35 0 0 0</pose>
-      <link name='stair_4_link'>
+    <model name='stair_15cm_4'>
+      <pose>4.0 0 0.525 0 0 0</pose>
+      <link name='stair_15cm_4_link'>
         <inertial>
           <inertia>
             <ixx>0.755208</ixx>
@@ -234,10 +234,10 @@
           <mass>1</mass>
           <pose>0 0 0 0 0 0</pose>
         </inertial>
-        <collision name='stair_4_collision'>
+        <collision name='stair_15cm_4_collision'>
           <geometry>
             <box>
-              <size>0.5 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <surface>
@@ -248,10 +248,10 @@
             <contact/>
           </surface>
         </collision>
-        <visual name='stair_4_visual'>
+        <visual name='stair_15cm_4_visual'>
           <geometry>
             <box>
-              <size>0.5 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <material>
@@ -267,9 +267,9 @@
       <self_collide>false</self_collide>
     </model>
 
-    <model name='stair_5'>
-      <pose>4.0 0 0.45 0 0 0</pose>
-      <link name='stair_5_link'>
+    <model name='stair_15cm_5'>
+      <pose>4.5 0 0.675 0 0 0</pose>
+      <link name='stair_15cm_5_link'>
         <inertial>
           <inertia>
             <ixx>0.755208</ixx>
@@ -282,10 +282,10 @@
           <mass>1</mass>
           <pose>0 0 0 0 0 0</pose>
         </inertial>
-        <collision name='stair_5_collision'>
+        <collision name='stair_15cm_5_collision'>
           <geometry>
             <box>
-              <size>0.5 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <surface>
@@ -296,58 +296,10 @@
             <contact/>
           </surface>
         </collision>
-        <visual name='stair_5_visual'>
+        <visual name='stair_15cm_5_visual'>
           <geometry>
             <box>
-              <size>0.5 3 0.1</size>
-            </box>
-          </geometry>
-          <material>
-            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
-            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
-            <specular>1 1 1 1</specular>
-          </material>
-        </visual>
-        <pose>0 0 0 0 0 0</pose>
-        <enable_wind>false</enable_wind>
-      </link>
-      <static>true</static>
-      <self_collide>false</self_collide>
-    </model>
-    
-    <model name='stair_6'>
-      <pose>4.5 0 0.55 0 0 0</pose>
-      <link name='stair_6_link'>
-        <inertial>
-          <inertia>
-            <ixx>0.755208</ixx>
-            <ixy>0</ixy>
-            <ixz>0</ixz>
-            <iyy>0.0260417</iyy>
-            <iyz>0</iyz>
-            <izz>0.770833</izz>
-          </inertia>
-          <mass>1</mass>
-          <pose>0 0 0 0 0 0</pose>
-        </inertial>
-        <collision name='stair_6_collision'>
-          <geometry>
-            <box>
-              <size>0.5 3 0.1</size>
-            </box>
-          </geometry>
-          <surface>
-            <friction>
-              <ode/>
-            </friction>
-            <bounce/>
-            <contact/>
-          </surface>
-        </collision>
-        <visual name='stair_6_visual'>
-          <geometry>
-            <box>
-              <size>0.5 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <material>
@@ -363,10 +315,9 @@
       <self_collide>false</self_collide>
     </model>
 
-
-    <model name='stair_7'>
-      <pose>5.5 0 0.65 0 0 0</pose>
-      <link name='stair_7_link'>
+    <model name='stair_15cm_6'>
+      <pose>5.0 0 0.825 0 0 0</pose>
+      <link name='stair_15cm_6_link'>
         <inertial>
           <inertia>
             <ixx>0.755208</ixx>
@@ -379,10 +330,10 @@
           <mass>1</mass>
           <pose>0 0 0 0 0 0</pose>
         </inertial>
-        <collision name='stair_7_collision'>
+        <collision name='stair_15cm_6_collision'>
           <geometry>
             <box>
-              <size>2 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <surface>
@@ -393,10 +344,10 @@
             <contact/>
           </surface>
         </collision>
-        <visual name='stair_7_visual'>
+        <visual name='stair_15cm_6_visual'>
           <geometry>
             <box>
-              <size>2 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <material>
@@ -413,9 +364,9 @@
     </model>
 
 
-     <model name='stair_8'>
-      <pose>0 4 0.05 0 0 0</pose>
-      <link name='stair_8_link'>
+    <model name='stair_15cm_7'>
+      <pose>5.5 0 0.975 0 0 0</pose>
+      <link name='stair_15cm_7_link'>
         <inertial>
           <inertia>
             <ixx>0.755208</ixx>
@@ -428,10 +379,10 @@
           <mass>1</mass>
           <pose>0 0 0 0 0 0</pose>
         </inertial>
-        <collision name='stair_8_collision'>
+        <collision name='stair_15cm_7_collision'>
           <geometry>
             <box>
-              <size>2 3 0.1</size>
+              <size>0.5 3 0.15</size>
             </box>
           </geometry>
           <surface>
@@ -442,10 +393,58 @@
             <contact/>
           </surface>
         </collision>
-        <visual name='stair_8_visual'>
+        <visual name='stair_15cm_7_visual'>
           <geometry>
             <box>
-              <size>2 3 0.1</size>
+              <size>0.5 3 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='stair_15cm_8'>
+      <pose>6.5 0 0.975 0 0 0</pose>
+      <link name='stair_15cm_8_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name='stair_15cm_8_collision'>
+          <geometry>
+            <box>
+              <size>2 3 0.15</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='stair_15cm_8_visual'>
+          <geometry>
+            <box>
+              <size>2 3 0.15</size>
             </box>
           </geometry>
           <material>

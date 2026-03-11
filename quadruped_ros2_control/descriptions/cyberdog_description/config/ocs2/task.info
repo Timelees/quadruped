@@ -347,6 +347,7 @@ kalmanFilter
     imuProcessNoisePosition     0.02
     imuProcessNoiseVelocity     0.02
     footProcessNoisePosition    0.002
+
     footSensorNoisePosition     0.005
     footSensorNoiseVelocity     0.1
     footHeightSensorNoise       0.01
@@ -360,17 +361,14 @@ ErrorStateKalmanFilter
 {
     is_enabled_logger                 true        // 是否开启日志
 
-    ; ==================== 噪声放大阈值 ====================
-    SwingInflate                      50.0        // 摆动相噪声放大倍数，放大观测矩阵摆动相足端位置部分的噪声
-    SlipThreshold                     0.15          // 足端滑动阈值 [m/s] - 增大以避免误检
-    SlipInflate                       10.0        // 支撑相足端滑动噪声放大倍数（不要太大，否则滑动时完全忽略观测）
-                                           
+    SwingInflate                      100.0        // 摆动相噪声放大倍数
+    
     ; ==================== 过程噪声Q (对IMU预测的不信任程度) ====================
     ; 核心原理：值越大 -> 不信任IMU积分，更依赖观测校正
     ;          值越小 -> 信任IMU积分，观测校正作用减弱
-    ProcessNoiseAcceleration          0.1        // 加速度过程噪声 [m/s^2] 
-    ProcessNoiseGyroscope             0.002       // 角速度过程噪声 [rad/s] 
-    ProcessNoiseFootPosition          0.002      // 足端位置过程噪声 [m] 
+    ProcessNoiseAcceleration          0.15        // 加速度过程噪声 [m/s^2] 
+    ProcessNoiseGyroscope             0.003       // 角速度过程噪声 [rad/s] 
+    ProcessNoiseFootPosition          0.005      // 足端位置过程噪声 [m] 
     ProcessNoiseBiasAcceleration      0.02     // 加速度计偏置过程噪声 [m/s^3]                         
     ProcessNoiseBiasGyroscope         0.02     // 陀螺仪偏置过程噪声 [rad/s^2]
               
@@ -378,14 +376,14 @@ ErrorStateKalmanFilter
     ; 核心原理：值越小 -> 信任运动学观测，观测校正作用强
     ;          值越大 -> 不信任运动学观测，更依赖IMU积分
     
-    MeasurementNoiseFootVelocity      0.001          // 足端速度观测噪声 [m/s] - 降低以增强速度观测对速度漂移的校正力                        
-    MeasurementNoiseFootPosition      0.001       // 足端位置观测噪声 [m]  ——————影响观测噪声矩阵R                                      
-    MeasurementNoiseFootHeight        0.001       // 足端高度观测噪声 [m] - 降低以增强z方向高度约束
+    MeasurementNoiseFootVelocity      0.005          // 足端速度观测噪声 [m/s]               
+    MeasurementNoiseFootPosition      0.003       // 足端位置观测噪声 [m]                                 
+    MeasurementNoiseFootHeight        0.003       // 足端高度观测噪声 [m] 
                                                   
-    MeasurementNoiseEncoder           0.001       // 关节编码器观测噪声 [rad]  ——————影响观测噪声矩阵R
+    MeasurementNoiseEncoder           0.005       // 关节编码器观测噪声 [rad] 
 
-    MeasurementNoiseAttitude          0.01        // IMU姿态软约束噪声 [rad] (小值=强约束紧跟IMU, 大值=弱约束更信运动学)
+    MeasurementNoiseAttitude          0.005        // IMU姿态软约束噪声 [rad] 
     
-    FootRadius                        0.019       // 足端半径 [m]，用于高度约束
+    FootRadius                        0.019       // 足端半径
     
 }

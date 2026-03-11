@@ -137,7 +137,7 @@ def launch_setup(context, *args, **kwargs):
                 on_exit=[ocs2_controller],
             )
         ),
-        # elevation_launch_mapping_launch,
+        elevation_launch_mapping_launch,
 
         world_to_map_tf_publisher,
         map_to_odom_tf_publisher,
@@ -147,7 +147,7 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
     world = DeclareLaunchArgument(
         'world',
-        default_value='step',       # baylands,  step,   stepping_stones_terrain
+        default_value='stepping_stones',       # stair10cm, stair15cm, stair20cm, ramp15deg, ramp25deg, stepping_stones， stepping_stones_terrain
         description='The world to load'
     )
 
@@ -166,7 +166,7 @@ def generate_launch_description():
     )
     y_pos = DeclareLaunchArgument(
         'y',
-        default_value='0.0',
+        default_value='-0.0',
         description='Initial Y position'
     )
     z_pos = DeclareLaunchArgument(

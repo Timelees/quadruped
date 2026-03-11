@@ -111,8 +111,9 @@ public:
     /// \brief handles to the imu from within Gazebo
     sim::Entity sim_imu_sensors_ = sim::kNullEntity;
 
-    /// \brief An array per IMU with 4 orientation, 3 angular velocity and 3 linear acceleration
-    std::array<double, 10> imu_sensor_data_;
+    /// \brief An array per IMU with 4 orientation, 3 angular velocity, 3 linear acceleration,
+    ///        and 27 covariance values (9 orientation + 9 angular_vel + 9 linear_accel)
+    std::array<double, 37> imu_sensor_data_{};
 
     /// \brief callback to get the IMU topic values
     void OnIMU(const GZ_MSGS_NAMESPACE IMU& _msg);
@@ -506,6 +507,28 @@ namespace gz_quadruped_hardware
                 auto imuData = std::make_shared<ImuData>();
                 RCLCPP_INFO_STREAM(this->nh_->get_logger(), "Loading sensor: " << _name->Data());
 
+                // 从 URDF <param> 读取协方差默认值并初始化
+                hardware_interface::ComponentInfo imu_component;
+                for (auto& comp : sensor_components_)
+                {
+                    if (comp.name == _name->Data())
+                    {
+                        imu_component = comp;
+                        break;
+                    }
+                }
+                auto readCovParam = [&](const std::string& key, size_t offset) {
+                    auto it = imu_component.parameters.find(key);
+                    if (it != imu_component.parameters.end()) {
+                        double val = std::stod(it->second);
+                        for (int i = 0; i < 9; ++i)
+                            imuData->imu_sensor_data_[offset + i] = (i % 4 == 0) ? val : 0.0;
+                    }
+                };
+                readCovParam("orientation_covariance", 10);
+                readCovParam("angular_velocity_covariance", 19);
+                readCovParam("linear_acceleration_covariance", 28);
+
                 auto sensorTopicComp = this->dataPtr->ecm->Component<
                     sim::components::SensorTopic>(_entity);
                 if (sensorTopicComp)
@@ -518,15 +541,6 @@ namespace gz_quadruped_hardware
                 imuData->name = _name->Data();
                 imuData->sim_imu_sensors_ = _entity;
 
-                hardware_interface::ComponentInfo component;
-                for (auto& comp : sensor_components_)
-                {
-                    if (comp.name == _name->Data())
-                    {
-                        component = comp;
-                    }
-                }
-
                 static const std::map<std::string, size_t> interface_name_map = {
                     {"orientation.x", 0},
                     {"orientation.y", 1},
@@ -538,13 +552,46 @@ namespace gz_quadruped_hardware
                     {"linear_acceleration.x", 7},
                     {"linear_acceleration.y", 8},
                     {"linear_acceleration.z", 9},
+                    {"orientation_covariance.0", 10},
+                    {"orientation_covariance.1", 11},
+                    {"orientation_covariance.2", 12},
+                    {"orientation_covariance.3", 13},
+                    {"orientation_covariance.4", 14},
+                    {"orientation_covariance.5", 15},
+                    {"orientation_covariance.6", 16},
+                    {"orientation_covariance.7", 17},
+                    {"orientation_covariance.8", 18},
+                    {"angular_velocity_covariance.0", 19},
+                    {"angular_velocity_covariance.1", 20},
+                    {"angular_velocity_covariance.2", 21},
+                    {"angular_velocity_covariance.3", 22},
+                    {"angular_velocity_covariance.4", 23},
+                    {"angular_velocity_covariance.5", 24},
+                    {"angular_velocity_covariance.6", 25},
+                    {"angular_velocity_covariance.7", 26},
+                    {"angular_velocity_covariance.8", 27},
+                    {"linear_acceleration_covariance.0", 28},
+                    {"linear_acceleration_covariance.1", 29},
+                    {"linear_acceleration_covariance.2", 30},
+                    {"linear_acceleration_covariance.3", 31},
+                    {"linear_acceleration_covariance.4", 32},
+                    {"linear_acceleration_covariance.5", 33},
+                    {"linear_acceleration_covariance.6", 34},
+                    {"linear_acceleration_covariance.7", 35},
+                    {"linear_acceleration_covariance.8", 36},
                 };
 
-                for (const auto& state_interface : component.state_interfaces)
+                for (const auto& state_interface : imu_component.state_interfaces)
                 {
                     RCLCPP_INFO_STREAM(this->nh_->get_logger(), "\t\t " << state_interface.name);
 
-                    size_t data_index = interface_name_map.at(state_interface.name);
+                    auto it = interface_name_map.find(state_interface.name);
+                    if (it == interface_name_map.end()) {
+                        RCLCPP_WARN_STREAM(this->nh_->get_logger(),
+                            "Unknown IMU state interface: " << state_interface.name << ", skipping.");
+                        continue;
+                    }
+                    size_t data_index = it->second;
                     this->dataPtr->state_interfaces_.emplace_back(
                         imuData->name,
                         state_interface.name,

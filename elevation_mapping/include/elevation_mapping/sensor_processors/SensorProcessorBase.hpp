@@ -196,6 +196,9 @@ class SensorProcessorBase {
     //! Use VoxelGrid filter to cleanup pointcloud if true.
     bool applyVoxelGridFilter_{false};
 
+    //! Maximum sensor range (Euclidean distance). Points beyond this are removed.
+    double sensorMaxRange_{std::numeric_limits<double>::infinity()};
+
     //! Sensor parameters.
     std::unordered_map<std::string, double> sensorParameters_;
   };

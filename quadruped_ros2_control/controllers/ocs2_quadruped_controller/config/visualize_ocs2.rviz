@@ -33,7 +33,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: signedDistanceField
+    SyncSource: Depth_PointCloud2
   - Class: rviz_common/Displays
     Help Height: 138
     Name: Displays
@@ -364,87 +364,92 @@ Visualization Manager:
           Value: true
         odom:
           Value: true
+        world:
+          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: false
       Show Names: false
       Tree:
-        map:
-          odom:
-            base:
-              body:
-                AI_camera_link:
-                  {}
-                D435_camera_link:
-                  {}
-                FL_abad:
-                  FL_abad_rotor:
+        world:
+          map:
+            odom:
+              base:
+                body:
+                  AI_camera_link:
                     {}
-                  FL_hip:
-                    FL_hip_rotor:
+                  D435_camera_link:
+                    {}
+                  FL_abad:
+                    FL_abad_rotor:
                       {}
-                    FL_knee:
-                      FL_foot:
+                    FL_hip:
+                      FL_hip_rotor:
                         {}
-                    FL_knee_rotor:
-                      {}
-                  FL_hip_shoulder:
-                    {}
-                FR_abad:
-                  FR_abad_rotor:
-                    {}
-                  FR_hip:
-                    FR_hip_rotor:
-                      {}
-                    FR_knee:
-                      FR_foot:
+                      FL_knee:
+                        FL_foot:
+                          {}
+                      FL_knee_rotor:
                         {}
-                    FR_knee_rotor:
+                    FL_hip_shoulder:
                       {}
-                  FR_hip_shoulder:
-                    {}
-                RGB_camera_link:
-                  {}
-                RL_abad:
-                  RL_abad_rotor:
-                    {}
-                  RL_hip:
-                    RL_hip_rotor:
+                  FR_abad:
+                    FR_abad_rotor:
                       {}
-                    RL_knee:
-                      RL_foot:
+                    FR_hip:
+                      FR_hip_rotor:
                         {}
-                    RL_knee_rotor:
-                      {}
-                  RL_hip_shoulder:
-                    {}
-                RR_abad:
-                  RR_abad_rotor:
-                    {}
-                  RR_hip:
-                    RR_hip_rotor:
-                      {}
-                    RR_knee:
-                      RR_foot:
+                      FR_knee:
+                        FR_foot:
+                          {}
+                      FR_knee_rotor:
                         {}
-                    RR_knee_rotor:
+                    FR_hip_shoulder:
                       {}
-                  RR_hip_shoulder:
+                  RGB_camera_link:
                     {}
-                head:
-                  {}
-                imu_link:
-                  {}
-                lidar_link:
-                  {}
+                  RL_abad:
+                    RL_abad_rotor:
+                      {}
+                    RL_hip:
+                      RL_hip_rotor:
+                        {}
+                      RL_knee:
+                        RL_foot:
+                          {}
+                      RL_knee_rotor:
+                        {}
+                    RL_hip_shoulder:
+                      {}
+                  RR_abad:
+                    RR_abad_rotor:
+                      {}
+                    RR_hip:
+                      RR_hip_rotor:
+                        {}
+                      RR_knee:
+                        RR_foot:
+                          {}
+                      RR_knee_rotor:
+                        {}
+                    RR_hip_shoulder:
+                      {}
+                  head:
+                    {}
+                  imu_link:
+                    {}
+                  lidar_link:
+                    {}
       Update Interval: 0
       Value: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
       Name: Optimized State Trajectory
       Namespaces:
-        {}
+        CoM Trajectory: true
+        EE Trajectories: true
+        Future footholds: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -529,7 +534,7 @@ Visualization Manager:
           Enabled: true
           Name: Target Base Trajectory
           Namespaces:
-            {}
+            "": true
           Topic:
             Depth: 5
             Durability Policy: Volatile
@@ -619,8 +624,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 49.5463752746582
-        Min Value: 0.3707462549209595
+        Max Value: 50.01461410522461
+        Min Value: 0.33910438418388367
         Value: true
       Axis: X
       Channel Name: intensity
@@ -628,7 +633,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: AxisColor
       Decay Time: 0
-      Enabled: false
+      Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 4096
@@ -649,12 +654,14 @@ Visualization Manager:
         Value: /depth_camera/points
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
       Name: footPlacement
       Namespaces:
-        {}
+        Convex Regions: true
+        Nominal Footholds: true
+        Projections: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -740,7 +747,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 4.961014747619629
+      Distance: 4.853153705596924
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1

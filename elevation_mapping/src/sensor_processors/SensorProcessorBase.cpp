@@ -252,6 +252,21 @@ bool SensorProcessorBase::filterPointCloud(const PointCloudType::Ptr pointCloud)
     pointCloud->swap(tempPointCloud);
   }
 
+  // Remove points beyond sensor max range (Euclidean distance in sensor frame).
+  if (std::isfinite(parameters.sensorMaxRange_) && parameters.sensorMaxRange_ > 0) {
+    const float maxRangeSq = static_cast<float>(parameters.sensorMaxRange_ * parameters.sensorMaxRange_);
+    PointCloudType filteredCloud;
+    filteredCloud.header = pointCloud->header;
+    filteredCloud.reserve(pointCloud->size());
+    for (const auto& point : pointCloud->points) {
+      float distSq = point.x * point.x + point.y * point.y + point.z * point.z;
+      if (distSq <= maxRangeSq) {
+        filteredCloud.push_back(point);
+      }
+    }
+    pointCloud->swap(filteredCloud);
+  }
+
   // Reduce points using VoxelGrid filter.
   if (parameters.applyVoxelGridFilter_) {
     pcl::VoxelGrid<pcl::PointXYZRGBConfidenceRatio> voxelGridFilter;

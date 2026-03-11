@@ -17,6 +17,14 @@
 #include "log_save.h"
 #include <rclcpp/rclcpp.hpp>
 
+#include <grid_map_core/GridMap.hpp>
+#include <grid_map_msgs/msg/grid_map.hpp>
+#include <grid_map_ros/GridMapRosConverter.hpp>
+
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+
 // 前向声明
 namespace ocs2::legged_robot {
     class SwitchedModelReferenceManager;
@@ -104,14 +112,28 @@ namespace ocs2::legged_robot
 
         // 步态相位信息获取
         std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr_;
-        scalar_t mpc_start_time_ = 0.0;  // MPC计划的起始时间
-        scalar_t mpc_current_time_ = 0.0; // MPC当前时间
-        
+   
     
         // 从 MPC 的 ModeSchedule 获取支撑相和摆动相
         void getGaitPhaseFromMPC(scalar_t current_time,
                                   std::array<scalar_t, 4>& contact_phase,
                                   std::array<scalar_t, 4>& swing_phase);
+
+        // 高程图订阅 (用于调试足端高度与高程图的差异)
+        rclcpp::Subscription<grid_map_msgs::msg::GridMap>::SharedPtr elevation_map_sub_;
+        std::mutex elevation_map_mutex_;
+        grid_map::GridMap elevation_map_;
+        bool elevation_map_received_ = false;
+
+        // 点云话题订阅 (用于调试足端位置处的点云高度)
+        rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_sub_;
+        std::mutex pointcloud_mutex_;
+        sensor_msgs::msg::PointCloud2::SharedPtr latest_pointcloud_;
+        bool pointcloud_received_ = false;
+
+        // TF2 变换 (用于点云坐标变换)
+        std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+        std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     
     };
 }
