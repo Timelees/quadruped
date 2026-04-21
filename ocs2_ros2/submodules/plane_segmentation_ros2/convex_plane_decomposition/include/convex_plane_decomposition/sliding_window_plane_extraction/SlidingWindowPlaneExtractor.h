@@ -1,0 +1,97 @@
+#pragma once
+
+#include <Eigen/Core>
+
+#include <grid_map_core/GridMap.hpp>
+#include <opencv2/core/mat.hpp>
+
+#include "convex_plane_decomposition/SegmentedPlanesMap.h"
+#include "convex_plane_decomposition/ransac/RansacPlaneExtractor.hpp"
+
+#include "SlidingWindowPlaneExtractorParameters.h"
+#include "convex_plane_decomposition/Timer.h"
+
+#include <omp.h>
+#include <rclcpp/rclcpp.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+
+namespace convex_plane_decomposition {
+namespace sliding_window_plane_extractor {
+
+class SlidingWindowPlaneExtractor {
+ public:
+  SlidingWindowPlaneExtractor(const SlidingWindowPlaneExtractorParameters& parameters,
+                              const ransac_plane_extractor::RansacPlaneExtractorParameters& ransacParameters);
+
+  void runExtraction(const grid_map::GridMap& map, const std::string& layer_height);
+
+  const SegmentedPlanesMap& getSegmentedPlanesMap() const { return segmentedPlanesMap_; }
+
+  const cv::Mat& getBinaryLabeledImage() const { return binaryImagePatch_; }
+
+  /** Can be run after extraction for debugging purpose */
+  void addSurfaceNormalToMap(grid_map::GridMap& map, const std::string& layerPrefix) const;
+
+  const Timer& getSlidingWindowDetectorTimer() const { return slidingWindowDetectorTimer_; }
+  const Timer& getSegementTimer() const { return segmentTimer_; }
+  const Timer& getExtractPlaneParametersFromLabeledImageTimer() const { return extractPlaneParametersFromLabeledImageTimer_; }
+  const Timer& getEdgeDetectionTimer() const { return edgeDetectionTimer_; }
+
+  /// Access detected terrain edge points (world frame)
+  const std::vector<Eigen::Vector3d>& getEdgePoints() const { return edgePoints_; }
+
+ private:
+  bool isGloballyPlanar(const Eigen::Vector3d& normalVectorPlane, const Eigen::Vector3d& supportVectorPlane,
+                        const std::vector<ransac_plane_extractor::PointWithNormal>& pointsWithNormal) const;
+  bool isWithinInclinationLimit(const Eigen::Vector3d& normalVectorPlane) const;
+
+  std::pair<Eigen::Vector3d, double> computeNormalAndErrorForWindow(const Eigen::MatrixXf& windowData) const;
+  bool isLocallyPlanar(const Eigen::Vector3d& localNormal, double meanSquaredError) const;
+
+  int getLinearIndex(int row, int col) const { return row + col * mapRows_; };
+
+  void computePlaneParametersForLabel(int label,std::vector<ransac_plane_extractor::PointWithNormal>& pointsWithNormal);
+  void refineLabelWithRansac(int label, std::vector<ransac_plane_extractor::PointWithNormal>& pointsWithNormal);
+  void extractPlaneParametersFromLabeledImage();
+
+  void runSegmentation();
+
+  void runSlidingWindowDetector();
+
+  void detectEdges();
+
+  void setToBackground(int label);
+
+  // ************************
+  grid_map::Matrix computeVariance(const grid_map::Matrix& data, int kernel_size);
+  // *************************
+
+  SlidingWindowPlaneExtractorParameters parameters_;
+  ransac_plane_extractor::RansacPlaneExtractorParameters ransacParameters_;
+
+  const grid_map::GridMap* map_;
+  std::string elevationLayer_;
+  int mapRows_;
+
+  std::vector<Eigen::Vector3d> surfaceNormals_;
+  std::vector<ransac_plane_extractor::PointWithNormal> pointsWithNormal_;
+
+  cv::Mat binaryImagePatch_;
+  SegmentedPlanesMap segmentedPlanesMap_;
+
+  // 性能分析定时器
+  Timer slidingWindowDetectorTimer_;
+  Timer segmentTimer_;
+  Timer extractPlaneParametersFromLabeledImageTimer_;
+  Timer edgeDetectionTimer_;
+
+  // 通过局部平面法向量检测的地形边缘点
+  std::vector<Eigen::Vector3d> edgePoints_;
+
+  // 预先收集每个标签的点索引
+  std::vector<std::vector<Eigen::Vector2i>> labelIndices;
+
+  
+};
+}  // namespace sliding_window_plane_extractor
+}  // namespace convex_plane_decomposition

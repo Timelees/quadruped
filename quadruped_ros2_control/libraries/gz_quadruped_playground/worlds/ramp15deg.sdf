@@ -1,0 +1,352 @@
+<?xml version="1.0" ?>
+<sdf version='1.10'>
+  <world name='ramp15deg'>
+    <physics name='1ms' type='ignored'>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+    </physics>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name='ground_plane'>
+      <static>true</static>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.5</mu>
+                <mu2>1.5</mu2>
+              </ode>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.800000012 0.800000012 0.800000012 1</ambient>
+            <diffuse>0.800000012 0.800000012 0.800000012 1</diffuse>
+            <specular>0.800000012 0.800000012 0.800000012 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <pose>0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+    </model>
+
+    <!-- 15 degree ramp made of a polyline prism -->
+    <model name='ramp_15deg'>
+      <pose>3.75 0 0 0 0 0</pose>
+      <link name='ramp_15deg_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.750833</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.521667</iyy>
+            <iyz>0</iyz>
+            <izz>1.270833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name='ramp_15deg_collision'>
+          <pose>0 1.5 0 1.570796 0 0</pose>
+          <geometry>
+            <polyline>
+              <point>-1.25 0.0</point>
+              <point>1.25 0.6699</point>
+              <point>1.25 0.0</point>
+              <height>3.0</height>
+            </polyline>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='ramp_15deg_visual'>
+          <pose>0 1.5 0 1.570796 0 0</pose>
+          <geometry>
+            <polyline>
+              <point>-1.25 0.0</point>
+              <point>1.25 0.6699</point>
+              <point>1.25 0.0</point>
+              <height>3.0</height>
+            </polyline>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='ramp_top_platform'>
+      <pose>6.0 0 0.35995 0 0 0</pose>
+      <link name='ramp_top_platform_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.750833</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.334167</iyy>
+            <iyz>0</iyz>
+            <izz>1.083333</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name='ramp_top_platform_collision'>
+          <geometry>
+            <box>
+              <size>2 3 0.6199</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='ramp_top_platform_visual'>
+          <geometry>
+            <box>
+              <size>2 3 0.6199</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='ramp_15deg_side_pos_y'>
+      <pose>6.0 2.75 0 0 0 1.570796</pose>
+      <link name='ramp_15deg_side_pos_y_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.750833</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.521667</iyy>
+            <iyz>0</iyz>
+            <izz>1.270833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name='ramp_15deg_side_pos_y_collision'>
+          <pose>0 1.0 0 1.570796 0 0</pose>
+          <geometry>
+            <polyline>
+              <point>-1.25 0.6699</point>
+              <point>-1.25 0.0</point>
+              <point>1.25 0.0</point>
+              <height>2.0</height>
+            </polyline>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='ramp_15deg_side_pos_y_visual'>
+          <pose>0 1.0 0 1.570796 0 0</pose>
+          <geometry>
+            <polyline>
+              <point>-1.25 0.6699</point>
+              <point>-1.25 0.0</point>
+              <point>1.25 0.0</point>
+              <height>2.0</height>
+            </polyline>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='ramp_15deg_side_neg_y'>
+      <pose>6.0 -2.75 0 0 0 1.570796</pose>
+      <link name='ramp_15deg_side_neg_y_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.750833</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.521667</iyy>
+            <iyz>0</iyz>
+            <izz>1.270833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name='ramp_15deg_side_neg_y_collision'>
+          <pose>0 1.0 0 1.570796 0 0</pose>
+          <geometry>
+            <polyline>
+              <point>-1.25 0.0</point>
+              <point>1.25 0.6699</point>
+              <point>1.25 0.0</point>
+              <height>2.0</height>
+            </polyline>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='ramp_15deg_side_neg_y_visual'>
+          <pose>0 1.0 0 1.570796 0 0</pose>
+          <geometry>
+            <polyline>
+              <point>-1.25 0.0</point>
+              <point>1.25 0.6699</point>
+              <point>1.25 0.0</point>
+              <height>2.0</height>
+            </polyline>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+    <model name='ramp_15deg_down'>
+      <pose>8.25 0 0 0 0 0</pose>
+      <link name='ramp_15deg_down_link'>
+        <inertial>
+          <inertia>
+            <ixx>0.750833</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.521667</iyy>
+            <iyz>0</iyz>
+            <izz>1.270833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name='ramp_15deg_down_collision'>
+          <pose>0 1.5 0 1.570796 0 0</pose>
+          <geometry>
+            <polyline>
+              <point>-1.25 0.6699</point>
+              <point>-1.25 0.0</point>
+              <point>1.25 0.0</point>
+              <height>3.0</height>
+            </polyline>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='ramp_15deg_down_visual'>
+          <pose>0 1.5 0 1.570796 0 0</pose>
+          <geometry>
+            <polyline>
+              <point>-1.25 0.6699</point>
+              <point>-1.25 0.0</point>
+              <point>1.25 0.0</point>
+              <height>3.0</height>
+            </polyline>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+
+   
+
+  </world>
+</sdf>

@@ -1,0 +1,136 @@
+# 控制器配置文件
+# 用于实机的 ocs2_quadruped_controller 配置
+
+controller_manager:
+  ros__parameters:
+    update_rate: 500  # Hz - 与实机 LCM 通信频率匹配
+
+    # 控制器类型声明（必须在 controller_manager 命名空间下）
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    ocs2_quadruped_controller:
+      type: ocs2_quadruped_controller/Ocs2QuadrupedController
+
+
+    imu_sensor_broadcaster:
+      type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+imu_sensor_broadcaster:
+  ros__parameters:
+    sensor_name: "imu_sensor"
+    frame_id: "imu_link"
+
+
+# 控制器特定参数（顶级节点）
+ocs2_quadruped_controller:
+  ros__parameters:
+    update_rate: 500
+    robot_pkg: "cyberdog_description"
+    
+    # 增大刚度kp以提高位置跟踪精度  
+    default_hip_kp: 50.0    # hip 侧摆电机
+    default_thigh_kp: 50.0  # thigh 大腿电机
+    default_calf_kp: 50.0   # calf 小腿电机
+
+    # 增大阻尼kd以减少振荡和漂移
+    default_hip_kd: 1.0
+    default_thigh_kd: 1.0
+    default_calf_kd: 1.0
+
+
+    feet_force_threshold: 3.0
+    # 关节名称配置 - 按照实机关节顺序
+    # 顺序: FR(0-2), FL(3-5), RR(6-8), RL(9-11)
+    joints:
+      - FR_hip_joint
+      - FR_thigh_joint
+      - FR_calf_joint
+      - FL_hip_joint
+      - FL_thigh_joint
+      - FL_calf_joint
+      - RR_hip_joint
+      - RR_thigh_joint
+      - RR_calf_joint
+      - RL_hip_joint
+      - RL_thigh_joint
+      - RL_calf_joint
+
+
+    # 命令接口
+    command_interfaces:
+      - effort
+      - position
+      - velocity
+      - kp
+      - kd
+
+    # 状态接口
+    state_interfaces:
+      - effort
+      - position
+      - velocity
+
+    feet:
+      - FL_foot
+      - FR_foot
+      - RL_foot
+      - RR_foot
+    
+    base_name: "base"
+
+    # IMU 配置
+    imu_name: "imu_sensor"
+    imu_interfaces:
+      - orientation.w
+      - orientation.x
+      - orientation.y
+      - orientation.z
+      - angular_velocity.x
+      - angular_velocity.y
+      - angular_velocity.z
+      - linear_acceleration.x
+      - linear_acceleration.y
+      - linear_acceleration.z
+
+    
+
+    # 足端力传感器
+    foot_force_name: "foot_force"
+    foot_force_interfaces:
+      - FL_foot_force
+      - RL_foot_force
+      - FR_foot_force
+      - RR_foot_force
+
+
+    # 状态估计器类型: error_state_kalman, linear_kalman
+    estimator_type: "linear_kalman"
+
+    # 是否启动感知
+    enable_perceptive: false
+
+    # 仿真/实机模式 true: 仿真  false: 实机
+    sim_mode: false
+
+# joint_state_broadcaster 特定参数
+joint_state_broadcaster:
+  ros__parameters:
+    joints:
+      - FR_hip_joint
+      - FR_thigh_joint
+      - FR_calf_joint
+      - FL_hip_joint
+      - FL_thigh_joint
+      - FL_calf_joint
+      - RR_hip_joint
+      - RR_thigh_joint
+      - RR_calf_joint
+      - RL_hip_joint
+      - RL_thigh_joint
+      - RL_calf_joint
+
+    interfaces:
+      - position
+      - velocity
+      - effort
