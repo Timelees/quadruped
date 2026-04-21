@@ -17,6 +17,9 @@ convex_plane_decomposition_ros_node:
       global_plane_fit_angle_error_threshold_degrees: 25.0  # [deg] Allowed normal vector deviation for a point w.r.t. the plane normal. If any point violates this, RANSAC is triggered
       variance_threshold: 0.001
       
+      enable_edge_detection: true                            # Enable terrain edge detection from surface normal discontinuities
+      edge_normal_dot_threshold_degrees: 30.0                # [deg] Angle threshold between neighboring normals to flag as terrain edge
+      
     ransac_plane_refinement:
       probability: 0.001      # Probability to miss the largest candidate shape. A lower probability provides a higher reliability and determinism at the cost of longer running times
       min_points: 4.0           # This minimum number of points per plane. Controls the termination of the algorithm.

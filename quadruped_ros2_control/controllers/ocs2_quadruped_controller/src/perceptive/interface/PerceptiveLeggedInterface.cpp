@@ -3,6 +3,7 @@
 //
 #include <memory>
 #include <ocs2_core/misc/LoadData.h>
+#include "ocs2_quadruped_controller/perceptive/constraint/EdgeSphereConstraint.h"
 #include "ocs2_quadruped_controller/perceptive/constraint/FootCollisionConstraint.h"
 #include "ocs2_quadruped_controller/perceptive/constraint/SphereSdfConstraint.h"
 
@@ -10,13 +11,14 @@
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedInterface.h"
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedPrecomputation.h"
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
+#include "ocs2_quadruped_controller/interface/constraint/SwingTrajectoryQPOptimizer.h"
 
 #include <ocs2_centroidal_model/CentroidalModelPinocchioMapping.h>
 #include <ocs2_core/soft_constraint/StateSoftConstraint.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematicsCppAd.h>
 
 
-/* 将感知信息考虑进优化问题 */
+
 namespace ocs2::legged_robot
 {
     void PerceptiveLeggedInterface::setupOptimalControlProblem(const std::string& taskFile, const std::string& urdfFile,
@@ -24,6 +26,7 @@ namespace ocs2::legged_robot
     {
         // 初始化地形模型
         planarTerrainPtr_ = std::make_shared<convex_plane_decomposition::PlanarTerrain>();
+        edgeSpheresPtr_ = std::make_shared<EdgeSphereArray>();
 
         double width{5.0}, height{5.0};
         convex_plane_decomposition::PlanarRegion plannerRegion;
@@ -55,7 +58,7 @@ namespace ocs2::legged_robot
 
 
         signedDistanceFieldPtr_ = std::make_shared<grid_map::SignedDistanceField>();
-        signedDistanceFieldPtr_->calculateSignedDistanceField(planarTerrainPtr_->gridMap, layer, 0.1);
+        // signedDistanceFieldPtr_->calculateSignedDistanceField(planarTerrainPtr_->gridMap, layer, 0.1);
         
 
         LeggedInterface::setupOptimalControlProblem(taskFile, urdfFile, referenceFile, verbose);
@@ -68,14 +71,18 @@ namespace ocs2::legged_robot
             
             std::unique_ptr<EndEffectorKinematics<scalar_t>> eeKinematicsPtr = getEeKinematicsPtr({footName}, footName);
             
+            // 对数障碍函数
             std::unique_ptr<PenaltyBase> placementPenalty(
                 new RelaxedBarrierPenalty(RelaxedBarrierPenalty::Config(1e-2, 1e-4)));
             std::unique_ptr<PenaltyBase> collisionPenalty(
                 new RelaxedBarrierPenalty(RelaxedBarrierPenalty::Config(1e-2, 1e-3)));
+            // std::unique_ptr<PenaltyBase> edgePenalty(
+            //     new RelaxedBarrierPenalty(RelaxedBarrierPenalty::Config(1e-2, 1e-3)));
 
-            // For foot placement
+          
+            // 落足点直接规划到平面区域内，边缘避免由 EdgeAwareFootholdScorer (CBF) 实现。
             std::unique_ptr<FootPlacementConstraint> footPlacementConstraint(
-                new FootPlacementConstraint(*reference_manager_ptr_, *eeKinematicsPtr, i, numVertices_));
+                new FootPlacementConstraint(*reference_manager_ptr_, *eeKinematicsPtr, i));
             problem_ptr_->stateSoftConstraintPtr->add(
                 footName + "_footPlacement",
                 std::make_unique<StateSoftConstraint>(std::move(footPlacementConstraint), std::move(placementPenalty)));
@@ -87,6 +94,12 @@ namespace ocs2::legged_robot
             problem_ptr_->stateSoftConstraintPtr->add(
                 footName + "_footCollision",
                 std::make_unique<StateSoftConstraint>(std::move(footCollisionConstraint), std::move(collisionPenalty)));
+
+            // std::unique_ptr<EdgeSphereConstraint> edgeSphereConstraint(
+            //     new EdgeSphereConstraint(*reference_manager_ptr_, *eeKinematicsPtr, edgeSpheresPtr_, i, 0.03));
+            // problem_ptr_->stateSoftConstraintPtr->add(
+            //     footName + "_edgeSphere",
+            //     std::make_unique<StateSoftConstraint>(std::move(edgeSphereConstraint), std::move(edgePenalty)));
            
         }
         // std::cout << "PerceptiveLeggedInterface: Initialized foot placement and collision constraints." << std::endl;
@@ -95,7 +108,7 @@ namespace ocs2::legged_robot
         scalar_t thighExcess = 0.025;
         scalar_t calfExcess = 0.02;
 
-        std::vector<std::string> collisionLinks = {"FL_calf", "FR_calf", "RL_calf", "RR_calf"};
+        std::vector<std::string> collisionLinks = {"FL_knee", "FR_knee", "RL_knee", "RR_knee"};
         const std::vector<scalar_t>& maxExcesses = {calfExcess, calfExcess, calfExcess, calfExcess};
 
         pinocchioSphereInterfacePtr_ = std::make_shared<PinocchioSphereInterface>(
@@ -105,8 +118,8 @@ namespace ocs2::legged_robot
         auto sphereKinematicsPtr = std::make_unique<PinocchioSphereKinematics>(
             *pinocchioSphereInterfacePtr_, pinocchioMapping);
 
-        std::unique_ptr<SphereSdfConstraint> sphereSdfConstraint(
-            new SphereSdfConstraint(*sphereKinematicsPtr, signedDistanceFieldPtr_));
+        // std::unique_ptr<SphereSdfConstraint> sphereSdfConstraint(
+        //     new SphereSdfConstraint(*sphereKinematicsPtr, signedDistanceFieldPtr_));
 
 
         //  std::unique_ptr<PenaltyBase> penalty(new RelaxedBarrierPenalty(RelaxedBarrierPenalty::Config(1e-3, 1e-3)));
@@ -122,8 +135,10 @@ namespace ocs2::legged_robot
             std::make_unique<SwingTrajectoryPlanner>(
                 loadSwingTrajectorySettings(taskFile, "swing_trajectory_config", verbose), 4);
 
+
         std::unique_ptr<EndEffectorKinematics<scalar_t>> eeKinematicsPtr = getEeKinematicsPtr(
             {model_settings_.contactNames3DoF}, "ALL_FOOT");
+
         auto convexRegionSelector =
             std::make_unique<ConvexRegionSelector>(centroidal_model_info_, planarTerrainPtr_, *eeKinematicsPtr,
                                                    numVertices_);
@@ -132,17 +147,31 @@ namespace ocs2::legged_robot
         loadData::loadCppDataType(referenceFile, "comHeight", comHeight);
         reference_manager_ptr_.reset(new PerceptiveLeggedReferenceManager(
             centroidal_model_info_, loadGaitSchedule(referenceFile, verbose),
-            std::move(swingTrajectoryPlanner), std::move(convexRegionSelector),
+            std::move(swingTrajectoryPlanner),
+            std::move(convexRegionSelector),
             *eeKinematicsPtr, comHeight));
+
+        // 感知模式：传入 edge sphere 数据，使摆动相轨迹避开地形边缘
+        dynamic_cast<PerceptiveLeggedReferenceManager&>(*reference_manager_ptr_).setEdgeSpheres(edgeSpheresPtr_);
+
+        // 启用 CLF-CBF QP 摆动轨迹优化器 — 利用地形高程信息避免足端碰撞
+        {
+            auto terrainInterface = std::make_shared<GridMapTerrainInterface>(
+                planarTerrainPtr_, "smooth_planar");
+            reference_manager_ptr_->getSwingTrajectoryPlanner()->setQpOptimizer(terrainInterface);
+            // 传入 EdgeSphere 数据以启用球障碍 CBF 约束
+            reference_manager_ptr_->getSwingTrajectoryPlanner()->setEdgeSpheres(edgeSpheresPtr_);
+        }
     }
 
     void PerceptiveLeggedInterface::setupPreComputation(const std::string& /*taskFile*/,
                                                         const std::string& /*urdfFile*/,
                                                         const std::string& /*referenceFile*/, bool /*verbose*/)
     {
+        auto& perceptiveRefMgr = dynamic_cast<PerceptiveLeggedReferenceManager&>(*reference_manager_ptr_);
+        const auto& selector = *perceptiveRefMgr.getConvexRegionSelectorPtr();
         problem_ptr_->preComputationPtr = std::make_unique<PerceptiveLeggedPrecomputation>(
             *pinocchio_interface_ptr_, centroidal_model_info_, *reference_manager_ptr_->getSwingTrajectoryPlanner(),
-            model_settings_,
-            *dynamic_cast<PerceptiveLeggedReferenceManager&>(*reference_manager_ptr_).getConvexRegionSelectorPtr());
+            model_settings_, selector);
     }
 } // namespace legged

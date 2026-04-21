@@ -51,7 +51,7 @@ namespace ocs2::legged_robot {
 
     // 获取接触状态
     contact_flag_t SwitchedModelReferenceManager::getContactFlags(scalar_t time) const {
-        return modeNumber2StanceLeg(this->getModeSchedule().modeAtTime(time));
+        return swingTrajectoryPtr_->getContactFlags(time);
     }
 
     // 修改参考轨迹

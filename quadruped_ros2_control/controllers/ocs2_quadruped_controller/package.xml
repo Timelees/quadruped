@@ -30,6 +30,7 @@
   <!--/ Dependencies for Perceptive Mode -->
   <depend>convex_plane_decomposition_msgs</depend>
   <depend>convex_plane_decomposition_ros</depend>
+  <depend>grid_map_filters_rsl</depend>
   <depend>grid_map_sdf</depend>
   <depend>ocs2_sphere_approximation</depend>
   <depend>elevation_mapping</depend>

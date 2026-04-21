@@ -12,7 +12,7 @@ struct PostprocessingParameters {
   double nonplanar_height_offset = 0.02;
 
   /// Size of the kernel creating the boundary offset. In number of pixels.
-  int nonplanar_horizontal_offset = 1;
+  double nonplanar_horizontal_offset = 1;
 
   /// Half the width of the dilation used before the smooth layer [m]
   double smoothing_dilation_size = 0.2;

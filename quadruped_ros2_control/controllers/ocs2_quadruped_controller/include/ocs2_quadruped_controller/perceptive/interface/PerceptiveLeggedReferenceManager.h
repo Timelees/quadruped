@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "ocs2_quadruped_controller/perceptive/interface/ConvexRegionSelector.h"
+#include "ocs2_quadruped_controller/perceptive/constraint/EdgeAwareFootholdScorer.h"
 
 #include <ocs2_quadruped_controller/interface/SwitchedModelReferenceManager.h>
 
@@ -21,7 +22,9 @@ namespace ocs2::legged_robot
                                          const EndEffectorKinematics<scalar_t>& endEffectorKinematics,
                                          scalar_t comHeight);
 
-        const std::shared_ptr<ConvexRegionSelector>& getConvexRegionSelectorPtr() { return convexRegionSelectorPtr_; }
+        const std::shared_ptr<ConvexRegionSelector>& getConvexRegionSelectorPtr() const { return convexRegionSelectorPtr_; }
+
+        void setEdgeSpheres(std::shared_ptr<EdgeSphereArray> edgeSpheresPtr);
 
         contact_flag_t getFootPlacementFlags(scalar_t time) const;
 
@@ -42,6 +45,13 @@ namespace ocs2::legged_robot
                                                                  convex_plane_decomposition::PlanarTerrainProjection>&
                                                              projections);
 
+        /**
+         * 获取摆动相位中每条腿的抬脚和落脚3D位置。
+         */
+        std::pair<feet_array_t<std::vector<Eigen::Vector3d>>, feet_array_t<std::vector<Eigen::Vector3d>>>
+            getSwingPositions3d(const feet_array_t<std::vector<bool>>& contactFlagStocks,
+                               const feet_array_t<std::vector<convex_plane_decomposition::PlanarTerrainProjection>>& allProjections) const;
+
         const CentroidalModelInfo info_;
         feet_array_t<vector3_t> lastLiftoffPos_;
 
@@ -49,5 +59,8 @@ namespace ocs2::legged_robot
         std::unique_ptr<EndEffectorKinematics<scalar_t>> endEffectorKinematicsPtr_;
 
         scalar_t comHeight_;
+
+        std::unique_ptr<EdgeAwareFootholdScorer> footholdScorer_;
+        std::shared_ptr<EdgeSphereArray> edgeSpheresPtr_;
     };
 } // namespace legged

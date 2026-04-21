@@ -18,7 +18,8 @@ namespace ocs2::legged_robot
     }
 
     PerceptiveLeggedPrecomputation::PerceptiveLeggedPrecomputation(const PerceptiveLeggedPrecomputation& rhs)
-        : LeggedRobotPreComputation(rhs), convexRegionSelectorPtr_(rhs.convexRegionSelectorPtr_)
+        : LeggedRobotPreComputation(rhs),
+          convexRegionSelectorPtr_(rhs.convexRegionSelectorPtr_)
     {
         footPlacementConParameters_.resize(rhs.footPlacementConParameters_.size());
     }
@@ -36,24 +37,30 @@ namespace ocs2::legged_robot
             for (size_t i = 0; i < footPlacementConParameters_.size(); i++)
             {
                 FootPlacementConstraint::Parameter params;
-
-                auto projection = convexRegionSelectorPtr_->getProjection(i, t);
+            
+                auto projection = convexRegionSelectorPtr_->getProjection(i, t);    // 获取足端投影
                 if (projection.regionPtr == nullptr)
                 {
                     // Swing leg
                     continue;
                 }
+            
+                auto constraintPolygon = convexRegionSelectorPtr_->getConvexPolygon(i, t);  // 获取凸多边形
+                if (constraintPolygon.size() < 3)
+                {
+                    continue;
+                }
 
                 matrix_t polytopeA;
                 vector_t polytopeB;
-                std::tie(polytopeA, polytopeB) = getPolygonConstraint(convexRegionSelectorPtr_->getConvexPolygon(i, t));
+                std::tie(polytopeA, polytopeB) = getPolygonConstraint(constraintPolygon);
                 matrix_t p = (matrix_t(2, 3) << // clang-format off
                         1, 0, 0,
                         0, 1, 0).finished();  // clang-format on
+                // polytopeA 的每一行是一个 1×2 行向量，polytopeB 是对应的标量，使得对于多边形内的点 (u,v) 有 polytopeA_i * (u,v) + polytopeB_i >= 0
                 params.a = polytopeA * p * projection.regionPtr->transformPlaneToWorld.inverse().linear();
-                params.b = polytopeB + polytopeA * projection.regionPtr->transformPlaneToWorld.inverse().translation().
-                                                              head(2);
-
+                params.b = polytopeB + polytopeA * projection.regionPtr->transformPlaneToWorld.inverse().translation().head(2);
+            
                 footPlacementConParameters_[i] = params;
             }
         }
@@ -89,6 +96,13 @@ namespace ocs2::legged_robot
                 polytopeA.row(i) *= -1;
                 polytopeB(i) *= -1;
             }
+        }
+
+        // 向内偏移 2cm: b'_i = b_i - d * ||a_i||
+        constexpr scalar_t shrinkDistance = 0.02;
+        for (size_t i = 0; i < numVertices; i++)
+        {
+            polytopeB(i) -= shrinkDistance * polytopeA.row(i).norm();
         }
 
         return {polytopeA, polytopeB};

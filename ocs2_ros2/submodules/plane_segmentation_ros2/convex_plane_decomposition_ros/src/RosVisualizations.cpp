@@ -187,4 +187,37 @@ visualization_msgs::msg::MarkerArray convertInsetsToRosMarkers(
   return polygon_buffer;
 }
 
+visualization_msgs::msg::MarkerArray convertEdgePointsToRosMarkers(
+    const std::vector<Eigen::Vector3d>& edgePoints,
+    const std::string& frameId,
+    grid_map::Time time,
+    double pointSize) {
+  std_msgs::msg::Header header;
+  header.stamp.nanosec = time;
+  header.frame_id = frameId;
+
+  visualization_msgs::msg::Marker deleteMarker;
+  deleteMarker.action = visualization_msgs::msg::Marker::DELETEALL;
+
+  visualization_msgs::msg::Marker edgeMarker;
+  edgeMarker.header = header;
+  edgeMarker.type = visualization_msgs::msg::Marker::POINTS;
+  edgeMarker.scale.x = pointSize;
+  edgeMarker.scale.y = pointSize;
+  edgeMarker.color = getColor(0, 1.0);  // Red color for edges
+  for (const auto& p : edgePoints) {
+    geometry_msgs::msg::Point point_ros;
+    point_ros.x = p.x();
+    point_ros.y = p.y();
+    point_ros.z = p.z();
+    edgeMarker.points.push_back(point_ros);
+  }
+
+  visualization_msgs::msg::MarkerArray markerArray;
+  markerArray.markers.push_back(deleteMarker);
+  markerArray.markers.push_back(edgeMarker);
+  return markerArray;
+
+}
+
 }  // namespace convex_plane_decomposition

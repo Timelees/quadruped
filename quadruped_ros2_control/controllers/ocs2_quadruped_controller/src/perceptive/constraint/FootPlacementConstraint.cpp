@@ -10,13 +10,11 @@ namespace ocs2::legged_robot
 {
     FootPlacementConstraint::FootPlacementConstraint(const SwitchedModelReferenceManager& referenceManager,
                                                      const EndEffectorKinematics<scalar_t>& endEffectorKinematics,
-                                                     size_t contactPointIndex,
-                                                     size_t numVertices)
+                                                     size_t contactPointIndex)
         : StateConstraint(ConstraintOrder::Linear),
           referenceManagerPtr_(&referenceManager),
           endEffectorKinematicsPtr_(endEffectorKinematics.clone()),
-          contactPointIndex_(contactPointIndex),
-          numVertices_(numVertices)
+          contactPointIndex_(contactPointIndex)
     {
     }
 
@@ -24,8 +22,7 @@ namespace ocs2::legged_robot
         : StateConstraint(ConstraintOrder::Linear),
           referenceManagerPtr_(rhs.referenceManagerPtr_),
           endEffectorKinematicsPtr_(rhs.endEffectorKinematicsPtr_->clone()),
-          contactPointIndex_(rhs.contactPointIndex_),
-          numVertices_(rhs.numVertices_)
+          contactPointIndex_(rhs.contactPointIndex_)
     {
     }
 
@@ -33,6 +30,14 @@ namespace ocs2::legged_robot
     {
         return dynamic_cast<const PerceptiveLeggedReferenceManager&>(*referenceManagerPtr_).getFootPlacementFlags(time)[
             contactPointIndex_];
+    }
+
+    size_t FootPlacementConstraint::getNumConstraints(scalar_t time) const
+    {
+        const auto& refMgr = dynamic_cast<const PerceptiveLeggedReferenceManager&>(*referenceManagerPtr_);
+        const auto& selector = *refMgr.getConvexRegionSelectorPtr();
+        auto polygon = selector.getConvexPolygon(contactPointIndex_, time);
+        return polygon.size();
     }
 
     vector_t FootPlacementConstraint::getValue(scalar_t /*time*/, const vector_t& state,
@@ -47,13 +52,13 @@ namespace ocs2::legged_robot
         scalar_t /*time*/, const vector_t& state,
         const PreComputation& preComp) const
     {
-        VectorFunctionLinearApproximation approx = VectorFunctionLinearApproximation::Zero(
-            numVertices_, state.size(), 0);
-
-
         const auto param = cast<PerceptiveLeggedPrecomputation>(preComp).getFootPlacementConParameters()[
             contactPointIndex_];
-        
+
+        const size_t numConstraints = param.a.rows();
+
+        VectorFunctionLinearApproximation approx = VectorFunctionLinearApproximation::Zero(
+            numConstraints, state.size(), 0);
 
         const auto positionApprox = endEffectorKinematicsPtr_->getPositionLinearApproximation(state).front();
         approx.f = param.a * positionApprox.f + param.b;

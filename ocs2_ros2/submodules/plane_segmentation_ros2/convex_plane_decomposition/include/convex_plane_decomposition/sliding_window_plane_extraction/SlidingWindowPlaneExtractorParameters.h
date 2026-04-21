@@ -39,6 +39,12 @@ struct SlidingWindowPlaneExtractorParameters {
   /// [deg] Allowed normal vector deviation for a point w.r.t. the plane normal. If any point violates this, RANSAC is triggered
   double global_plane_fit_angle_error_threshold_degrees = 25.0;
 
+  /// Enable terrain edge detection based on surface normal discontinuities
+  bool enable_edge_detection = true;
+
+  /// [-] Minimum dot product between neighboring normals to be considered on the same plane.
+  /// Pairs below this threshold are flagged as terrain edges.  cos(30°) ≈ 0.866
+  double edge_normal_dot_threshold = std::cos(30.0 * M_PI / 180.0);
 
 };
 

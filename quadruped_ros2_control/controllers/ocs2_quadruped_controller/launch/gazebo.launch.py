@@ -147,7 +147,7 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
     world = DeclareLaunchArgument(
         'world',
-        default_value='stepping_stones',       # stair10cm, stair15cm, stair20cm, ramp15deg, ramp25deg, stepping_stones， stepping_stones_terrain
+        default_value='stair10cm',       # stair10cm, stair15cm, stair20cm, ramp15deg, ramp25deg, stepping_stones， stepping_stones_terrain
         description='The world to load'
     )
 

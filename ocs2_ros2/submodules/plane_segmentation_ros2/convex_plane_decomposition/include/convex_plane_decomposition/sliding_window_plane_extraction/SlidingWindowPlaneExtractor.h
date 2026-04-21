@@ -35,6 +35,10 @@ class SlidingWindowPlaneExtractor {
   const Timer& getSlidingWindowDetectorTimer() const { return slidingWindowDetectorTimer_; }
   const Timer& getSegementTimer() const { return segmentTimer_; }
   const Timer& getExtractPlaneParametersFromLabeledImageTimer() const { return extractPlaneParametersFromLabeledImageTimer_; }
+  const Timer& getEdgeDetectionTimer() const { return edgeDetectionTimer_; }
+
+  /// Access detected terrain edge points (world frame)
+  const std::vector<Eigen::Vector3d>& getEdgePoints() const { return edgePoints_; }
 
  private:
   bool isGloballyPlanar(const Eigen::Vector3d& normalVectorPlane, const Eigen::Vector3d& supportVectorPlane,
@@ -53,6 +57,8 @@ class SlidingWindowPlaneExtractor {
   void runSegmentation();
 
   void runSlidingWindowDetector();
+
+  void detectEdges();
 
   void setToBackground(int label);
 
@@ -77,6 +83,10 @@ class SlidingWindowPlaneExtractor {
   Timer slidingWindowDetectorTimer_;
   Timer segmentTimer_;
   Timer extractPlaneParametersFromLabeledImageTimer_;
+  Timer edgeDetectionTimer_;
+
+  // 通过局部平面法向量检测的地形边缘点
+  std::vector<Eigen::Vector3d> edgePoints_;
 
   // 预先收集每个标签的点索引
   std::vector<std::vector<Eigen::Vector2i>> labelIndices;

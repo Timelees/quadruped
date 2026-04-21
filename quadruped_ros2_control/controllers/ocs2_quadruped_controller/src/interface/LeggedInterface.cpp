@@ -2,6 +2,8 @@
 // Created by qiayuan on 2022/7/16.
 //
 
+#include <pinocchio/fwd.hpp>  // forward declarations must be included first.
+
 #include "ocs2_quadruped_controller/interface/LeggedInterface.h"
 
 #include <memory>
@@ -16,7 +18,6 @@
 #include <ocs2_legged_robot/dynamics/LeggedRobotDynamicsAD.h>
 #include <ocs2_oc/synchronized_module/SolverSynchronizedModule.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematicsCppAd.h>
-#include <pinocchio/fwd.hpp>  // forward declarations must be included first.
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/jacobian.hpp>
 #include <pinocchio/multibody/model.hpp>

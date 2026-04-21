@@ -62,6 +62,11 @@ class PlaneDecompositionPipeline {
     return slidingWindowPlaneExtractor_;
   }
 
+  /// Access terrain edge points detected from normal discontinuities (world frame)
+  const std::vector<Eigen::Vector3d>& getEdgePoints() const {
+    return slidingWindowPlaneExtractor_.getEdgePoints();
+  }
+
  private:
   PlanarTerrain planarTerrain_;
 

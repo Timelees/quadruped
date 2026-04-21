@@ -83,6 +83,13 @@ loadSlidingWindowPlaneExtractorParameters(const rclcpp::Node* node,
                 swParams.global_plane_fit_distance_error_threshold);
   loadParameter(node, prefix, "global_plane_fit_angle_error_threshold_degrees",
                 swParams.global_plane_fit_angle_error_threshold_degrees);
+  loadParameter(node, prefix, "enable_edge_detection",
+                swParams.enable_edge_detection);
+  if (loadParameter(node, prefix, "edge_normal_dot_threshold_degrees",
+                    swParams.edge_normal_dot_threshold)) {
+    swParams.edge_normal_dot_threshold =
+        std::cos(swParams.edge_normal_dot_threshold * M_PI / 180.0);
+  }
   
   return swParams;
 }

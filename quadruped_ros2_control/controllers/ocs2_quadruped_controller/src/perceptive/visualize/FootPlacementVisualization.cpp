@@ -3,17 +3,16 @@
 //
 
 #include "ocs2_quadruped_controller/perceptive/visualize/FootPlacementVisualization.h"
-#include <convex_plane_decomposition/ConvexRegionGrowing.h>
 #include <convex_plane_decomposition_ros/RosVisualizations.h>
 #include <ocs2_ros_interfaces/visualization/VisualizationHelpers.h>
 
 namespace ocs2::legged_robot
 {
-    FootPlacementVisualization::FootPlacementVisualization(const ConvexRegionSelector& convexRegionSelector,
+    FootPlacementVisualization::FootPlacementVisualization(const ConvexRegionSelector& footholdSelector,
                                                            size_t numFoot,
                                                            const rclcpp_lifecycle::LifecycleNode::SharedPtr& node,
                                                            scalar_t maxUpdateFrequency)
-        : convex_region_selector_(convexRegionSelector),
+        : foothold_selector_(footholdSelector),
           num_foot_(numFoot),
           last_time_(std::numeric_limits<scalar_t>::lowest()),
           min_publish_time_difference_(1.0 / maxUpdateFrequency)
@@ -36,12 +35,12 @@ namespace ocs2::legged_robot
             size_t i = 0;
             for (int leg = 0; leg < num_foot_; ++leg)
             {
-                auto middleTimes = convex_region_selector_.getMiddleTimes(leg);
+                auto middleTimes = foothold_selector_.getMiddleTimes(leg);
 
                 int kStart = 0;
                 for (int k = 0; k < middleTimes.size(); ++k)
                 {
-                    const auto projection = convex_region_selector_.getProjection(leg, middleTimes[k]);
+                    const auto projection = foothold_selector_.getProjection(leg, middleTimes[k]);
                     if (projection.regionPtr == nullptr)
                     {
                         continue;
@@ -64,16 +63,13 @@ namespace ocs2::legged_robot
                     makerArray.markers.push_back(projectionMaker);
 
                     // Convex Region
-                    const auto convexRegion = convex_region_selector_.getConvexPolygon(leg, middleTimes[k]);
-                    auto convexRegionMsg =
-                        convex_plane_decomposition::to3dRosPolygon(convexRegion,
-                                                                   projection.regionPtr->transformPlaneToWorld, header);
-                    makerArray.markers.push_back(to3dRosMarker(convexRegion,
+                    const auto regionPolygon = foothold_selector_.getConvexPolygon(leg, middleTimes[k]);
+                    makerArray.markers.push_back(to3dRosMarker(regionPolygon,
                                                                projection.regionPtr->transformPlaneToWorld, header,
                                                                color, alpha, i));
 
                     // Nominal Footholds
-                    const auto nominal = convex_region_selector_.getNominalFootholds(leg, middleTimes[k]);
+                    const auto nominal = foothold_selector_.getNominalFootholds(leg, middleTimes[k]);
                     auto nominalMarker = getFootMarker(nominal, true, color, foot_marker_diameter_, 1.);
                     nominalMarker.header = header;
                     nominalMarker.ns = "Nominal Footholds";
@@ -95,7 +91,7 @@ namespace ocs2::legged_robot
         const std_msgs::msg::Header& header, Color color, float alpha, size_t i) const
     {
         visualization_msgs::msg::Marker marker;
-        marker.ns = "Convex Regions";
+        marker.ns = "Region Boundaries";
         marker.id = i;
         marker.header = header;
         marker.type = visualization_msgs::msg::Marker::LINE_STRIP;

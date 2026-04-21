@@ -53,8 +53,8 @@ elevation_mapping:
     track_point_x: 0.0
     track_point_y: 0.0
     track_point_z: 0.0
-    time_tolerance: 0.001        # 允许用略早于最后更新时间的数据做更新。
-    robot_pose_cache_size: 300  # 缓存机器人位姿的缓存大小
+    time_tolerance: 0.02        # 允许轻微时序抖动，避免仿真负载升高时频繁越界。
+    robot_pose_cache_size: 3000  # 控制器高频发布 pose 时，需要更大的历史窗口覆盖感知延迟。
     scanning_duration: 0.1
     visibility_cleanup_rate: 5.0  # 控制可见性清理线程多久运行一次
 

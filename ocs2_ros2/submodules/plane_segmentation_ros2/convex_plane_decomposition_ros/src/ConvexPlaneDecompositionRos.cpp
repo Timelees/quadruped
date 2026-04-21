@@ -139,6 +139,7 @@ ConvexPlaneExtractionROS::ConvexPlaneExtractionROS(rclcpp::Node::SharedPtr node)
     insetPublisher_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>("insets",1);
     regionPublisher_ = node_->create_publisher<convex_plane_decomposition_msgs::msg::PlanarTerrain>("planar_terrain",1);
     distanceFieldPublisher_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("signed_distance_field",1);
+    edgePublisher_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("terrain_edges", 1);
   } 
 }
 
@@ -165,6 +166,7 @@ ConvexPlaneExtractionROS::~ConvexPlaneExtractionROS() {
     infoStream << printLine("--sliding window detector ", planeDecompositionPipeline_->getSlidingWindowPlaneExtractor().getSlidingWindowDetectorTimer());
     infoStream << printLine("--Segmentation            ", planeDecompositionPipeline_->getSlidingWindowPlaneExtractor().getSegementTimer());
     infoStream << printLine("--Extract plane parameters", planeDecompositionPipeline_->getSlidingWindowPlaneExtractor().getExtractPlaneParametersFromLabeledImageTimer());
+    infoStream << printLine("--Edge detection          ", planeDecompositionPipeline_->getSlidingWindowPlaneExtractor().getEdgeDetectionTimer());
     infoStream << printLine("Contour extraction        ", planeDecompositionPipeline_->getContourExtractionTimer());
     infoStream << printLine("Post-process              ", planeDecompositionPipeline_->getPostprocessTimer());
     infoStream << printLine("Total callback            ", callbackTimer_);
@@ -335,6 +337,31 @@ void ConvexPlaneExtractionROS::callback(
   sdf_msg.header.frame_id = planarTerrain.gridMap.getFrameId();
   sdf_msg.header.stamp = rclcpp::Time(planarTerrain.gridMap.getTimestamp());
   distanceFieldPublisher_->publish(sdf_msg);
+
+  // Publish terrain edges as PointCloud2
+  {
+    const auto& edgePoints = planeDecompositionPipeline_->getEdgePoints();
+    pcl::PointCloud<pcl::PointXYZRGB> edgeCloud;
+    edgeCloud.reserve(edgePoints.size());
+    for (const auto& p : edgePoints) {
+      pcl::PointXYZRGB point;
+      point.x = static_cast<float>(p.x());
+      point.y = static_cast<float>(p.y());
+      point.z = static_cast<float>(p.z());
+      point.r = 255;
+      point.g = 48;
+      point.b = 48;
+      edgeCloud.push_back(point);
+    }
+
+    pcl::PCLPointCloud2 edgeCloud2;
+    pcl::toPCLPointCloud2(edgeCloud, edgeCloud2);
+    sensor_msgs::msg::PointCloud2 edgeMsg;
+    pcl_conversions::fromPCL(edgeCloud2, edgeMsg);
+    edgeMsg.header.frame_id = planarTerrain.gridMap.getFrameId();
+    edgeMsg.header.stamp = rclcpp::Time(planarTerrain.gridMap.getTimestamp());
+    edgePublisher_->publish(edgeMsg);
+  }
 
 
   callbackTimer_.endTimer();

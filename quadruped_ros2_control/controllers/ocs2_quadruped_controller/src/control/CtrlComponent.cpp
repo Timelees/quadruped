@@ -19,39 +19,38 @@
 #include <ocs2_quadruped_controller/control/GaitManager.h>
 #include <ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedInterface.h>
 #include <ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h>
+#include <ocs2_quadruped_controller/perceptive/synchronize/PlanarEdgeReceiver.h>
 #include <ocs2_quadruped_controller/perceptive/synchronize/PlanarTerrainReceiver.h>
 #include <ocs2_sqp/SqpMpc.h>
 
 namespace ocs2::legged_robot
 {
-    CtrlComponent::CtrlComponent(const std::shared_ptr<rclcpp_lifecycle::LifecycleNode>& node,
-                                 CtrlInterfaces& ctrl_interfaces, bool enable_perceptive) : node_(node), ctrl_interfaces_(ctrl_interfaces), enable_perceptive_(enable_perceptive)
+    CtrlComponent::CtrlComponent(const std::shared_ptr<rclcpp_lifecycle::LifecycleNode> &node,
+                                 CtrlInterfaces &ctrl_interfaces, bool enable_perceptive) : node_(node), ctrl_interfaces_(ctrl_interfaces), enable_perceptive_(enable_perceptive)
     {
         robot_pkg_ = node_->get_parameter("robot_pkg").as_string();
         joint_names_ = node_->get_parameter("joints").as_string_array();
         feet_names_ = node_->get_parameter("feet").as_string_array();
-
 
         const std::string package_share_directory = ament_index_cpp::get_package_share_directory(robot_pkg_);
         urdf_file_ = package_share_directory + "/urdf/robot.urdf";
         task_file_ = package_share_directory + "/config/ocs2/task.info";
         reference_file_ = package_share_directory + "/config/ocs2/reference.info";
         gait_file_ = package_share_directory + "/config/ocs2/gait.info";
-        
-        
+
         loadData::loadCppDataType(task_file_, "legged_robot_interface.verbose", verbose_);
 
-        setupLeggedInterface();     // 建立机器人模型接口
-        setupMpc();                 // 配置MPC求解器
-        setupMrt();                 // 设置实时接口
+        setupLeggedInterface(); // 建立机器人模型接口
+        setupMpc();             // 配置MPC求解器
+        setupMrt();             // 设置实时接口
 
         // 初始化运动学工具
         CentroidalModelPinocchioMapping pinocchio_mapping(legged_interface_->getCentroidalModelInfo());
         ee_kinematics_ = std::make_unique<PinocchioEndEffectorKinematics>(
             legged_interface_->getPinocchioInterface(), pinocchio_mapping,
             legged_interface_->modelSettings().contactNames3DoF);
-        
-         // 初始化模型转换器，
+
+        // 初始化模型转换器，
         rbd_conversions_ = std::make_unique<CentroidalModelRbdConversions>(legged_interface_->getPinocchioInterface(),
                                                                            legged_interface_->getCentroidalModelInfo());
 
@@ -70,7 +69,7 @@ namespace ocs2::legged_robot
     }
 
     // 设置状态估计器
-    void CtrlComponent::setupStateEstimate(const std::string& estimator_type)
+    void CtrlComponent::setupStateEstimate(const std::string &estimator_type)
     {
         if (estimator_type == "ground_truth")
         {
@@ -87,14 +86,14 @@ namespace ocs2::legged_robot
                 *ee_kinematics_, ctrl_interfaces_,
                 node_);
             kalman_estimator->loadSettings(task_file_, verbose_);
-            
+
             // 设置 ReferenceManager 用于获取步态相位信息
             kalman_estimator->setReferenceManager(legged_interface_->getSwitchedModelReferenceManagerPtr());
-            
+
             estimator_ = std::move(kalman_estimator);
             RCLCPP_INFO(node_->get_logger(), "Using Kalman Filter Estimator with MPC gait phase");
         }
-        else if (estimator_type == "error_state_kalman" )
+        else if (estimator_type == "error_state_kalman")
         {
             auto error_state_kalman_estimator = std::make_unique<ErrorStateKalmanFilter>(
                 legged_interface_->getPinocchioInterface(),
@@ -109,7 +108,7 @@ namespace ocs2::legged_robot
             RCLCPP_INFO(node_->get_logger(), "Using Error State Kalman Filter Estimator");
         }
         else
-        {   // 使用里程计话题数据
+        { // 使用里程计话题数据
             estimator_ = std::make_unique<FromOdomTopic>(
                 legged_interface_->getCentroidalModelInfo(), ctrl_interfaces_, node_);
             RCLCPP_INFO(node_->get_logger(), "Using Odom Topic Based Estimator");
@@ -118,7 +117,7 @@ namespace ocs2::legged_robot
     }
 
     // 状态更新
-    void CtrlComponent::updateState(const rclcpp::Time& time, const rclcpp::Duration& period)
+    void CtrlComponent::updateState(const rclcpp::Time &time, const rclcpp::Duration &period)
     {
         // Update State Estimation
         measured_rbd_state_ = estimator_->update(time, period);
@@ -128,16 +127,20 @@ namespace ocs2::legged_robot
         const scalar_t yaw_last = observation_.state(9);
         observation_.state = rbd_conversions_->computeCentroidalStateFromRbdModel(measured_rbd_state_);
         observation_.state(9) = yaw_last + angles::shortest_angular_distance(
-            yaw_last, observation_.state(9));
-        
-   
-        
+                                               yaw_last, observation_.state(9));
+
         observation_.mode = estimator_->getMode();
+
+        if (enable_perceptive_ && planarEdgeReceiver_ != nullptr)
+        {
+            planarEdgeReceiver_->updateEdgeSpheres();
+        }
 
         visualizer_->update(observation_);
         if (enable_perceptive_)
         {
             footPlacementVisualizationPtr_->update(observation_);
+            edgeVisualizationPtr_->update(observation_);
             sphereVisualizationPtr_->update(observation_);
         }
 
@@ -174,7 +177,7 @@ namespace ocs2::legged_robot
     // 机器人接口设置
     void CtrlComponent::setupLeggedInterface()
     {
-        if (enable_perceptive_)     // 感知
+        if (enable_perceptive_) // 感知
         {
             legged_interface_ = std::make_unique<PerceptiveLeggedInterface>(task_file_, urdf_file_, reference_file_);
         }
@@ -190,15 +193,16 @@ namespace ocs2::legged_robot
         {
             // 落足点可视化
             footPlacementVisualizationPtr_ = std::make_unique<FootPlacementVisualization>(
-                *dynamic_cast<PerceptiveLeggedReferenceManager&>(*legged_interface_->getReferenceManagerPtr()).
-                getConvexRegionSelectorPtr(),
+                *dynamic_cast<PerceptiveLeggedReferenceManager &>(*legged_interface_->getReferenceManagerPtr()).getConvexRegionSelectorPtr(),
                 legged_interface_->getCentroidalModelInfo().numThreeDofContacts, node_);
-            
+
+            edgeVisualizationPtr_ = std::make_unique<EdgeVisualization>(
+                dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getEdgeSpheresPtr(), node_);
+
             // 碰撞球体标记可视化
             sphereVisualizationPtr_ = std::make_unique<SphereVisualization>(
                 legged_interface_->getPinocchioInterface(), legged_interface_->getCentroidalModelInfo(),
-                *dynamic_cast<PerceptiveLeggedInterface&>(*legged_interface_).getPinocchioSphereInterfacePtr(), node_);
-
+                *dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getPinocchioSphereInterfacePtr(), node_);
         }
     }
 
@@ -215,8 +219,7 @@ namespace ocs2::legged_robot
         // Initialize the reference manager
         const auto gait_manager_ptr = std::make_shared<GaitManager>(
             ctrl_interfaces_,
-            legged_interface_->getSwitchedModelReferenceManagerPtr()->
-                               getGaitSchedule());
+            legged_interface_->getSwitchedModelReferenceManagerPtr()->getGaitSchedule());
         gait_manager_ptr->init(gait_file_);
         mpc_->getSolverPtr()->addSynchronizedModule(gait_manager_ptr);
         mpc_->getSolverPtr()->setReferenceManager(legged_interface_->getReferenceManagerPtr());
@@ -231,12 +234,16 @@ namespace ocs2::legged_robot
         {
             const auto planarTerrainReceiver =
                 std::make_shared<PlanarTerrainReceiver>(
-                    node_, dynamic_cast<PerceptiveLeggedInterface&>(*legged_interface_).getPlanarTerrainPtr(),
-                    dynamic_cast<PerceptiveLeggedInterface&>(*legged_interface_).getSignedDistanceFieldPtr(),
-                    "/planar_terrain", "elevation");
-            
+                    node_, dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getPlanarTerrainPtr(),
+                    dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getSignedDistanceFieldPtr(),
+                    "planar_terrain", "elevation");
+            planarEdgeReceiver_ =
+                std::make_shared<PlanarEdgeReceiver>(
+                    node_, dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getEdgeSpheresPtr(),
+                    "terrain_edges");
+
             mpc_->getSolverPtr()->addSynchronizedModule(planarTerrainReceiver);
-            
+            // Edge receiver is kept alive by CtrlComponent and synchronized manually.
         }
     }
 
@@ -248,7 +255,7 @@ namespace ocs2::legged_robot
 
         controller_running_ = true;
         mpc_thread_ = std::thread([&]
-        {
+                                  {
             while (controller_running_)
             {
                 try
@@ -270,8 +277,7 @@ namespace ocs2::legged_robot
                     controller_running_ = false;
                     RCLCPP_WARN(node_->get_logger(), "[Ocs2 MPC thread] Error : %s", e.what());
                 }
-            }
-        });
+            } });
         setThreadPriority(legged_interface_->sqpSettings().threadPriority, mpc_thread_);
         RCLCPP_INFO(node_->get_logger(), "MRT initialized. MPC thread started.");
     }

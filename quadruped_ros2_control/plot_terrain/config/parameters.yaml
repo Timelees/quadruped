@@ -60,7 +60,7 @@ plot_terrain_ConvexPlaneDecomposition:
     debug: false
     
     # ROS话题名称
-    pubTopicName: '/planar_terrain'
+    pubTopicName: '/convex_plane_decomposition_ros/planar_terrain'
     pubTopicNameRaw: '/elevation_map_raw'
     
     # 噪声参数 (用于测试鲁棒性，生产环境设为0)

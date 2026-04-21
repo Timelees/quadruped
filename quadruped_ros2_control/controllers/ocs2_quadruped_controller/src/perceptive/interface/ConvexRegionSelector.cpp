@@ -9,9 +9,78 @@
 #include <ocs2_legged_robot/gait/MotionPhaseDefinition.h>
 
 #include <convex_plane_decomposition/ConvexRegionGrowing.h>
+#include <convex_plane_decomposition/GeometryUtils.h>
+
+#include <algorithm>
+#include <cmath>
+#include <iomanip>
+#include <iostream>
 
 namespace ocs2::legged_robot
 {
+    namespace
+    {
+        scalar_t wrapAngle(scalar_t angle)
+        {
+            return std::atan2(std::sin(angle), std::cos(angle));
+        }
+
+        scalar_t estimateDesiredYawRate(const TargetTrajectories& targetTrajectories,
+                                        const CentroidalModelInfo& info,
+                                        scalar_t time)
+        {
+            if (targetTrajectories.size() < 2)
+            {
+                return 0.0;
+            }
+
+            constexpr scalar_t yawRateSamplingWindow = 0.05;
+            const auto stateBefore = targetTrajectories.getDesiredState(time - yawRateSamplingWindow);
+            const auto stateAfter = targetTrajectories.getDesiredState(time + yawRateSamplingWindow);
+
+            const scalar_t yawBefore = centroidal_model::getBasePose(stateBefore, info)(3);
+            const scalar_t yawAfter = centroidal_model::getBasePose(stateAfter, info)(3);
+            const scalar_t deltaTime = 2.0 * yawRateSamplingWindow;
+            return wrapAngle(yawAfter - yawBefore) / deltaTime;
+        }
+
+        scalar_t computePrecedingSwingDuration(size_t stancePhaseIndex,
+                                               const std::vector<bool>& contactFlags,
+                                               const scalar_array_t& eventTimes)
+        {
+            if (stancePhaseIndex == 0 || stancePhaseIndex >= contactFlags.size())
+            {
+                return 0.0;
+            }
+
+            if (!contactFlags[stancePhaseIndex] || contactFlags[stancePhaseIndex - 1])
+            {
+                return 0.0;
+            }
+
+            int firstSwingPhaseIndex = static_cast<int>(stancePhaseIndex) - 1;
+            while (firstSwingPhaseIndex > 0 && !contactFlags[firstSwingPhaseIndex - 1])
+            {
+                --firstSwingPhaseIndex;
+            }
+
+            if (firstSwingPhaseIndex == 0)
+            {
+                return 0.0;
+            }
+
+            const int liftOffEventIndex = firstSwingPhaseIndex - 1;
+            const int touchDownEventIndex = static_cast<int>(stancePhaseIndex) - 1;
+            if (liftOffEventIndex < 0 || touchDownEventIndex < 0 ||
+                touchDownEventIndex >= static_cast<int>(eventTimes.size()))
+            {
+                return 0.0;
+            }
+
+            return std::max(eventTimes[touchDownEventIndex] - eventTimes[liftOffEventIndex], scalar_t(0.0));
+        }
+    } // namespace
+
     ConvexRegionSelector::ConvexRegionSelector(CentroidalModelInfo info,
                                                std::shared_ptr<convex_plane_decomposition::PlanarTerrain>
                                                planarTerrainPtr,
@@ -60,7 +129,7 @@ namespace ocs2::legged_robot
         {
             startIndices[leg] = std::vector<int>(numPhases, 0);
             finalIndices[leg] = std::vector<int>(numPhases, 0);
-            // find the startTime and finalTime indices for swing feet
+            // find the startTime and finalTime indices for swing feet  确定每个接触阶段的起止索引
             for (size_t i = 0; i < numPhases; i++)
             {
                 // skip if it is a stance leg
@@ -93,22 +162,46 @@ namespace ocs2::legged_robot
                     const scalar_t standStartTime = eventTimes[standStartIndex];
                     const scalar_t standFinalTime = eventTimes[standFinalIndex];
                     const scalar_t standMiddleTime = standStartTime + (standFinalTime - standStartTime) / 2;
-
+                    
+                    // 如果该中间时间与前一个接触块不同（避免重复处理连续的接触阶段），则生成新的落足点信息
                     if (!numerics::almost_eq(standMiddleTime, lastStandMiddleTime))
                     {
-                        vector3_t footPos = getNominalFoothold(leg, standMiddleTime, initState, targetTrajectories);
-                        auto penaltyFunction = [](const vector3_t& /*projectedPoint*/) { return 0.0; };
-                        const auto projection = getBestPlanarRegionAtPositionInWorld(
-                            footPos, planarTerrain_.planarRegions, penaltyFunction);
-                        scalar_t growthFactor = 1.05;
-                        const auto convexRegion = convex_plane_decomposition::growConvexPolygonInsideShape(
-                            projection.regionPtr->boundaryWithInset.boundary, projection.positionInTerrainFrame,
-                            numVertices_, growthFactor);
+                        scalar_t footholdReferenceTime = standMiddleTime;
+                        if (i > 0 && !contactFlagStocks[leg][i - 1] && i - 1 < eventTimes.size())
+                        {
+                            footholdReferenceTime = std::max(eventTimes[i - 1], initTime);
+                        }
 
-                        feetProjections_[leg][i] = projection;
+                        const vector_t desiredState = targetTrajectories.getDesiredState(footholdReferenceTime);
+                        const vector3_t desiredFootPosition = endEffectorKinematicsPtr_->getPosition(desiredState)[leg];
+                        const scalar_t swingDuration = computePrecedingSwingDuration(i, contactFlagStocks[leg], eventTimes);
+                        const scalar_t desiredYawRate = estimateDesiredYawRate(targetTrajectories, info_, footholdReferenceTime);
+                        const vector3_t nominalFoothold =
+                            getNominalFoothold(leg, desiredState, initState, desiredFootPosition, swingDuration,
+                                               desiredYawRate);
+
+                        // 边缘距离惩罚函数，鼓励落足点远离边界，提升安全性
+                        auto penaltyFunction = [this](const vector3_t& projectedPointInWorld) -> double {
+                            // if (footholdScorer_ != nullptr) {
+                            //     return footholdScorer_->computePenalty(projectedPointInWorld);
+                            // }
+                            return 0.0;
+                        };
+                        auto safeProjection = getBestPlanarRegionAtPositionInWorld(
+                            nominalFoothold, planarTerrain_.planarRegions, penaltyFunction);
+
+                        // 凸多边形生长 (numVertices=8, growthFactor=1.1 加速收敛)
+                        constexpr double growthFactor = 1.05;
+                        auto convexRegion = convex_plane_decomposition::growConvexPolygonInsideShape(
+                            safeProjection.regionPtr->boundaryWithInset.boundary,
+                            safeProjection.positionInTerrainFrame,
+                            static_cast<int>(numVertices_), growthFactor);
+
+                        feetProjections_[leg][i] = safeProjection;
                         convexPolygons_[leg][i] = convexRegion;
-                        nominalFootholds_[leg][i] = footPos;
+                        nominalFootholds_[leg][i] = nominalFoothold;
                         middleTimes_[leg].push_back(standMiddleTime);
+                        lastStandMiddleTime = standMiddleTime;
                     }
                     else
                     {
@@ -182,26 +275,45 @@ namespace ocs2::legged_robot
         return {startTimesIndex, finalTimesIndex};
     }
 
-    vector3_t ConvexRegionSelector::getNominalFoothold(size_t leg, scalar_t time, const vector_t& initState,
-                                                       TargetTrajectories& targetTrajectories)
+    vector3_t ConvexRegionSelector::getNominalFoothold(size_t leg, const vector_t& desiredState,
+                                                       const vector_t& initState,
+                                                       const vector3_t& desiredFootPosition,
+                                                       scalar_t swingDuration,
+                                                       scalar_t desiredYawRate) const
     {
-        scalar_t height = 0.1;
+        constexpr scalar_t comHeight = 0.26;  // nominal standing height (comHeight from reference.info)
+        constexpr scalar_t gravity = 9.81;
+        constexpr scalar_t maxPreviewTime = 0.35;
+        constexpr scalar_t maxHorizontalCorrection = 0.12;
 
-        vector_t desiredState = targetTrajectories.getDesiredState(time);
         vector3_t desiredVel = centroidal_model::getNormalizedMomentum(desiredState, info_).head(3);
         vector3_t measuredVel = centroidal_model::getNormalizedMomentum(initState, info_).head(3);
 
-        auto feedback = (vector3_t() << (std::sqrt(height / 9.81) * (measuredVel - desiredVel)).head(2), 0).finished();
-        vector_t zyx = centroidal_model::getBasePose(desiredState, info_).tail(3);
-        scalar_t offset = tan(-zyx(1)) * height;
-        vector3_t offsetVector(offset * cos(-zyx(1)), 0, offset * sin(-zyx(1)));
-        matrix3_t R;
-        scalar_t z = zyx(0);
-        R << cos(z), -sin(z), 0, // clang-format off
-             sin(z), cos(z), 0,
-             0, 0, 1;  // clang-format on
-        //  return endEffectorKinematicsPtr_->getPosition(targetTrajectories.getDesiredState(time))[leg] + feedback;
-        return endEffectorKinematicsPtr_->getPosition(targetTrajectories.getDesiredState(time))[leg] - R.transpose() *
-            offsetVector;
+        const scalar_t previewTime = std::min(std::max(swingDuration, scalar_t(0.0)), maxPreviewTime);
+        const vector3_t basePosition = centroidal_model::getBasePose(desiredState, info_).head(3);
+
+        vector3_t feedforward = 0.5 * previewTime * desiredVel;
+        feedforward.z() = 0.0;
+
+        vector3_t feedback = std::sqrt(comHeight / gravity) * (measuredVel - desiredVel);
+        feedback.z() = 0.0;
+
+        vector3_t baseToFoot = desiredFootPosition - basePosition;
+        baseToFoot.z() = 0.0;
+
+        vector3_t turningCompensation;
+        turningCompensation << -desiredYawRate * baseToFoot.y(), desiredYawRate * baseToFoot.x(), 0.0;
+        turningCompensation *= 0.5 * previewTime;
+
+        vector3_t horizontalCorrection = feedforward + feedback + turningCompensation;
+        const scalar_t horizontalCorrectionNorm = horizontalCorrection.head(2).norm();
+        if (horizontalCorrectionNorm > maxHorizontalCorrection)
+        {
+            horizontalCorrection.head(2) *= maxHorizontalCorrection / horizontalCorrectionNorm;
+        }
+
+        vector3_t nominalFoothold = desiredFootPosition + horizontalCorrection;
+        nominalFoothold.z() = desiredFootPosition.z();
+        return nominalFoothold;
     }
 } // namespace legged

@@ -30,4 +30,9 @@ visualization_msgs::msg::MarkerArray convertInsetsToRosMarkers(
     grid_map::Time time,
     double lineWidth);
 
-}  // namespace convex_plane_decomposition
+visualization_msgs::msg::MarkerArray convertEdgePointsToRosMarkers(
+    const std::vector<Eigen::Vector3d>& edgePoints,
+    const std::string& frameId,
+    grid_map::Time time,
+    double pointSize);
+}   // namespace convex_plane_decomposition

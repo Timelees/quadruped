@@ -26,7 +26,9 @@ convex_plane_decomposition_ros_node:
       global_plane_fit_distance_error_threshold: 0.05      # [m] 设置从一个点到拟合平面的最大距离（以米为单位），以将其视为平面的一部分
       global_plane_fit_angle_error_threshold_degrees: 20.0  # [deg] 设置点法线与平面法线之间的最大角度（以度为单位）
 
-      
+      enable_edge_detection: true                            # 通过表面法线不连续启用地形边缘检测
+      edge_normal_dot_threshold_degrees: 30.0                # [deg] 设置相邻法线之间的角度阈值，以标记为地形边缘
+    
     ransac_plane_refinement:
       probability: 0.0005      # Probability to miss the largest candidate shape. A lower probability provides a higher reliability and determinism at the cost of longer running times
       min_points: 6.0           # This minimum number of points per plane. Controls the termination of the algorithm.
@@ -40,7 +42,7 @@ convex_plane_decomposition_ros_node:
     postprocessing:
       extracted_planes_height_offset: 0.0   # Added offset in Z direction for the full map to compensate for the location of the foot frame w.r.t. the contact point
       nonplanar_height_offset: 0.01       # 向高程图中的非平面像元添加高度偏移（以米为单位）。(提高边缘部分的高度，以避免非平面像元的高度过低)
-      nonplanar_horizontal_offset: 0        # 向 XY 平面中的非平面单元添加水平偏移（以像素为单位）。
+      nonplanar_horizontal_offset: 0.0        # 向 XY 平面中的非平面单元添加水平偏移（以像素为单位）。
       smoothing_dilation_size: 0.3          # 设置在平滑高程图之前应用的膨胀核宽度的一半（以米为单位）。
       smoothing_box_kernel_size: 0.1        # 设置用于平滑高程图的框内核宽度（以米为单位）的一半。
       smoothing_gauss_kernel_size: 0.05     # 设置用于额外平滑的高斯核宽度（以米为单位）的一半。

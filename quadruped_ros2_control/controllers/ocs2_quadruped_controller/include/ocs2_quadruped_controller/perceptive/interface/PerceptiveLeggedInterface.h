@@ -10,6 +10,7 @@
 #include <grid_map_sdf/SignedDistanceField.hpp>
 #include <rclcpp/rclcpp.hpp>
 
+#include "ocs2_quadruped_controller/perceptive/synchronize/PlanarEdgeReceiver.h"
 
 namespace ocs2::legged_robot
 {
@@ -47,13 +48,19 @@ namespace ocs2::legged_robot
             return pinocchioSphereInterfacePtr_;
         }
 
+        std::shared_ptr<EdgeSphereArray> getEdgeSpheresPtr() const
+        {
+            return edgeSpheresPtr_;
+        }
+
         size_t getNumVertices() const { return numVertices_; }
 
     protected:
-        size_t numVertices_ = 16;
+        size_t numVertices_ = 8;
 
         std::shared_ptr<convex_plane_decomposition::PlanarTerrain> planarTerrainPtr_;
         std::shared_ptr<grid_map::SignedDistanceField> signedDistanceFieldPtr_;
+        std::shared_ptr<EdgeSphereArray> edgeSpheresPtr_;
         std::shared_ptr<PinocchioSphereInterface> pinocchioSphereInterfacePtr_;
     };
 } // namespace ocs2::legged_robot

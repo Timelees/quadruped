@@ -25,14 +25,15 @@ set(CONTROLLER_INCLUDE_DEPENDS
 
         convex_plane_decomposition_msgs
         convex_plane_decomposition_ros
+        grid_map_filters_rsl
         grid_map_sdf
         ocs2_sphere_approximation
+        sensor_msgs
 
         elevation_mapping
 
         logs
 
-        # Sophus 李群李代数库（ROS 包名：Sophus）
         Sophus
 )
 
@@ -67,7 +68,11 @@ add_library(${PROJECT_NAME} SHARED
         src/interface/constraint/ZeroForceConstraint.cpp
         src/interface/constraint/NormalVelocityConstraintCppAd.cpp
         src/interface/constraint/ZeroVelocityConstraintCppAd.cpp
+        src/interface/constraint/QuinticSpline.cpp
+        src/interface/constraint/QuinticSplineCpg.cpp
+        src/interface/constraint/BSpline.cpp
         src/interface/constraint/SwingTrajectoryPlanner.cpp
+        src/interface/constraint/SwingTrajectoryQPOptimizer.cpp
         src/interface/initialization/LeggedRobotInitializer.cpp
         src/interface/SwitchedModelReferenceManager.cpp
         src/interface/LeggedRobotPreComputation.cpp
@@ -79,14 +84,19 @@ add_library(${PROJECT_NAME} SHARED
         src/control/CtrlComponent.cpp
 
         src/perceptive/constraint/FootCollisionConstraint.cpp
+        src/perceptive/constraint/EdgeSphereConstraint.cpp
+        src/perceptive/constraint/SwingTrajectoryCollisionConstraint.cpp
+        src/perceptive/constraint/EdgeAwareFootholdScorer.cpp
         src/perceptive/constraint/FootPlacementConstraint.cpp
         src/perceptive/constraint/SphereSdfConstraint.cpp
         src/perceptive/interface/ConvexRegionSelector.cpp
         src/perceptive/interface/PerceptiveLeggedInterface.cpp
         src/perceptive/interface/PerceptiveLeggedPrecomputation.cpp
         src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp
+        src/perceptive/visualize/EdgeVisualization.cpp
         src/perceptive/visualize/FootPlacementVisualization.cpp
         src/perceptive/visualize/SphereVisualization.cpp
+        src/perceptive/synchronize/PlanarEdgeReceiver.cpp
         src/perceptive/synchronize/PlanarTerrainReceiver.cpp
         # include logs implementation so LogSave symbols are available at link time
         ../../logs/src/log_save.cpp

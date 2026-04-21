@@ -10,6 +10,7 @@ namespace convex_plane_decomposition {
 
 namespace {
 
+
 int getCounterClockWiseNeighbour(int i, int lastVertex) {
   return (i > 0) ? i - 1 : lastVertex;
 }
@@ -17,7 +18,7 @@ int getCounterClockWiseNeighbour(int i, int lastVertex) {
 int getClockWiseNeighbour(int i, int lastVertex) {
   return (i < lastVertex) ? i + 1 : 0;
 }
-
+// 获取相邻顶点
 std::array<CgalPoint2d, 2> getNeighbours(const CgalPolygon2d& polygon, int i) {
   assert(i < polygon.size());
   assert(polygon.size() > 1);

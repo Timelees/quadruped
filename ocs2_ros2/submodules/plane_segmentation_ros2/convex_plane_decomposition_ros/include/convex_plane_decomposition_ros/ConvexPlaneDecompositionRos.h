@@ -20,6 +20,7 @@
 #include <convex_plane_decomposition/Timer.h>
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/conversions.h>
+#include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 namespace convex_plane_decomposition {
 
@@ -65,6 +66,7 @@ class ConvexPlaneExtractionROS {
   rclcpp::Publisher<convex_plane_decomposition_msgs::msg::PlanarTerrain>::
       SharedPtr regionPublisher_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr distanceFieldPublisher_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr edgePublisher_;
 
   tf2_ros::Buffer tfBuffer_;
   tf2_ros::TransformListener tfListener_;

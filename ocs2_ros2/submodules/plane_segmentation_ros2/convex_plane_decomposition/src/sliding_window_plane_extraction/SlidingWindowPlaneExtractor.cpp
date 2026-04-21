@@ -15,7 +15,7 @@ namespace convex_plane_decomposition {
 namespace sliding_window_plane_extractor {
 
 namespace {
-
+// 根据点的协方差矩阵计算平面法向量和拟合误差
 std::pair<Eigen::Vector3d, double> normalAndErrorFromCovariance(int numPoint, const Eigen::Vector3d& mean,
                                                                 const Eigen::Matrix3d& sumSquared) {
   const Eigen::Matrix3d covarianceMatrix = sumSquared / numPoint - mean * mean.transpose();
@@ -71,6 +71,11 @@ void SlidingWindowPlaneExtractor::runExtraction(const grid_map::GridMap& map, co
   runSegmentation();
   extractPlaneParametersFromLabeledImage();
 
+  // Detect terrain edges from normal discontinuities
+  if (parameters_.enable_edge_detection) {
+    detectEdges();
+  }
+
   // Get classification from segmentation to account for unassigned points.
   binaryImagePatch_ = segmentedPlanesMap_.labeledImage > 0;
   binaryImagePatch_.setTo(1, binaryImagePatch_ == 255);
@@ -112,6 +117,7 @@ bool SlidingWindowPlaneExtractor::isLocallyPlanar(const Eigen::Vector3d& localNo
   return (meanSquaredError < thresholdSquared && normalDotProduct > parameters_.local_plane_inclination_threshold);
 }
 
+// 对高程图每个格子做局部平面检测，输出一个二值图 binaryImagePatch_
 void SlidingWindowPlaneExtractor::runSlidingWindowDetector() {
   slidingWindowDetectorTimer_.startTimer();
   grid_map::SlidingWindowIterator window_iterator(*map_, elevationLayer_, grid_map::SlidingWindowIterator::EdgeHandling::EMPTY,
@@ -145,7 +151,7 @@ void SlidingWindowPlaneExtractor::runSlidingWindowDetector() {
   slidingWindowDetectorTimer_.endTimer();
 }
 
-// Label cells according to which cell they belong to using connected component labeling.
+// Label cells according to which cell they belong to using connected component labeling. 对局部平面二值图做连通域标记，得到 labeledImage。
 void SlidingWindowPlaneExtractor::runSegmentation() {
   segmentTimer_.startTimer();
   int numberOfLabel = cv::connectedComponents(binaryImagePatch_, segmentedPlanesMap_.labeledImage, parameters_.connectivity, CV_32S);
@@ -153,6 +159,7 @@ void SlidingWindowPlaneExtractor::runSegmentation() {
   segmentTimer_.endTimer();
 }
 
+// 对每个连通域重新收集 3D 点，估计这个区域对应的全局平面参数
 void SlidingWindowPlaneExtractor::extractPlaneParametersFromLabeledImage() {
   extractPlaneParametersFromLabeledImageTimer_.startTimer();
   const int numberOfExtractedPlanesWithoutRefinement =
@@ -311,6 +318,65 @@ bool SlidingWindowPlaneExtractor::isWithinInclinationLimit(const Eigen::Vector3d
 
 void SlidingWindowPlaneExtractor::setToBackground(int label) {
   segmentedPlanesMap_.labeledImage.setTo(0, segmentedPlanesMap_.labeledImage == label);
+}
+
+void SlidingWindowPlaneExtractor::detectEdges() {
+  edgeDetectionTimer_.startTimer();
+  edgePoints_.clear();
+
+  const auto& elevationData = (*map_)[elevationLayer_];
+  const int rows = elevationData.rows();
+  const int cols = elevationData.cols();
+  const double dotThreshold = parameters_.edge_normal_dot_threshold;
+  const double resolution = segmentedPlanesMap_.resolution;
+  const Eigen::Vector2d& origin = segmentedPlanesMap_.mapOrigin;
+
+  // 4-connected neighbor offsets: right, down
+  static constexpr int dRow[2] = {0, 1};
+  static constexpr int dCol[2] = {1, 0};
+
+  // Pre-allocate a boolean image to avoid duplicate edge points
+  cv::Mat edgeMask(rows, cols, CV_8U, cv::Scalar(0));
+
+  for (int col = 0; col < cols; ++col) {
+    for (int row = 0; row < rows; ++row) {
+      const auto& n0 = surfaceNormals_[getLinearIndex(row, col)];
+      // Skip cells with zero / invalid normals
+      if (n0.squaredNorm() < 0.5) {
+        continue;
+      }
+
+      for (int d = 0; d < 2; ++d) {
+        const int nr = row + dRow[d];
+        const int nc = col + dCol[d];
+        if (nr >= rows || nc >= cols) {
+          continue;
+        }
+
+        const auto& n1 = surfaceNormals_[getLinearIndex(nr, nc)];
+        if (n1.squaredNorm() < 0.5) {
+          continue;
+        }
+
+        const double dotProduct = n0.dot(n1);
+        if (dotProduct < dotThreshold) {
+          // Mark only the current cell as edge
+          if (edgeMask.at<uint8_t>(row, col) == 0) {
+            edgeMask.at<uint8_t>(row, col) = 1;
+            const float height = elevationData(row, col);
+            if (std::isfinite(height)) {
+              edgePoints_.emplace_back(
+                  origin.x() - row * resolution,
+                  origin.y() - col * resolution,
+                  static_cast<double>(height));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  edgeDetectionTimer_.endTimer();
 }
 
 }  // namespace sliding_window_plane_extractor

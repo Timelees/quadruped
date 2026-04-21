@@ -3,6 +3,8 @@
 //
 
 #include <utility>
+#include <algorithm>
+#include <iomanip>
 #include <ocs2_core/misc/Lookup.h>
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
@@ -13,10 +15,8 @@ namespace ocs2::legged_robot
 {
     PerceptiveLeggedReferenceManager::PerceptiveLeggedReferenceManager(CentroidalModelInfo info,
                                                                        std::shared_ptr<GaitSchedule> gaitSchedulePtr,
-                                                                       std::shared_ptr<SwingTrajectoryPlanner>
-                                                                       swingTrajectoryPtr,
-                                                                       std::shared_ptr<ConvexRegionSelector>
-                                                                       convexRegionSelectorPtr,
+                                                                       std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr,
+                                                                       std::shared_ptr<ConvexRegionSelector> convexRegionSelectorPtr,
                                                                        const EndEffectorKinematics<scalar_t>&
                                                                        endEffectorKinematics,
                                                                        scalar_t comHeight)
@@ -36,6 +36,9 @@ namespace ocs2::legged_robot
         // 更新模式调度
         const auto timeHorizon = finalTime - initTime;
         modeSchedule = getGaitSchedule()->getModeSchedule(initTime - timeHorizon, finalTime + timeHorizon);
+
+
+
         // 生成新目标轨迹
         TargetTrajectories newTargetTrajectories;
         int nodeNum = 11;
@@ -46,18 +49,13 @@ namespace ocs2::legged_robot
             vector_t input = targetTrajectories.getDesiredState(time);
 
             const auto& map = convexRegionSelectorPtr_->getPlanarTerrainPtr()->gridMap;
-            vector_t pos = centroidal_model::getBasePose(state, info_).head(3);
+            vector_t pos = centroidal_model::getBasePose(state, info_).head(3); // (x,y,z)
 
             // grid_map 的 atPosition() 越界会 throw std::out_of_range。
             // ground_truth 模式下 base 的世界坐标更容易落在 map 外，必须做保护避免整个进程崩溃。
             const grid_map::Position pos2d(pos.x(), pos.y());
             if (!map.isInside(pos2d))
             {
-                auto logger = rclcpp::get_logger("PerceptiveLeggedReferenceManager");
-                RCLCPP_WARN_THROTTLE(
-                    logger, *rclcpp::Clock::make_shared(), 2000,
-                    "Base position (x=%.3f, y=%.3f) is outside terrain map. Skip terrain-based reference adjustment.",
-                    pos.x(), pos.y());
 
                 newTargetTrajectories.timeTrajectory.push_back(time);
                 newTargetTrajectories.stateTrajectory.push_back(state);
@@ -77,7 +75,8 @@ namespace ocs2::legged_robot
                 }
                 return map.atPosition("smooth_planar", p);
             };
-
+            
+            // 计算高度梯度，normalVector为当前基座位置所处地形的向上法向量，用于后续调整基座的俯仰角
             normalVector(0) = (safeAtPosition(pos2d + grid_map::Position(-step, 0)) -
                                safeAtPosition(pos2d + grid_map::Position(step, 0))) /
                               (2 * step);
@@ -87,12 +86,12 @@ namespace ocs2::legged_robot
             normalVector(2) = 1;
             normalVector.normalize();
             matrix3_t R;
-            scalar_t z = centroidal_model::getBasePose(state, info_)(3);
-            R << cos(z), -sin(z), 0, // clang-format off
-             sin(z), cos(z), 0,
+            scalar_t yaw = centroidal_model::getBasePose(state, info_)(3);  // 偏航角
+            R << cos(yaw), -sin(yaw), 0, // clang-format off
+             sin(yaw), cos(yaw), 0,
              0, 0, 1;  // clang-format on
             vector_t v = R.transpose() * normalVector;
-            centroidal_model::getBasePose(state, info_)(4) = atan(v.x() / v.z());
+            centroidal_model::getBasePose(state, info_)(4) = atan(v.x() / v.z());   // 修改俯仰角
 
             // Base Z Position
             centroidal_model::getBasePose(state, info_)(2) =
@@ -104,11 +103,23 @@ namespace ocs2::legged_robot
         }
         targetTrajectories = newTargetTrajectories;
 
-        // Footstep
+        // Footstep — 使用 ConvexRegionSelector（凸多边形生长 + CBF 边缘惩罚）
         convexRegionSelectorPtr_->update(modeSchedule, initTime, initState, targetTrajectories);
 
         // Swing trajectory
         updateSwingTrajectoryPlanner(initTime, initState, modeSchedule);
+    }
+
+    void PerceptiveLeggedReferenceManager::setEdgeSpheres(std::shared_ptr<EdgeSphereArray> edgeSpheresPtr) {
+        edgeSpheresPtr_ = edgeSpheresPtr;
+
+        // 初始化落足点边缘评分器 — 强惩罚以将落足点推离边缘
+        // EdgeAwareFootholdScorer::Config scorerConfig;
+        // scorerConfig.safeMargin = 0.08;      // 8cm 安全距离（> sphere 半径 2.5cm）
+        // scorerConfig.penaltyWeight = 3.0;    // 高权重确保边缘惩罚主导选择
+        // footholdScorer_ = std::make_unique<EdgeAwareFootholdScorer>(scorerConfig, edgeSpheresPtr);
+
+        // convexRegionSelectorPtr_->setFootholdScorer(footholdScorer_.get());
     }
 
     void PerceptiveLeggedReferenceManager::updateSwingTrajectoryPlanner(scalar_t initTime, const vector_t& initState,
@@ -116,6 +127,7 @@ namespace ocs2::legged_robot
     {
         const auto contactFlagStocks = convexRegionSelectorPtr_->extractContactFlags(modeSchedule.modeSequence);
         feet_array_t<scalar_array_t> liftOffHeightSequence, touchDownHeightSequence;
+        feet_array_t<std::vector<convex_plane_decomposition::PlanarTerrainProjection>> allProjections;
 
         for (size_t leg = 0; leg < info_.numThreeDofContacts; leg++)
         {
@@ -128,10 +140,34 @@ namespace ocs2::legged_robot
             std::tie(liftOffHeights, touchDownHeights) = getHeights(contactFlagStocks[leg], projections);
             liftOffHeightSequence[leg] = liftOffHeights;
             touchDownHeightSequence[leg] = touchDownHeights;
+            allProjections[leg] = projections;
+            // std::cout << "\033[34m[ReferenceManager] Leg " << leg << " liftOffHeightSequence: ";
+            // for (const auto& height : liftOffHeightSequence[leg]) {
+            //     std::cout << height << " ";
+            // }
+            // std::cout << " touchDownHeightSequence: ";
+            // for (const auto& height : touchDownHeightSequence[leg]) {
+            //     std::cout << height << " ";
+            // }
+            // std::cout << " updated based on projections\033[0m\n";
         }
-        swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
-    }
 
+        // 如果 QP 优化器已启用，使用带避碰优化的更新
+        if (swingTrajectoryPtr_->isQpOptimizerEnabled()) {
+            auto [liftOff3d, touchDown3d] = getSwingPositions3d(contactFlagStocks, allProjections);
+            // std::cout << "modeSchedule: " << std::endl;
+            // for(int i = 0; i < modeSchedule.modeSequence.size(); ++i) {
+            //     std::cout << "  Time: " << modeSchedule.eventTimes[i] << ", Mode: " << modeSchedule.modeSequence[i] << std::endl;
+            // }
+            swingTrajectoryPtr_->updateWithQpOptimization(modeSchedule, initTime,
+                                                       liftOffHeightSequence, touchDownHeightSequence,
+                                                       liftOff3d, touchDown3d);
+        } else {
+            swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
+        }
+    }
+    
+    // 根据当前状态和接触标志修正投影的高度
     void PerceptiveLeggedReferenceManager::modifyProjections(scalar_t initTime, const vector_t& initState, size_t leg,
                                                              size_t initIndex,
                                                              const std::vector<bool>& contactFlagStocks,
@@ -142,7 +178,7 @@ namespace ocs2::legged_robot
         if (contactFlagStocks[initIndex])
         {
             lastLiftoffPos_[leg] = endEffectorKinematicsPtr_->getPosition(initState)[leg];
-            lastLiftoffPos_[leg].z() -= 0.02;
+            lastLiftoffPos_[leg].z() -= 0.019;
             for (int i = initIndex; i < projections.size(); ++i)
             {
                 if (!contactFlagStocks[i])
@@ -211,15 +247,6 @@ namespace ocs2::legged_robot
             }
         }
 
-        //  for (int i = 0; i < numPhases; ++i) {
-        //    std::cerr << std::setprecision(3) << liftOffHeights[i] << "\t";
-        //  }
-        //  std::cerr << std::endl;
-        //  for (int i = 0; i < numPhases; ++i) {
-        //    std::cerr << std::setprecision(3) << contactFlagStocks[i] << "\t";
-        //  }
-        //  std::cerr << std::endl;
-
         return {liftOffHeights, touchDownHeights};
     }
 
@@ -233,4 +260,59 @@ namespace ocs2::legged_robot
         }
         return flag;
     }
+
+    std::pair<feet_array_t<std::vector<Eigen::Vector3d>>, feet_array_t<std::vector<Eigen::Vector3d>>>
+        PerceptiveLeggedReferenceManager::getSwingPositions3d(
+            const feet_array_t<std::vector<bool>>& contactFlagStocks,
+            const feet_array_t<std::vector<convex_plane_decomposition::PlanarTerrainProjection>>& allProjections) const
+    {
+        feet_array_t<std::vector<Eigen::Vector3d>> liftOff3d, touchDown3d;
+        for (size_t leg = 0; leg < info_.numThreeDofContacts; leg++) {
+            const auto& contacts = contactFlagStocks[leg];
+            const auto& proj = allProjections[leg];
+            const size_t numPhases = contacts.size();
+            liftOff3d[leg].resize(numPhases, Eigen::Vector3d::Zero());
+            touchDown3d[leg].resize(numPhases, Eigen::Vector3d::Zero());
+
+            for (size_t i = 0; i < numPhases; ++i) {
+                if (contacts[i]) continue;  // 仅处理摆动相
+
+                bool foundLift = false, foundTouch = false;
+
+                // 抬脚位置：向前搜索最近的接触相投影
+                for (int k = static_cast<int>(i) - 1; k >= 0; --k) {
+                    if (contacts[k]) {
+                        liftOff3d[leg][i] = proj[k].positionInWorld;
+                        foundLift = true;
+                        break;
+                    }
+                }
+                // 落脚位置：向后搜索最近的接触相投影
+                for (size_t k = i + 1; k < numPhases; ++k) {
+                    if (contacts[k]) {
+                        touchDown3d[leg][i] = proj[k].positionInWorld;
+                        foundTouch = true;
+                        break;
+                    }
+                }
+
+                // 边界情况：找不到抬脚/落脚位置时使用对端位置或上次已知位置
+                if (!foundLift && foundTouch) {
+                    // 没有之前的接触相：用上次已知的抬脚位置
+                    liftOff3d[leg][i] = lastLiftoffPos_[leg];
+                }
+                if (!foundTouch && foundLift) {
+                    // 没有之后的接触相：使用抬脚位置（原地踏步退化）
+                    touchDown3d[leg][i] = liftOff3d[leg][i];
+                }
+                if (!foundLift && !foundTouch) {
+                    // 两端均无接触相：使用上次已知位置
+                    liftOff3d[leg][i] = lastLiftoffPos_[leg];
+                    touchDown3d[leg][i] = lastLiftoffPos_[leg];
+                }
+            }
+        }
+        return {liftOff3d, touchDown3d};
+    }
+
 } // namespace legged

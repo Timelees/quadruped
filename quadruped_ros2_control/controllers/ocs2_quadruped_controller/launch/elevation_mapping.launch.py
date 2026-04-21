@@ -12,6 +12,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 def launch_setup(context, *args, **kwargs):
     # Get the package share directory for controllers
     pkg_legged_controllers = get_package_share_directory('ocs2_quadruped_controller')
+    use_sim_time = LaunchConfiguration('use_sim_time')
 
     # Elevation mapping node
     elevation_mapping_yaml = os.path.join(pkg_legged_controllers, 'config', 'elevation_mapping.yaml')
@@ -19,7 +20,7 @@ def launch_setup(context, *args, **kwargs):
         package='elevation_mapping',
         executable='elevation_mapping',
         name='elevation_mapping',
-        parameters=[elevation_mapping_yaml],
+        parameters=[elevation_mapping_yaml, {'use_sim_time': use_sim_time}],
         output='screen',
         # arguments=['--ros-args', '--log-level', 'elevation_mapping:=debug']
     )
@@ -65,6 +66,11 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
 
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='true',
+            description='Use simulation clock'
+        ),
 
         OpaqueFunction(function=launch_setup)
     ])

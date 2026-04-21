@@ -13,6 +13,7 @@
 #include <ocs2_core/reference/TargetTrajectories.h>
 #include <ocs2_legged_robot/common/Types.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematics.h>
+#include "ocs2_quadruped_controller/perceptive/constraint/EdgeAwareFootholdScorer.h"
 
 namespace ocs2::legged_robot
 {
@@ -22,6 +23,9 @@ namespace ocs2::legged_robot
         ConvexRegionSelector(CentroidalModelInfo info,
                              std::shared_ptr<convex_plane_decomposition::PlanarTerrain> PlanarTerrainPtr,
                              const EndEffectorKinematics<scalar_t>& endEffectorKinematics, size_t numVertices);
+
+        /** 设置边缘感知落足点评分器，传入后 update() 会在选择落足点时对靠近边缘的候选点施加惩罚 */
+        // void setFootholdScorer(EdgeAwareFootholdScorer* scorer) { footholdScorer_ = scorer; }
 
         void update(const ModeSchedule& modeSchedule, scalar_t initTime, const vector_t& initState,
                     TargetTrajectories& targetTrajectories);
@@ -48,8 +52,9 @@ namespace ocs2::legged_robot
     private:
         static std::pair<int, int> findIndex(size_t index, const std::vector<bool>& contactFlagStock);
 
-        vector3_t getNominalFoothold(size_t leg, scalar_t time, const vector_t& initState,
-                                     TargetTrajectories& targetTrajectories);
+        vector3_t getNominalFoothold(size_t leg, const vector_t& desiredState, const vector_t& initState,
+                         const vector3_t& desiredFootPosition, scalar_t swingDuration,
+                         scalar_t desiredYawRate) const;
 
         feet_array_t<std::vector<convex_plane_decomposition::PlanarTerrainProjection>> feetProjections_;
         feet_array_t<std::vector<convex_plane_decomposition::CgalPolygon2d>> convexPolygons_;
@@ -67,5 +72,7 @@ namespace ocs2::legged_robot
         convex_plane_decomposition::PlanarTerrain planarTerrain_;
         std::shared_ptr<convex_plane_decomposition::PlanarTerrain> planarTerrainPtr_;
         std::unique_ptr<EndEffectorKinematics<scalar_t>> endEffectorKinematicsPtr_;
+
+        // EdgeAwareFootholdScorer* footholdScorer_ = nullptr;  // 非拥有指针，生命周期由调用方管理
     };
 } // namespace ocs2::legged_robot

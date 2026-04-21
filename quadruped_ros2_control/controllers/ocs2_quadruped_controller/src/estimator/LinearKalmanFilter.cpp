@@ -351,55 +351,51 @@ namespace ocs2::legged_robot
 
         // ==================== 高程图足端调试 ====================
         // 每隔500次(约0.5s@1000Hz)查询并打印足端位置处的高程图高度
-        static int elev_debug_counter = 0;
-        elev_debug_counter++;
-        if (elevation_map_received_ && (elev_debug_counter % 500 == 0))
-        {
-            std::lock_guard<std::mutex> lock(elevation_map_mutex_);
-            const auto eePos_world = ee_kinematics_->getPosition(vector_t());
-            const vector3_t base_pos = xHat_.segment<3>(0);
-            const std::array<std::string, 4> foot_names = {"FR", "FL", "RR", "RL"};
-
-            std::ostringstream oss;
-            oss << "\n[ElevationMapDebug] base_z(KF)=" << std::fixed << std::setprecision(4) << base_pos.z();
-            if (sim_mode_) {
-                oss << " base_z(GT)=" << gt_position_.z();
-            }
-            oss << "\n";
-
-            for (int i = 0; i < 4; ++i)
-            {
-                // 世界系下的足端位置
-                Eigen::Vector3d foot_world = base_pos + eePos_world[i];
-                foot_world.z() -= foot_radius_;  // 减去足端半径得到接触地面的高度
-
-                grid_map::Position foot_pos_2d(foot_world.x(), foot_world.y());
-                oss << "  " << foot_names[i] << ": foot_z=" << foot_world.z();
-
-                if (elevation_map_.isInside(foot_pos_2d))
-                {
-                    try {
-                        float elev_height = elevation_map_.atPosition("elevation", foot_pos_2d);
-                        if (std::isfinite(elev_height)) {
-                            float diff = foot_world.z() - elev_height;
-                            oss << " map_z=" << elev_height
-                                << " diff=" << diff;
-                        } else {
-                            oss << " map_z=NaN(未融合区域)";
-                        }
-                    } catch (const std::exception& e) {
-                        oss << " query_error=" << e.what();
-                    }
-                }
-                else
-                {
-                    oss << " outside_map";
-                }
-                oss << " | contact=" << (contact_flag_[i] ? "1" : "0");
-                oss << "\n";
-            }
-            RCLCPP_INFO(node_->get_logger(), "%s", oss.str().c_str());
-        }
+        // static int elev_debug_counter = 0;
+        // elev_debug_counter++;
+        // if (elevation_map_received_ && (elev_debug_counter % 500 == 0))
+        // {
+        //     std::lock_guard<std::mutex> lock(elevation_map_mutex_);
+        //     const auto eePos_world = ee_kinematics_->getPosition(vector_t());
+        //     const vector3_t base_pos = xHat_.segment<3>(0);
+        //     const std::array<std::string, 4> foot_names = {"FR", "FL", "RR", "RL"};
+        //     std::ostringstream oss;
+        //     oss << "\n[ElevationMapDebug] base_z(KF)=" << std::fixed << std::setprecision(4) << base_pos.z();
+        //     if (sim_mode_) {
+        //         oss << " base_z(GT)=" << gt_position_.z();
+        //     }
+        //     oss << "\n";
+        //     for (int i = 0; i < 4; ++i)
+        //     {
+        //         // 世界系下的足端位置
+        //         Eigen::Vector3d foot_world = base_pos + eePos_world[i];
+        //         foot_world.z() -= foot_radius_;  // 减去足端半径得到接触地面的高度
+        //         grid_map::Position foot_pos_2d(foot_world.x(), foot_world.y());
+        //         oss << "  " << foot_names[i] << ": foot_z=" << foot_world.z();
+        //         if (elevation_map_.isInside(foot_pos_2d))
+        //         {
+        //             try {
+        //                 float elev_height = elevation_map_.atPosition("elevation", foot_pos_2d);
+        //                 if (std::isfinite(elev_height)) {
+        //                     float diff = foot_world.z() - elev_height;
+        //                     oss << " map_z=" << elev_height
+        //                         << " diff=" << diff;
+        //                 } else {
+        //                     oss << " map_z=NaN(未融合区域)";
+        //                 }
+        //             } catch (const std::exception& e) {
+        //                 oss << " query_error=" << e.what();
+        //             }
+        //         }
+        //         else
+        //         {
+        //             oss << " outside_map";
+        //         }
+        //         oss << " | contact=" << (contact_flag_[i] ? "1" : "0");
+        //         oss << "\n";
+        //     }
+        //     RCLCPP_INFO(node_->get_logger(), "%s", oss.str().c_str());
+        // }
 
         // 融合外部定位数据到 KF 状态量
         if (topicUpdated_)
