@@ -14,9 +14,9 @@ namespace ocs2::legged_robot
 {
     vector_t WeightedWbc::update(const vector_t& stateDesired, const vector_t& inputDesired,
                                  const vector_t& rbdStateMeasured, size_t mode,
-                                 scalar_t period)
+                                 scalar_t period, scalar_t currentTime)
     {
-        WbcBase::update(stateDesired, inputDesired, rbdStateMeasured, mode, period);
+        WbcBase::update(stateDesired, inputDesired, rbdStateMeasured, mode, period, currentTime);
 
         // Constraints 构建约束
         Task constraints = formulateConstraints();
@@ -59,7 +59,7 @@ namespace ocs2::legged_robot
     Task WeightedWbc::formulateConstraints()
     {
         return formulateFloatingBaseEomTask() + formulateTorqueLimitsTask() + formulateFrictionConeTask() +
-            formulateNoContactMotionTask();
+            formulateNoContactMotionTask() + formulateFootPlacementCbfTask();
     }
 
     Task WeightedWbc::formulateWeightedTasks(const vector_t& stateDesired, const vector_t& inputDesired,

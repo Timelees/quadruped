@@ -227,6 +227,34 @@ namespace ocs2::legged_robot
         return contactFlags;
     }
 
+    // 解析摆动相时间区间，确保起止时间有效且满足最小摆动时间要求
+    scalar_t SwingTrajectoryPlanner::getSwingPhaseProgress(size_t leg, scalar_t time) const
+    {
+        if (leg >= numFeet_ || plannedContactFlags_[leg].empty() || feetHeightTrajectoriesEvents_[leg].empty())
+        {
+            return scalar_t(-1.0);
+        }
+
+        const auto index = lookup::findIndexInTimeArray(feetHeightTrajectoriesEvents_[leg], time);
+        const int clampedIndex = clampPhaseIndex(index, plannedContactFlags_[leg].size());
+        if (clampedIndex < 0 || plannedContactFlags_[leg][static_cast<size_t>(clampedIndex)])
+        {
+            return scalar_t(-1.0);
+        }
+
+        const auto [swingStartTime, swingFinalTime] = resolveSwingTimeInterval(
+            feetHeightTrajectoriesEvents_[leg], startTimesIndices_[leg][static_cast<size_t>(clampedIndex)],
+            finalTimesIndices_[leg][static_cast<size_t>(clampedIndex)]);
+
+        if (swingFinalTime <= swingStartTime)
+        {
+            return scalar_t(-1.0);
+        }
+
+        const scalar_t alpha = (time - swingStartTime) / (swingFinalTime - swingStartTime);
+        return std::min<scalar_t>(1.0, std::max<scalar_t>(0.0, alpha));
+    }
+
     void SwingTrajectoryPlanner::update(const ModeSchedule &modeSchedule, scalar_t terrainHeight)
     {
         const scalar_array_t terrainHeightSequence(modeSchedule.modeSequence.size(), terrainHeight);

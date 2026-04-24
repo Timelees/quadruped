@@ -81,6 +81,13 @@ namespace ocs2::legged_robot {
         contact_flag_t getContactFlags(scalar_t time) const;
 
         /**
+         * @brief Returns the normalized progress of the current swing phase in [0, 1].
+         *
+         * Returns -1 if the leg is not in swing or if the current swing interval is invalid.
+         */
+        scalar_t getSwingPhaseProgress(size_t leg, scalar_t time) const;
+
+        /**
          * @brief 设置摆动相 QP 优化器。
          */
         void setQpOptimizer(std::shared_ptr<TerrainInterface> terrainInterface,

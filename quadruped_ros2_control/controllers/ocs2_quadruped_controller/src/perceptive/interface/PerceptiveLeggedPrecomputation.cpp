@@ -32,11 +32,14 @@ namespace ocs2::legged_robot
         }
         LeggedRobotPreComputation::request(request, t, x, u);
 
-        if (request.contains(Request::Constraint))
+        if (request.contains(Request::Constraint) || request.contains(Request::SoftConstraint))
         {
             for (size_t i = 0; i < footPlacementConParameters_.size(); i++)
             {
                 FootPlacementConstraint::Parameter params;
+                params.a = matrix_t::Zero(0, 3);
+                params.b = vector_t::Zero(0);
+                footPlacementConParameters_[i] = params;
             
                 auto projection = convexRegionSelectorPtr_->getProjection(i, t);    // 获取足端投影
                 if (projection.regionPtr == nullptr)

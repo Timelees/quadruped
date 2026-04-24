@@ -10,6 +10,7 @@
 #include <angles/angles.h>
 #include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 #include <ocs2_core/misc/LoadData.h>
+#include <ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h>
 #include <ocs2_quadruped_controller/wbc/WeightedWbc.h>
 #include <ocs2_sqp/SqpMpc.h>
 
@@ -108,7 +109,8 @@ namespace ocs2::legged_robot
         // Whole body control
         wbc_ = std::make_shared<WeightedWbc>(ctrl_component_->legged_interface_->getPinocchioInterface(),
                                              ctrl_component_->legged_interface_->getCentroidalModelInfo(),
-                                             *ctrl_component_->ee_kinematics_);
+                                             *ctrl_component_->ee_kinematics_,
+                                             ctrl_component_->legged_interface_->getSwitchedModelReferenceManagerPtr());
         wbc_->loadTasksSetting(ctrl_component_->task_file_, ctrl_component_->verbose_);
 
         // Safety Checker
@@ -179,13 +181,14 @@ namespace ocs2::legged_robot
                                                             optimized_state_,
                                                             optimized_input_, planned_mode);
 
+
         // Whole body control
         ctrl_component_->observation_.input = optimized_input_;
 
         wbc_timer_.startTimer();
         vector_t x = wbc_->update(optimized_state_, optimized_input_, ctrl_component_->measured_rbd_state_,
                                   planned_mode,
-                                  period.seconds());
+                                  period.seconds(), ctrl_component_->observation_.time);
         wbc_timer_.endTimer();
         // wbc计算的12个关节的扭矩，关节期望位置和期望速度
         vector_t torque = x.tail(12);

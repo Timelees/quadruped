@@ -5,26 +5,34 @@
 #include <utility>
 #include <algorithm>
 #include <iomanip>
+#include <array>
 #include <ocs2_core/misc/Lookup.h>
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
+
+#include "log_save.h"
 
 #include <rclcpp/rclcpp.hpp>
 
 namespace ocs2::legged_robot
 {
+    
+    
+    
     PerceptiveLeggedReferenceManager::PerceptiveLeggedReferenceManager(CentroidalModelInfo info,
                                                                        std::shared_ptr<GaitSchedule> gaitSchedulePtr,
                                                                        std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr,
                                                                        std::shared_ptr<ConvexRegionSelector> convexRegionSelectorPtr,
                                                                        const EndEffectorKinematics<scalar_t>&
                                                                        endEffectorKinematics,
-                                                                       scalar_t comHeight)
+                                                                       scalar_t comHeight,
+                                                                       FootPlacementRelaxationConfig footPlacementRelaxationConfig)
         : info_(std::move(info)),
           SwitchedModelReferenceManager(std::move(gaitSchedulePtr), std::move(swingTrajectoryPtr)),
           convexRegionSelectorPtr_(std::move(convexRegionSelectorPtr)),
           endEffectorKinematicsPtr_(endEffectorKinematics.clone()),
-          comHeight_(comHeight)
+          comHeight_(comHeight),
+          footPlacementRelaxationConfig_(std::move(footPlacementRelaxationConfig))
     {
     }
 
@@ -276,11 +284,33 @@ namespace ocs2::legged_robot
         const auto finalTime = convexRegionSelectorPtr_->getInitStandFinalTimes();
         for (int i = 0; i < flag.size(); ++i)
         {
-            flag[i] = getContactFlags(time)[i] && time >= finalTime[i];
+            const bool hasPolygon = convexRegionSelectorPtr_->getConvexPolygon(i, time).size() >= 3;    // 是否有有效的支撑多边形
+            const bool isContact = getContactFlags(time)[i];                                            // 当前是否在接触相
+            const scalar_t swingProgress = getSwingTrajectoryPlanner()->getSwingPhaseProgress(i, time);
+            const bool isLateSwing = swingProgress >= footPlacementRelaxationConfig_.swingActivationProgress;
+            flag[i] = hasPolygon && time >= finalTime[i] && (isContact || isLateSwing);
         }
         return flag;
     }
 
+    // 根据摆动相进度计算足端位置约束的松弛量，摆动初期松弛较大以增加可行域，接近着陆时逐渐收紧约束
+    // hiw​(x,t)=Ai​⋅pWi​​(x)+bi​+s(t)⋅1≥0中的s()
+    scalar_t PerceptiveLeggedReferenceManager::getFootPlacementRelaxation(size_t leg, scalar_t time) const
+    {
+        const scalar_t swingProgress = getSwingTrajectoryPlanner()->getSwingPhaseProgress(leg, time);
+        if (swingProgress < 0.0)
+        {
+            return 0.0;
+        }
+
+        const scalar_t remaining = std::max<scalar_t>(0.0, 1.0 - swingProgress);
+         return footPlacementRelaxationConfig_.maxRelaxation *
+             std::pow(remaining, footPlacementRelaxationConfig_.relaxationPower);
+    }
+
+    
+    
+    
     std::pair<feet_array_t<std::vector<Eigen::Vector3d>>, feet_array_t<std::vector<Eigen::Vector3d>>>
         PerceptiveLeggedReferenceManager::getSwingPositions3d(
             const feet_array_t<std::vector<bool>>& contactFlagStocks,

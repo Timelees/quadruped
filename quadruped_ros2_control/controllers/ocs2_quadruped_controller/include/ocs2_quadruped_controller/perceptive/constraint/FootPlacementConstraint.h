@@ -32,6 +32,9 @@ namespace ocs2::legged_robot
                                                                  const PreComputation& preComp) const override;
 
     private:
+        vector_t computeRawConstraintValue(const vector_t& state, const Parameter& param) const;
+    vector_t computeRelaxationOffset(const Parameter& param, scalar_t relaxationDistance) const;
+
         FootPlacementConstraint(const FootPlacementConstraint& rhs);
 
         const SwitchedModelReferenceManager* referenceManagerPtr_;

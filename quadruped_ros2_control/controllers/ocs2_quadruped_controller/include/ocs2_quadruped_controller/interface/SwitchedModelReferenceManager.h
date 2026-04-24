@@ -55,8 +55,10 @@ namespace ocs2::legged_robot {
         contact_flag_t getContactFlags(scalar_t time) const;
 
         const std::shared_ptr<GaitSchedule> &getGaitSchedule() { return gaitSchedulePtr_; }
+        const std::shared_ptr<GaitSchedule> &getGaitSchedule() const { return gaitSchedulePtr_; }
 
         const std::shared_ptr<SwingTrajectoryPlanner> &getSwingTrajectoryPlanner() { return swingTrajectoryPtr_; }
+        const std::shared_ptr<SwingTrajectoryPlanner> &getSwingTrajectoryPlanner() const { return swingTrajectoryPtr_; }
 
     protected:
         void modifyReferences(scalar_t initTime, scalar_t finalTime, const vector_t &initState,

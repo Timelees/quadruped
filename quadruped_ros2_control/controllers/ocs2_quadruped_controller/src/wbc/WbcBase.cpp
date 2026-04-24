@@ -5,24 +5,87 @@
 #include "ocs2_quadruped_controller/wbc/WbcBase.h"
 
 #include <utility>
-#include <ocs2_centroidal_model/AccessHelperFunctions.h>
-#include <ocs2_centroidal_model/ModelHelperFunctions.h>
-#include <ocs2_core/misc/LoadData.h>
+#include <algorithm>
+
 #include <pinocchio/fwd.hpp>  // forward declarations must be included first.
 #include <pinocchio/algorithm/centroidal.hpp>
 #include <pinocchio/algorithm/crba.hpp>
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/rnea.hpp>
 
+#include <boost/property_tree/info_parser.hpp>
+#include <ocs2_legged_robot/gait/MotionPhaseDefinition.h>
+#include <ocs2_centroidal_model/AccessHelperFunctions.h>
+#include <ocs2_centroidal_model/ModelHelperFunctions.h>
+#include <ocs2_core/misc/LoadData.h>
+#include <convex_plane_decomposition/PolygonTypes.h>
+
+#include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
+
 namespace ocs2::legged_robot
 {
+    namespace
+    {
+        std::pair<matrix_t, vector_t> getPolygonConstraint(const convex_plane_decomposition::CgalPolygon2d& polygon)
+        {
+            const size_t numVertices = polygon.size();
+            matrix_t polytopeA = matrix_t::Zero(numVertices, 2);
+            vector_t polytopeB = vector_t::Zero(numVertices);
+
+            for (size_t i = 0; i < numVertices; ++i)
+            {
+                size_t j = i + 1;
+                if (j == numVertices)
+                {
+                    j = 0;
+                }
+                size_t k = j + 1;
+                if (k == numVertices)
+                {
+                    k = 0;
+                }
+
+                const auto pointA = polygon.vertex(i);
+                const auto pointB = polygon.vertex(j);
+                const auto pointC = polygon.vertex(k);
+
+                polytopeA.row(i) << pointB.y() - pointA.y(), pointA.x() - pointB.x();
+                polytopeB(i) = pointA.y() * pointB.x() - pointA.x() * pointB.y();
+                if (polytopeA.row(i) * (vector_t(2) << pointC.x(), pointC.y()).finished() + polytopeB(i) < 0)
+                {
+                    polytopeA.row(i) *= -1.0;
+                    polytopeB(i) *= -1.0;
+                }
+            }
+
+            constexpr scalar_t shrinkDistance = 0.01;
+            for (size_t i = 0; i < numVertices; ++i)
+            {
+                polytopeB(i) -= shrinkDistance * polytopeA.row(i).norm();
+            }
+
+            return {polytopeA, polytopeB};
+        }
+
+        scalar_t clampSymmetric(scalar_t value, scalar_t limit)
+        {
+            if (limit <= 0.0)
+            {
+                return 0.0;
+            }
+            return std::clamp(value, -limit, limit);
+        }
+    }
+
     WbcBase::WbcBase(const PinocchioInterface& pinocchioInterface, CentroidalModelInfo info,
-                     const PinocchioEndEffectorKinematics& eeKinematics)
+                     const PinocchioEndEffectorKinematics& eeKinematics,
+                     std::shared_ptr<SwitchedModelReferenceManager> referenceManagerPtr)
         : pinocchio_interface_measured_(pinocchioInterface),
           pinocchio_interface_desired_(pinocchioInterface),
           info_(std::move(info)),
           ee_kinematics_(eeKinematics.clone()),
           mapping_(info_),
+          referenceManagerPtr_(std::move(referenceManagerPtr)),
           input_last_(vector_t::Zero(info_.inputDim))
     {
         num_decision_vars_ = info_.generalizedCoordinatesNum + 3 * info_.numThreeDofContacts + info_.actuatedDofNum;
@@ -32,9 +95,10 @@ namespace ocs2::legged_robot
 
     vector_t WbcBase::update(const vector_t& stateDesired, const vector_t& inputDesired,
                              const vector_t& rbdStateMeasured, size_t mode,
-                             scalar_t /*period*/)
+                             scalar_t /*period*/, scalar_t currentTime)
     {
         contact_flag_ = modeNumber2StanceLeg(mode);
+        currentTime_ = currentTime;
         num_contacts_ = 0;
         for (const bool flag : contact_flag_)
         {
@@ -283,6 +347,115 @@ namespace ocs2::legged_robot
         return {a, b, matrix_t(), vector_t()};
     }
 
+    Task WbcBase::formulateFootPlacementCbfTask()
+    {
+        const auto* perceptiveRefMgr = dynamic_cast<const PerceptiveLeggedReferenceManager*>(referenceManagerPtr_.get());
+        if (perceptiveRefMgr == nullptr)
+        {
+            return {matrix_t(), vector_t(), matrix_t(), vector_t()};
+        }
+
+        const auto& selector = *perceptiveRefMgr->getConvexRegionSelectorPtr();
+        const scalar_t activationProgress = perceptiveRefMgr->getFootPlacementRelaxationConfig().swingActivationProgress;
+        const scalar_t dt = std::max<scalar_t>(foot_cbf_relaxation_derivative_dt_, 1e-6);
+
+        ee_kinematics_->setPinocchioInterface(pinocchio_interface_measured_);
+        const std::vector<vector3_t> posMeasured = ee_kinematics_->getPosition(vector_t());
+        const std::vector<vector3_t> velMeasured = ee_kinematics_->getVelocity(vector_t(), vector_t());
+
+        std::vector<matrix_t> dBlocks;
+        std::vector<vector_t> fBlocks;
+
+        for (size_t leg = 0; leg < info_.numThreeDofContacts; ++leg)
+        {
+            const auto polygon = selector.getConvexPolygon(leg, currentTime_);
+            const bool hasPolygon = polygon.size() >= 3;
+            const bool isContact = contact_flag_[leg];
+            const scalar_t swingProgress = perceptiveRefMgr->getSwingTrajectoryPlanner()->getSwingPhaseProgress(leg, currentTime_);
+            const bool isLateSwing = swingProgress >= 0.0 && swingProgress >= activationProgress;
+            if (!(hasPolygon && !isContact && isLateSwing))
+            {
+                continue;
+            }
+
+            const auto projection = selector.getProjection(leg, currentTime_);
+            if (projection.regionPtr == nullptr)
+            {
+                continue;
+            }
+
+            matrix_t polytopeA;
+            vector_t polytopeB;
+            std::tie(polytopeA, polytopeB) = getPolygonConstraint(polygon);
+            if (polytopeA.rows() == 0)
+            {
+                continue;
+            }
+
+            matrix_t planeSelector = matrix_t::Zero(2, 3);
+            planeSelector(0, 0) = 1.0;
+            planeSelector(1, 1) = 1.0;
+            const auto planeToWorld = projection.regionPtr->transformPlaneToWorld;
+            const auto worldToPlane = planeToWorld.inverse();
+            const matrix_t A = polytopeA * planeSelector * worldToPlane.linear();
+            const vector_t b = polytopeB + polytopeA * worldToPlane.translation().head(2);
+            const size_t numRows = static_cast<size_t>(A.rows());
+
+            const vector3_t& position = posMeasured[leg];
+            const vector3_t& velocity = velMeasured[leg];
+            const matrix_t J = j_.block(3 * leg, 0, 3, info_.generalizedCoordinatesNum);
+            const matrix_t dJ = dj_.block(3 * leg, 0, 3, info_.generalizedCoordinatesNum);
+            const vector3_t dJv = dJ * v_measured_;
+
+            const scalar_t relaxation = perceptiveRefMgr->getFootPlacementRelaxation(leg, currentTime_);
+            const scalar_t relaxationNext = perceptiveRefMgr->getFootPlacementRelaxation(leg, currentTime_ + dt);
+            const scalar_t relaxationNext2 = perceptiveRefMgr->getFootPlacementRelaxation(leg, currentTime_ + 2.0 * dt);
+            const scalar_t relaxationRate = clampSymmetric((relaxationNext - relaxation) / dt,
+                                                           foot_cbf_max_relaxation_rate_);
+            const scalar_t relaxationAccel = clampSymmetric(
+                (relaxationNext2 - 2.0 * relaxationNext + relaxation) / (dt * dt),
+                foot_cbf_max_relaxation_accel_);
+
+            vector_t relaxationOffset = vector_t::Zero(numRows);
+            vector_t relaxationRateOffset = vector_t::Zero(numRows);
+            vector_t relaxationAccelOffset = vector_t::Zero(numRows);
+            for (int row = 0; row < A.rows(); ++row)
+            {
+                const scalar_t rowNorm = A.row(row).norm();
+                relaxationOffset(row) = relaxation * rowNorm;
+                relaxationRateOffset(row) = relaxationRate * rowNorm;
+                relaxationAccelOffset(row) = relaxationAccel * rowNorm;
+            }
+
+            const vector_t h = A * position + b + relaxationOffset;
+            const vector_t hDot = A * velocity + relaxationRateOffset;
+
+            matrix_t dLeg = matrix_t::Zero(numRows, num_decision_vars_);
+            dLeg.block(0, 0, numRows, info_.generalizedCoordinatesNum) = -A * J;
+            vector_t fLeg = A * dJv + relaxationAccelOffset +
+                            (foot_cbf_gamma_ + foot_cbf_xi_) * hDot +
+                            foot_cbf_gamma_ * foot_cbf_xi_ * h;
+
+            dBlocks.push_back(std::move(dLeg));
+            fBlocks.push_back(std::move(fLeg));
+        }
+
+        if (dBlocks.empty())
+        {
+            return {matrix_t(), vector_t(), matrix_t(), vector_t()};
+        }
+
+        matrix_t d = dBlocks.front();
+        vector_t f = fBlocks.front();
+        for (size_t index = 1; index < dBlocks.size(); ++index)
+        {
+            d = Task::concatenateMatrices(d, dBlocks[index]);
+            f = Task::concatenateVectors(f, fBlocks[index]);
+        }
+
+        return {matrix_t(), vector_t(), d, f};
+    }
+
     void WbcBase::loadTasksSetting(const std::string& taskFile, const bool verbose)
     {
         // Load task file
@@ -316,5 +489,40 @@ namespace ocs2::legged_robot
         }
         loadData::loadPtreeValue(pt, swing_kp_, prefix + "kp", verbose);
         loadData::loadPtreeValue(pt, swing_kd_, prefix + "kd", verbose);
+
+        prefix = "footPlacementCbfTask.";
+        if (verbose)
+        {
+            std::cerr << "\n #### Foot Placement CBF Task:";
+            std::cerr << "\n #### =============================================================================\n";
+        }
+        if (const auto gamma = pt.get_optional<scalar_t>(prefix + "gamma"))
+        {
+            foot_cbf_gamma_ = *gamma;
+        }
+        if (const auto xi = pt.get_optional<scalar_t>(prefix + "xi"))
+        {
+            foot_cbf_xi_ = *xi;
+        }
+        if (const auto relaxationDerivativeDt = pt.get_optional<scalar_t>(prefix + "relaxationDerivativeDt"))
+        {
+            foot_cbf_relaxation_derivative_dt_ = *relaxationDerivativeDt;
+        }
+        if (const auto maxRelaxationRate = pt.get_optional<scalar_t>(prefix + "maxRelaxationRate"))
+        {
+            foot_cbf_max_relaxation_rate_ = *maxRelaxationRate;
+        }
+        if (const auto maxRelaxationAccel = pt.get_optional<scalar_t>(prefix + "maxRelaxationAccel"))
+        {
+            foot_cbf_max_relaxation_accel_ = *maxRelaxationAccel;
+        }
+        if (verbose)
+        {
+            std::cerr << prefix << "gamma: " << foot_cbf_gamma_ << std::endl;
+            std::cerr << prefix << "xi: " << foot_cbf_xi_ << std::endl;
+            std::cerr << prefix << "relaxationDerivativeDt: " << foot_cbf_relaxation_derivative_dt_ << std::endl;
+            std::cerr << prefix << "maxRelaxationRate: " << foot_cbf_max_relaxation_rate_ << std::endl;
+            std::cerr << prefix << "maxRelaxationAccel: " << foot_cbf_max_relaxation_accel_ << std::endl;
+        }
     }
 } // namespace legged

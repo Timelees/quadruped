@@ -40,16 +40,21 @@ namespace ocs2::legged_robot
         return polygon.size();
     }
 
-    vector_t FootPlacementConstraint::getValue(scalar_t /*time*/, const vector_t& state,
+    vector_t FootPlacementConstraint::getValue(scalar_t time, const vector_t& state,
                                                const PreComputation& preComp) const
     {
         const auto param = cast<PerceptiveLeggedPrecomputation>(preComp).getFootPlacementConParameters()[
             contactPointIndex_];
-        return param.a * endEffectorKinematicsPtr_->getPosition(state).front() + param.b;
+        const auto rawValue = computeRawConstraintValue(state, param);    // h​(x)=Ai​⋅pWi​​(x)+bi​≥0
+        const auto relaxationDistance = dynamic_cast<const PerceptiveLeggedReferenceManager&>(*referenceManagerPtr_)
+                                            .getFootPlacementRelaxation(contactPointIndex_, time);
+        const auto relaxationOffset = computeRelaxationOffset(param, relaxationDistance);
+
+        return rawValue + relaxationOffset;
     }
 
     VectorFunctionLinearApproximation FootPlacementConstraint::getLinearApproximation(
-        scalar_t /*time*/, const vector_t& state,
+        scalar_t time, const vector_t& state,
         const PreComputation& preComp) const
     {
         const auto param = cast<PerceptiveLeggedPrecomputation>(preComp).getFootPlacementConParameters()[
@@ -61,8 +66,27 @@ namespace ocs2::legged_robot
             numConstraints, state.size(), 0);
 
         const auto positionApprox = endEffectorKinematicsPtr_->getPositionLinearApproximation(state).front();
-        approx.f = param.a * positionApprox.f + param.b;
+        const auto relaxationDistance = dynamic_cast<const PerceptiveLeggedReferenceManager&>(*referenceManagerPtr_)
+                                            .getFootPlacementRelaxation(contactPointIndex_, time);
+        const auto relaxationOffset = computeRelaxationOffset(param, relaxationDistance);
+        approx.f = param.a * positionApprox.f + param.b + relaxationOffset;
         approx.dfdx = param.a * positionApprox.dfdx;
         return approx;
+    }
+
+  
+    vector_t FootPlacementConstraint::computeRawConstraintValue(const vector_t& state, const Parameter& param) const
+    {
+        return param.a * endEffectorKinematicsPtr_->getPosition(state).front() + param.b;    // h​(x)=Ai​⋅pWi​​(x)+bi​≥0
+    }
+
+    vector_t FootPlacementConstraint::computeRelaxationOffset(const Parameter& param, scalar_t relaxationDistance) const
+    {
+        vector_t relaxationOffset = vector_t::Zero(param.a.rows());
+        for (int row = 0; row < param.a.rows(); ++row)
+        {
+            relaxationOffset(row) = relaxationDistance * param.a.row(row).norm();
+        }
+        return relaxationOffset;
     }
 } // namespace legged

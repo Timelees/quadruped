@@ -670,10 +670,10 @@ namespace ocs2::legged_robot
 
                         // 边缘距离惩罚函数，鼓励落足点远离边界，提升安全性
                         auto penaltyFunction = [this](const vector3_t& projectedPointInWorld) -> double {
-                            if (footholdScorer_ != nullptr)
-                            {
-                                return footholdScorer_->computePenalty(projectedPointInWorld);
-                            }
+                            // if (footholdScorer_ != nullptr)
+                            // {
+                            //     return footholdScorer_->computePenalty(projectedPointInWorld);
+                            // }
                             return 0.0;
                         };
                         auto safeProjection = getBestPlanarRegionAtPositionInWorld(
@@ -833,6 +833,32 @@ namespace ocs2::legged_robot
                                          jointEvent.projectedFoothold, jointEvent.candidateScores,
                                          jointEvent.selectedIndex);
                 }
+            }
+
+            // During swing, reuse the next touchdown polygon so MPC can enforce a time-varying
+            // convergence toward the target foothold region before contact is established.
+            for (int i = static_cast<int>(numPhases) - 2; i >= 0; --i)
+            {
+                if (contactFlagStocks[leg][static_cast<size_t>(i)])
+                {
+                    continue;
+                }
+
+                int nextContactIndex = i + 1;
+                while (nextContactIndex < static_cast<int>(numPhases) &&
+                       !contactFlagStocks[leg][static_cast<size_t>(nextContactIndex)])
+                {
+                    ++nextContactIndex;
+                }
+
+                if (nextContactIndex >= static_cast<int>(numPhases))
+                {
+                    continue;
+                }
+
+                feetProjections_[leg][static_cast<size_t>(i)] = feetProjections_[leg][static_cast<size_t>(nextContactIndex)];
+                convexPolygons_[leg][static_cast<size_t>(i)] = convexPolygons_[leg][static_cast<size_t>(nextContactIndex)];
+                nominalFootholds_[leg][static_cast<size_t>(i)] = nominalFootholds_[leg][static_cast<size_t>(nextContactIndex)];
             }
         }
 

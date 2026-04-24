@@ -16,17 +16,43 @@ namespace ocs2::legged_robot
     class PerceptiveLeggedReferenceManager : public SwitchedModelReferenceManager
     {
     public:
+        struct FootPlacementRelaxationConfig
+        {
+            FootPlacementRelaxationConfig(scalar_t maxRelaxationValue = 0.04,
+                                          scalar_t relaxationPowerValue = 2.0,
+                                          scalar_t swingActivationProgressValue = 0.7)
+                : maxRelaxation(maxRelaxationValue),
+                  relaxationPower(relaxationPowerValue),
+                  swingActivationProgress(swingActivationProgressValue)
+            {
+            }
+
+            scalar_t maxRelaxation = 0.04;
+            scalar_t relaxationPower = 2.0;
+            scalar_t swingActivationProgress = 0.7;
+        };
+
         PerceptiveLeggedReferenceManager(CentroidalModelInfo info, std::shared_ptr<GaitSchedule> gaitSchedulePtr,
                                          std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr,
                                          std::shared_ptr<ConvexRegionSelector> convexRegionSelectorPtr,
                                          const EndEffectorKinematics<scalar_t>& endEffectorKinematics,
-                                         scalar_t comHeight);
+                                         scalar_t comHeight,
+                                         FootPlacementRelaxationConfig footPlacementRelaxationConfig =
+                                             FootPlacementRelaxationConfig());
 
         const std::shared_ptr<ConvexRegionSelector>& getConvexRegionSelectorPtr() const { return convexRegionSelectorPtr_; }
 
         void setEdgeSpheres(std::shared_ptr<EdgeSphereArray> edgeSpheresPtr);
 
         contact_flag_t getFootPlacementFlags(scalar_t time) const;
+
+        scalar_t getFootPlacementRelaxation(size_t leg, scalar_t time) const;
+
+        const FootPlacementRelaxationConfig& getFootPlacementRelaxationConfig() const
+        {
+            return footPlacementRelaxationConfig_;
+        }
+
 
     protected:
         void modifyReferences(scalar_t initTime, scalar_t finalTime, const vector_t& initState,
@@ -59,6 +85,7 @@ namespace ocs2::legged_robot
         std::unique_ptr<EndEffectorKinematics<scalar_t>> endEffectorKinematicsPtr_;
 
         scalar_t comHeight_;
+        FootPlacementRelaxationConfig footPlacementRelaxationConfig_;
 
         std::unique_ptr<EdgeAwareFootholdScorer> footholdScorer_;
         std::shared_ptr<EdgeSphereArray> edgeSpheresPtr_;

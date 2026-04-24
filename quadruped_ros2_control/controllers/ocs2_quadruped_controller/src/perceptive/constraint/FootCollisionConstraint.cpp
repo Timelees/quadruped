@@ -4,7 +4,7 @@
 #include "ocs2_quadruped_controller/perceptive/constraint/FootCollisionConstraint.h"
 
 
-/* 足端碰撞约束 */
+/* 足端碰撞约束：保证机器人摆动腿的足端与周围障碍物之间至少保持一个安全距离*/
 namespace ocs2::legged_robot
 {
     FootCollisionConstraint::FootCollisionConstraint(const SwitchedModelReferenceManager& referenceManager,
