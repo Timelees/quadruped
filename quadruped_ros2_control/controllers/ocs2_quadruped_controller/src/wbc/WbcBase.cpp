@@ -6,6 +6,7 @@
 
 #include <utility>
 #include <algorithm>
+#include <vector>
 
 #include <pinocchio/fwd.hpp>  // forward declarations must be included first.
 #include <pinocchio/algorithm/centroidal.hpp>
@@ -356,7 +357,9 @@ namespace ocs2::legged_robot
         }
 
         const auto& selector = *perceptiveRefMgr->getConvexRegionSelectorPtr();
-        const scalar_t activationProgress = perceptiveRefMgr->getFootPlacementRelaxationConfig().swingActivationProgress;
+        const scalar_t activationProgress = foot_cbf_activation_progress_ >= 0.0
+                                                ? foot_cbf_activation_progress_
+                                                : perceptiveRefMgr->getFootPlacementRelaxationConfig().swingActivationProgress;
         const scalar_t dt = std::max<scalar_t>(foot_cbf_relaxation_derivative_dt_, 1e-6);
 
         ee_kinematics_->setPinocchioInterface(pinocchio_interface_measured_);
@@ -504,6 +507,10 @@ namespace ocs2::legged_robot
         {
             foot_cbf_xi_ = *xi;
         }
+        if (const auto activationProgress = pt.get_optional<scalar_t>(prefix + "swingActivationProgress"))
+        {
+            foot_cbf_activation_progress_ = *activationProgress;
+        }
         if (const auto relaxationDerivativeDt = pt.get_optional<scalar_t>(prefix + "relaxationDerivativeDt"))
         {
             foot_cbf_relaxation_derivative_dt_ = *relaxationDerivativeDt;
@@ -520,6 +527,7 @@ namespace ocs2::legged_robot
         {
             std::cerr << prefix << "gamma: " << foot_cbf_gamma_ << std::endl;
             std::cerr << prefix << "xi: " << foot_cbf_xi_ << std::endl;
+            std::cerr << prefix << "swingActivationProgress: " << foot_cbf_activation_progress_ << std::endl;
             std::cerr << prefix << "relaxationDerivativeDt: " << foot_cbf_relaxation_derivative_dt_ << std::endl;
             std::cerr << prefix << "maxRelaxationRate: " << foot_cbf_max_relaxation_rate_ << std::endl;
             std::cerr << prefix << "maxRelaxationAccel: " << foot_cbf_max_relaxation_accel_ << std::endl;

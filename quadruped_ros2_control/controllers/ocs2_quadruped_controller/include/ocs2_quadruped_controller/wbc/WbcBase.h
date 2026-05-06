@@ -80,6 +80,7 @@ namespace ocs2::legged_robot
         scalar_t friction_coeff_{}, swing_kp_{}, swing_kd_{};
         scalar_t foot_cbf_gamma_ = 1.0;
         scalar_t foot_cbf_xi_ = 5.0;
+        scalar_t foot_cbf_activation_progress_ = 0.0;
         scalar_t foot_cbf_relaxation_derivative_dt_ = 0.02;
         scalar_t foot_cbf_max_relaxation_rate_ = 0.5;
         scalar_t foot_cbf_max_relaxation_accel_ = 2.0;

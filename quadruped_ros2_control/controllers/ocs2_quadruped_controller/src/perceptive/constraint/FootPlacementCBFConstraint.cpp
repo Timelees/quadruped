@@ -35,8 +35,10 @@ namespace ocs2::legged_robot
 		const bool hasPolygon = selector.getConvexPolygon(contactPointIndex_, time).size() >= 3;
 		const bool isContact = refMgr.getContactFlags(time)[contactPointIndex_];
 		const scalar_t swingProgress = refMgr.getSwingTrajectoryPlanner()->getSwingPhaseProgress(contactPointIndex_, time);
-		const bool isLateSwing = swingProgress >= 0.0 &&
-								 swingProgress >= refMgr.getFootPlacementRelaxationConfig().swingActivationProgress;
+		const scalar_t activationProgress = config_.swingActivationProgress >= 0.0
+		                                        ? config_.swingActivationProgress
+		                                        : refMgr.getFootPlacementRelaxationConfig().swingActivationProgress;
+		const bool isLateSwing = swingProgress >= 0.0 && swingProgress >= activationProgress;
 		return hasPolygon && !isContact && isLateSwing;
 	}
 

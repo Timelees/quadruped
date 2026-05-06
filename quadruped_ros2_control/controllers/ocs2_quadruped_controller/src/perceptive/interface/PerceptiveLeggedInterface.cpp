@@ -276,6 +276,10 @@ namespace ocs2::legged_robot
         {
             cbfConfig.gamma = *gamma;
         }
+        if (const auto activationProgress = pt.get_optional<scalar_t>(prefix + "swingActivationProgress"))
+        {
+            cbfConfig.swingActivationProgress = *activationProgress;
+        }
         if (const auto relaxationDerivativeDt = pt.get_optional<scalar_t>(prefix + "relaxationDerivativeDt"))
         {
             cbfConfig.relaxationDerivativeDt = *relaxationDerivativeDt;
@@ -291,6 +295,7 @@ namespace ocs2::legged_robot
         if (verbose)
         {
             std::cerr << prefix << "gamma: " << cbfConfig.gamma << std::endl;
+            std::cerr << prefix << "swingActivationProgress: " << cbfConfig.swingActivationProgress << std::endl;
             std::cerr << prefix << "relaxationDerivativeDt: " << cbfConfig.relaxationDerivativeDt << std::endl;
             std::cerr << prefix << "mu: " << barrierConfig.mu << std::endl;
             std::cerr << prefix << "delta: " << barrierConfig.delta << std::endl;

@@ -15,6 +15,7 @@ namespace ocs2::legged_robot
         struct Config
         {
             scalar_t gamma = 5.0;
+            scalar_t swingActivationProgress = -1.0;
             scalar_t relaxationDerivativeDt = 1e-3;
         };
 
