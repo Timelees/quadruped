@@ -553,8 +553,8 @@ namespace ocs2::legged_robot
         return true;
     }
 
-    // 将参考五次样条拟合成 B 样条控制点，避免直接把曲线采样点误当控制点后压平轨迹。
-    void SwingTrajectoryQpOptimizer::sampleReferenceTrajectoryToControlPoints(const QuinticSplineCpg &refSpline,
+    // 将参考 B 样条重采样到 QP 使用的控制点数量。
+    void SwingTrajectoryQpOptimizer::sampleReferenceTrajectoryToControlPoints(const BSpline &refSpline,
                                                                                scalar_t swingStartTime, scalar_t swingFinalTime,
                                                                                const Eigen::Vector3d &liftOffPos3d, const Eigen::Vector3d &touchDownPos3d,
                                                                                std::vector<Eigen::Vector3d> &controlPoints) const
@@ -583,8 +583,7 @@ namespace ocs2::legged_robot
         Eigen::VectorXd referenceCurveZ(fitSampleCount);
         for (int i = 0; i < fitSampleCount; ++i)
         {
-            const double t = swingStartTime + fitParams[i] * (swingFinalTime - swingStartTime);
-            referenceCurveZ[i] = refSpline.position(t);
+            referenceCurveZ[i] = refSpline.getPosition(fitParams[i]).z();
         }
 
         const Eigen::VectorXd fittedControlZ = fitReferenceControlPointsToCurve(
@@ -1173,7 +1172,7 @@ namespace ocs2::legged_robot
 
     // 优化摆动足轨迹，确保满足地形和球障碍约束，同时尽量跟踪参考轨迹。返回优化后的轨迹样本序列。
     SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::optimizeSwingTrajectory(
-        const QuinticSplineCpg &refSpline,
+        const BSpline &refSpline,
         scalar_t swingStartTime,
         scalar_t swingFinalTime,
         const Eigen::Vector3d &liftOffPos3d,
@@ -1205,8 +1204,7 @@ namespace ocs2::legged_robot
         Eigen::VectorXd refCurveZ(config_.numCurveSamples);
         for (int i = 0; i < config_.numCurveSamples; ++i)
         {
-            const double t = swingStartTime + sampleParams[i] * (swingFinalTime - swingStartTime);
-            refCurveZ[i] = refSpline.position(t);
+            refCurveZ[i] = refSpline.getPosition(sampleParams[i]).z();
         }
         const Eigen::VectorXd terrainHeights = computeTerrainHeightProfile(sampleX, sampleY);
         const Eigen::VectorXd sphereHeights = computeSphereHeightProfile(sampleX, sampleY, nearbySpheres);

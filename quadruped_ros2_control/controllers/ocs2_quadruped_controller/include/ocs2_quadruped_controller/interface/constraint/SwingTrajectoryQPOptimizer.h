@@ -1,7 +1,7 @@
 /******************************************************************************
  * CLF-CBF QP Swing Trajectory Optimizer
  *
- * 将摆动相足端视为双积分器(质点)模型，以预设的五次样条参考轨迹构建 CLF（稳定性），
+ * 将摆动相足端视为双积分器(质点)模型，以预设的 B 样条参考轨迹构建 CLF（稳定性），
  * 以地形高程信息构建 HOCBF（安全约束），通过求解小规模二次规划问题(QP)获得
  * 修正后的加速度，从而在线生成既跟踪参考又绝对避碰的轨迹。
  *
@@ -30,7 +30,6 @@
 #include <grid_map_core/GridMap.hpp>
 #include <convex_plane_decomposition/PlanarRegion.h>
 
-#include "ocs2_quadruped_controller/interface/constraint/QuinticSplineCpg.h"
 #include "ocs2_quadruped_controller/interface/constraint/BSpline.h"
 #include "ocs2_quadruped_controller/perceptive/synchronize/EdgeSphere.h"
 
@@ -131,7 +130,7 @@ private:
 /**
  * @brief CLF-CBF QP 摆动轨迹优化器
  *
- * 给定参考轨迹(由 QuinticSplineCpg 生成)和地形信息，通过逐时间步求解 QP
+ * 给定 B 样条参考轨迹和地形信息，通过逐时间步求解 QP
  * 获得修正后的加速度序列，再积分得到平滑且避碰的优化轨迹。
  */
 class SwingTrajectoryQpOptimizer {
@@ -157,7 +156,7 @@ public:
      * @brief 优化单条腿的摆动轨迹 
      */
     OptimizedTrajectory optimizeSwingTrajectory(
-        const QuinticSplineCpg& refSpline,
+        const BSpline& refSpline,
         scalar_t swingStartTime,
         scalar_t swingFinalTime,
         const Eigen::Vector3d& liftOffPos3d,
@@ -193,7 +192,7 @@ private:
                                   const Eigen::Vector3d& touchDown,
                                   scalar_t t, scalar_t t0, scalar_t tf) const;
     
-    void sampleReferenceTrajectoryToControlPoints(const QuinticSplineCpg &refSpline,
+    void sampleReferenceTrajectoryToControlPoints(const BSpline &refSpline,
                                                 scalar_t swingStartTime, scalar_t swingFinalTime,
                                                 const Eigen::Vector3d &liftOffPos3d, const Eigen::Vector3d &touchDownPos3d,
                                                 std::vector<Eigen::Vector3d> &controlPoints) const;

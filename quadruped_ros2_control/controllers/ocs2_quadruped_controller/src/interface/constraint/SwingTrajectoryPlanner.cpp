@@ -36,6 +36,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <utility>
 #include <ocs2_core/misc/LoadData.h>
 #include <ocs2_core/misc/Lookup.h>
 
@@ -45,7 +46,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace ocs2::legged_robot
 {
 
-    SwingTrajectoryPlanner::SwingTrajectoryPlanner(Config config, size_t numFeet) : config_(std::move(config)),
+    SwingTrajectoryPlanner::SwingTrajectoryPlanner(Config config, size_t numFeet) : config_(config),
                                                                                     numFeet_(numFeet)
     {
     }
@@ -75,39 +76,14 @@ namespace ocs2::legged_robot
             return false;
         }
 
-        if (lockedTrajectory.useBspline)
+        if (lockedTrajectory.bspline)
         {
-            if (!lockedTrajectory.bspline)
-            {
-                return false;
-            }
-            feetHeightBsplines_[leg][phaseIndex] = *lockedTrajectory.bspline;
+            feetHeightTrajectories_[leg][phaseIndex] = *lockedTrajectory.bspline;
             feetBSplineTimeRanges_[leg][phaseIndex] = {lockedTrajectory.startTime, lockedTrajectory.endTime};
-            feetUseBSpline_[leg][phaseIndex] = true;
-        }
-        else
-        {
-            if (!lockedTrajectory.referenceSpline)
-            {
-                return false;
-            }
-            feetHeightTrajectories_[leg][phaseIndex] = *lockedTrajectory.referenceSpline;
-            feetUseBSpline_[leg][phaseIndex] = false;
+            return true;
         }
 
-        return true;
-    }
-
-    void SwingTrajectoryPlanner::lockReferenceSwingTrajectory(size_t leg, scalar_t startTime, scalar_t endTime,
-                                                              const QuinticSplineCpg &referenceSpline)
-    {
-        auto &lockedTrajectory = lockedSwingTrajectories_[leg];
-        lockedTrajectory.active = true;
-        lockedTrajectory.useBspline = false;
-        lockedTrajectory.startTime = startTime;
-        lockedTrajectory.endTime = endTime;
-        lockedTrajectory.referenceSpline = std::make_shared<QuinticSplineCpg>(referenceSpline);
-        lockedTrajectory.bspline.reset();
+        return false;
     }
 
     void SwingTrajectoryPlanner::lockOptimizedSwingTrajectory(size_t leg, scalar_t startTime, scalar_t endTime,
@@ -115,10 +91,8 @@ namespace ocs2::legged_robot
     {
         auto &lockedTrajectory = lockedSwingTrajectories_[leg];
         lockedTrajectory.active = true;
-        lockedTrajectory.useBspline = true;
         lockedTrajectory.startTime = startTime;
         lockedTrajectory.endTime = endTime;
-        lockedTrajectory.referenceSpline.reset();
         lockedTrajectory.bspline = std::make_shared<BSpline>(bspline);
     }
 
@@ -127,21 +101,11 @@ namespace ocs2::legged_robot
         if (leg < numFeet_)
         {
             const auto &lockedTrajectory = lockedSwingTrajectories_[leg];
-            if (lockedTrajectory.contains(time))
+            if (lockedTrajectory.contains(time) && lockedTrajectory.bspline)
             {
-                if (lockedTrajectory.useBspline && lockedTrajectory.bspline)
-                {
-                    const scalar_t duration = lockedTrajectory.endTime - lockedTrajectory.startTime;
-                    const scalar_t u = (duration > 1e-9)
-                                           ? std::min<scalar_t>(scalar_t(1), std::max<scalar_t>(scalar_t(0), (time - lockedTrajectory.startTime) / duration))
-                                           : scalar_t(0);
-                    return static_cast<scalar_t>(lockedTrajectory.bspline->getVelocity(u).z()) / std::max<scalar_t>(duration, 1e-9);
-                }
-
-                if (!lockedTrajectory.useBspline && lockedTrajectory.referenceSpline)
-                {
-                    return lockedTrajectory.referenceSpline->velocity(time);
-                }
+                const scalar_t duration = std::max<scalar_t>(lockedTrajectory.endTime - lockedTrajectory.startTime, 1e-9);
+                const scalar_t u = std::min<scalar_t>(scalar_t(1), std::max<scalar_t>(scalar_t(0), (time - lockedTrajectory.startTime) / duration));
+                return static_cast<scalar_t>(lockedTrajectory.bspline->getVelocity(u).z()) / duration;
             }
         }
 
@@ -155,15 +119,12 @@ namespace ocs2::legged_robot
         if (clampedIndex >= 0)
         {
             const auto phaseIndex = static_cast<size_t>(clampedIndex);
-            if (phaseIndex < feetUseBSpline_[leg].size() && feetUseBSpline_[leg][phaseIndex])
-            {
-                const auto &[t0, tf] = feetBSplineTimeRanges_[leg][phaseIndex];
-                const scalar_t duration = std::max<scalar_t>(tf - t0, 1e-9);
-                const scalar_t u = std::min<scalar_t>(scalar_t(1), std::max<scalar_t>(scalar_t(0), (time - t0) / duration));
-                return static_cast<scalar_t>(feetHeightBsplines_[leg][phaseIndex].getVelocity(u).z()) / duration;
-            }
+            const auto &[t0, tf] = feetBSplineTimeRanges_[leg][phaseIndex];
+            const scalar_t duration = std::max<scalar_t>(tf - t0, 1e-9);
+            const scalar_t u = std::min<scalar_t>(scalar_t(1), std::max<scalar_t>(scalar_t(0), (time - t0) / duration));
+            return static_cast<scalar_t>(feetHeightTrajectories_[leg][phaseIndex].getVelocity(u).z()) / duration;
         }
-        return feetHeightTrajectories_[leg][static_cast<size_t>(clampedIndex)].velocity(time);
+        return 0.0;
     }
 
     scalar_t SwingTrajectoryPlanner::getZpositionConstraint(size_t leg, scalar_t time) const
@@ -171,21 +132,11 @@ namespace ocs2::legged_robot
         if (leg < numFeet_)
         {
             const auto &lockedTrajectory = lockedSwingTrajectories_[leg];
-            if (lockedTrajectory.contains(time))
+            if (lockedTrajectory.contains(time) && lockedTrajectory.bspline)
             {
-                if (lockedTrajectory.useBspline && lockedTrajectory.bspline)
-                {
-                    const scalar_t duration = lockedTrajectory.endTime - lockedTrajectory.startTime;
-                    const scalar_t u = (duration > 1e-9)
-                                           ? std::min<scalar_t>(scalar_t(1), std::max<scalar_t>(scalar_t(0), (time - lockedTrajectory.startTime) / duration))
-                                           : scalar_t(0);
-                    return static_cast<scalar_t>(lockedTrajectory.bspline->getPosition(u).z());
-                }
-
-                if (!lockedTrajectory.useBspline && lockedTrajectory.referenceSpline)
-                {
-                    return lockedTrajectory.referenceSpline->position(time);
-                }
+                const scalar_t duration = std::max<scalar_t>(lockedTrajectory.endTime - lockedTrajectory.startTime, 1e-9);
+                const scalar_t u = std::min<scalar_t>(scalar_t(1), std::max<scalar_t>(scalar_t(0), (time - lockedTrajectory.startTime) / duration));
+                return static_cast<scalar_t>(lockedTrajectory.bspline->getPosition(u).z());
             }
         }
 
@@ -199,15 +150,12 @@ namespace ocs2::legged_robot
         if (clampedIndex >= 0)
         {
             const auto phaseIndex = static_cast<size_t>(clampedIndex);
-            if (phaseIndex < feetUseBSpline_[leg].size() && feetUseBSpline_[leg][phaseIndex])
-            {
-                const auto &[t0, tf] = feetBSplineTimeRanges_[leg][phaseIndex];
-                const scalar_t duration = std::max<scalar_t>(tf - t0, 1e-9);
-                const scalar_t u = std::min<scalar_t>(scalar_t(1), std::max<scalar_t>(scalar_t(0), (time - t0) / duration));
-                return static_cast<scalar_t>(feetHeightBsplines_[leg][phaseIndex].getPosition(u).z());
-            }
+            const auto &[t0, tf] = feetBSplineTimeRanges_[leg][phaseIndex];
+            const scalar_t duration = std::max<scalar_t>(tf - t0, 1e-9);
+            const scalar_t u = std::min<scalar_t>(scalar_t(1), std::max<scalar_t>(scalar_t(0), (time - t0) / duration));
+            return static_cast<scalar_t>(feetHeightTrajectories_[leg][phaseIndex].getPosition(u).z());
         }
-        return feetHeightTrajectories_[leg][static_cast<size_t>(clampedIndex)].position(time);
+        return 0.0;
     }
 
     contact_flag_t SwingTrajectoryPlanner::getContactFlags(scalar_t time) const
@@ -293,9 +241,8 @@ namespace ocs2::legged_robot
         {
             optimizedTrajectories_[leg].clear();
             optimizedTrajectories_[leg].resize(modeSequence.size());
-            feetUseBSpline_[leg].assign(modeSequence.size(), false);
-            feetHeightBsplines_[leg].clear();
-            feetHeightBsplines_[leg].resize(modeSequence.size(), BSpline(3));
+            feetHeightTrajectories_[leg].clear();
+            feetHeightTrajectories_[leg].resize(modeSequence.size(), BSpline(3));
             feetBSplineTimeRanges_[leg].assign(modeSequence.size(), {0.0, 1.0});
         }
         // 提取步态相位接触状态
@@ -310,9 +257,6 @@ namespace ocs2::legged_robot
         // 为每个相位生成轨迹
         for (size_t j = 0; j < numFeet_; j++)
         {
-            feetHeightTrajectories_[j].clear();
-            feetHeightTrajectories_[j].reserve(modeSequence.size());
-
             for (size_t p = 0; p < modeSequence.size(); ++p)
             {
                 if (!eesContactFlagStocks[j][p])
@@ -322,36 +266,23 @@ namespace ocs2::legged_robot
                     const int swingFinalIndex = finalTimesIndices_[j][p];
                     const auto [swingStartTime, swingFinalTime] = resolveSwingTimeInterval(eventTimes, swingStartIndex, swingFinalIndex);
 
-                    // 计算时间缩放因子
                     const scalar_t scaling = swingTrajectoryScaling(swingStartTime, swingFinalTime,
                                                                     config_.swingTimeScale);
-                    // // 定义轨迹节点 (三次样条，端点加速度设为 0)
-                    // const CubicSpline::Node liftOff{
-                    //     swingStartTime, liftOffHeightSequence[j][p], scaling * config_.liftOffVelocity
-                    // };
-                    // 定义轨迹节点（五次样条，端点加速度设为 0）
-                    const QuinticSpline::Node liftOff{
-                        swingStartTime, liftOffHeightSequence[j][p], scaling * config_.liftOffVelocity, 0.0};
-
-                    // const CubicSpline::Node touchDown{
-                    //     swingFinalTime, touchDownHeightSequence[j][p], scaling * config_.touchDownVelocity
-                    // };
-                    const QuinticSpline::Node touchDown{
-                        swingFinalTime, touchDownHeightSequence[j][p], scaling * config_.touchDownVelocity, 0.0};
                     const scalar_t midHeight = maxHeightSequence[j][p] + scaling * config_.swingHeight;
 
-                    feetHeightTrajectories_[j].emplace_back(liftOff, midHeight, touchDown);
+                    feetHeightTrajectories_[j][p] = createSwingHeightBSpline(
+                        swingStartTime, swingFinalTime,
+                        liftOffHeightSequence[j][p], touchDownHeightSequence[j][p],
+                        scaling * config_.liftOffVelocity, scaling * config_.touchDownVelocity,
+                        midHeight);
+                    feetBSplineTimeRanges_[j][p] = {swingStartTime, swingFinalTime};
                 }
                 else
                 {
                     // for a stance leg
-                    // Note: setting the time here arbitrarily to 0.0 -> 1.0 makes the assert in CubicSpline fail
-                    // const CubicSpline::Node liftOff{0.0, liftOffHeightSequence[j][p], 0.0};
-                    // const CubicSpline::Node touchDown{1.0, liftOffHeightSequence[j][p], 0.0};
-                    const QuinticSpline::Node liftOff{0.0, liftOffHeightSequence[j][p], 0.0, 0.0};
-                    const QuinticSpline::Node touchDown{1.0, liftOffHeightSequence[j][p], 0.0, 0.0};
-
-                    feetHeightTrajectories_[j].emplace_back(liftOff, liftOffHeightSequence[j][p], touchDown);
+                    const scalar_t height = liftOffHeightSequence[j][p];
+                    feetHeightTrajectories_[j][p] = createSwingHeightBSpline(0.0, 1.0, height, height, 0.0, 0.0, height);
+                    feetBSplineTimeRanges_[j][p] = {0.0, 1.0};
                 }
             }
             feetHeightTrajectoriesEvents_[j] = eventTimes;
@@ -408,8 +339,9 @@ namespace ocs2::legged_robot
         }
 
         // find the starting time
+        const int currentIndex = static_cast<int>(index);
         int startTimesIndex = -1;
-        for (int ip = index - 1; ip >= 0; ip--)
+        for (int ip = currentIndex - 1; ip >= 0; ip--)
         {
             if (contactFlagStock[ip])
             {
@@ -419,10 +351,10 @@ namespace ocs2::legged_robot
         }
 
         // find the final time
-        int finalTimesIndex = numPhases - 1;
-        for (size_t ip = index + 1; ip < numPhases; ip++)
+        int finalTimesIndex = static_cast<int>(numPhases) - 1;
+        for (int ip = currentIndex + 1; ip < static_cast<int>(numPhases); ip++)
         {
-            if (contactFlagStock[ip])
+            if (contactFlagStock[static_cast<size_t>(ip)])
             {
                 finalTimesIndex = ip - 1;
                 break;
@@ -471,7 +403,43 @@ namespace ocs2::legged_robot
         return std::min(1.0, (finalTime - startTime) / swingTimeScale);
     }
 
+    BSpline SwingTrajectoryPlanner::createSwingHeightBSpline(scalar_t swingStartTime,
+                                                             scalar_t swingFinalTime,
+                                                             scalar_t liftOffHeight,
+                                                             scalar_t touchDownHeight,
+                                                             scalar_t liftOffVelocity,
+                                                             scalar_t touchDownVelocity,
+                                                             scalar_t midHeight)
+    {
+        constexpr int degree = 3;
+        constexpr int numControlPoints = 7;
+        const scalar_t duration = swingFinalTime - swingStartTime;
 
+        Eigen::VectorXd x = Eigen::VectorXd::LinSpaced(numControlPoints, 0.0, 1.0);
+        Eigen::VectorXd y = Eigen::VectorXd::Zero(numControlPoints);
+        Eigen::VectorXd z(numControlPoints);
+
+        const scalar_t liftOffSlopeU = liftOffVelocity * duration;
+        const scalar_t touchDownSlopeU = touchDownVelocity * duration;
+        const scalar_t startHandle = liftOffHeight + liftOffSlopeU / 12.0;
+        const scalar_t finalHandle = touchDownHeight - touchDownSlopeU / 12.0;
+
+        z[0] = liftOffHeight;
+        z[1] = startHandle;
+        const scalar_t shoulderHeight = 0.5 * (midHeight + std::max(startHandle, finalHandle));
+        z[2] = shoulderHeight;
+        z[4] = shoulderHeight;
+        z[5] = finalHandle;
+        z[6] = touchDownHeight;
+
+        // 让 u=0.5 处穿过期望摆高且中点速度为 0，接近原两段样条的摆动峰值特性。
+        z[3] = 1.5 * midHeight - 0.25 * (z[2] + z[4]);
+
+        BSpline spline(degree);
+        spline.setControlPoints(x, y, z);
+        spline.setKnots(spline.generateKnots(numControlPoints, 0.0, 1.0, 0));
+        return spline;
+    }
 
     scalar_t SwingTrajectoryPlanner::getRequiredSafeHeightAtPoint(
         const Eigen::Vector2d &xy,
@@ -517,7 +485,7 @@ namespace ocs2::legged_robot
 
 
     SwingTrajectoryPlanner::TrajectoryCollisionInfo SwingTrajectoryPlanner::evaluateReferenceTrajectoryCollision(
-        const QuinticSplineCpg &spline,
+        const BSpline &spline,
         scalar_t swingStartTime,
         scalar_t swingFinalTime,
         const Eigen::Vector3d &liftOffPos3d,
@@ -531,17 +499,15 @@ namespace ocs2::legged_robot
             return result;
         }
 
-        const scalar_t duration = swingFinalTime - swingStartTime;
         const int nSamples = std::max(2, collisionInfo_.nSamples);
         bool evaluatedSphereClearance = false;
 
         for (int sample = 0 + qpOptimizer_->config_.ignoreSamples; sample <= nSamples - qpOptimizer_->config_.ignoreSamples; ++sample) // 忽略起始和结束的几个采样点，避免过于接近地面或触地点导致的数值问题
         {
             const scalar_t alpha = static_cast<scalar_t>(sample) / static_cast<scalar_t>(nSamples);
-            const scalar_t time = swingStartTime + alpha * duration;
             const Eigen::Vector3d xyPoint = liftOffPos3d + alpha * (touchDownPos3d - liftOffPos3d);
             const Eigen::Vector2d xy = xyPoint.head<2>();
-            const scalar_t splineHeight = spline.position(time);
+            const scalar_t splineHeight = static_cast<scalar_t>(spline.getPosition(alpha).z());
 
             const scalar_t terrainHeight = static_cast<scalar_t>(qpOptimizer_->terrainInterface_->getHeight(xy.x(), xy.y()));
             // std::cout << "[SwingTrajectoryPlanner] 评估轨迹碰撞----Sample " << sample << "/" << nSamples 
@@ -651,7 +617,7 @@ namespace ocs2::legged_robot
         const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositions3d)
     {
 
-        // 步骤1: 先用标准方法生成参考轨迹 (五次样条)
+        // 步骤1: 先用标准方法生成 B 样条参考轨迹
         update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
 
         // 步骤2: 如果 QP 优化器未设置，直接返回
@@ -732,9 +698,6 @@ namespace ocs2::legged_robot
                 const auto [swingStartTime, swingFinalTime] =
                     resolveSwingTimeInterval(eventTimes, swingStartIndex, swingFinalIndex);
 
-                const bool isCurrentSwingPhase = (currentPhaseIndex == p) &&
-                                                (currentTime >= swingStartTime) &&
-                                                (currentTime <= swingFinalTime);
                 const bool shouldLockThisSwing = (phaseToLock == p);
 
                 const bool belongsToLockedSwing = lockedSwingTrajectories_[j].contains(currentTime) &&
@@ -770,9 +733,9 @@ namespace ocs2::legged_robot
                 auto nearbySpheres = qpOptimizer_->filterNearbySpheres(liftOffPos3d, touchDownPos3d);   // 获取轨迹上可能存在的障碍物球体
 
              
-                const auto &refSpline = feetHeightTrajectories_[j][p];
+                const auto &refBSpline = feetHeightTrajectories_[j][p];
                 const auto collision = evaluateReferenceTrajectoryCollision(
-                    refSpline, swingStartTime, swingFinalTime, liftOffPos3d, touchDownPos3d, nearbySpheres);
+                    refBSpline, swingStartTime, swingFinalTime, liftOffPos3d, touchDownPos3d, nearbySpheres);
                 const bool hasCollision = collision.collidesWithTerrain || collision.collidesWithEdgeSphere; // 参考轨迹是否发生碰撞
                 
 
@@ -780,7 +743,7 @@ namespace ocs2::legged_robot
                 {
                     if (shouldLockThisSwing)
                     {
-                        lockReferenceSwingTrajectory(j, swingStartTime, swingFinalTime, refSpline);
+                        lockOptimizedSwingTrajectory(j, swingStartTime, swingFinalTime, refBSpline);
                         applyLockedSwingTrajectory(j, static_cast<size_t>(p));
                     }
                     optimizedTrajectories_[j][p].collisionFree = true;
@@ -789,13 +752,12 @@ namespace ocs2::legged_robot
 
                 // ---- 调用 BSpline QP 优化 ----
                 optimizedTrajectories_[j][p] = qpOptimizer_->optimizeSwingTrajectory(
-                    refSpline, swingStartTime, swingFinalTime, liftOffPos3d, touchDownPos3d, nearbySpheres);
+                    refBSpline, swingStartTime, swingFinalTime, liftOffPos3d, touchDownPos3d, nearbySpheres);
 
                 if (optimizedTrajectories_[j][p].valid())
                 {
-                    feetHeightBsplines_[j][p] = *optimizedTrajectories_[j][p].bspline;
+                    feetHeightTrajectories_[j][p] = *optimizedTrajectories_[j][p].bspline;
                     feetBSplineTimeRanges_[j][p] = {swingStartTime, swingFinalTime};
-                    feetUseBSpline_[j][p] = true;
 
                     if (shouldLockThisSwing)
                     {
@@ -804,7 +766,7 @@ namespace ocs2::legged_robot
                 }
                 else if (shouldLockThisSwing)
                 {
-                    lockReferenceSwingTrajectory(j, swingStartTime, swingFinalTime, refSpline);
+                    lockOptimizedSwingTrajectory(j, swingStartTime, swingFinalTime, refBSpline);
                     applyLockedSwingTrajectory(j, static_cast<size_t>(p));
                 }
             }

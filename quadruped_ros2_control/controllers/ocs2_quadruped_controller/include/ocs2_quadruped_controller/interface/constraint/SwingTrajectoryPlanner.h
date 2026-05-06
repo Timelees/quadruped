@@ -31,10 +31,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <ocs2_core/reference/ModeSchedule.h>
 
-#include <mutex>
 #include <ocs2_legged_robot/common/Types.h>
 #include <ocs2_legged_robot/foot_planner/SplineCpg.h>
-#include "ocs2_quadruped_controller/interface/constraint/QuinticSplineCpg.h"
 #include "ocs2_quadruped_controller/interface/constraint/SwingTrajectoryQPOptimizer.h"
 #include "ocs2_quadruped_controller/perceptive/synchronize/EdgeSphere.h"
 #include "ocs2_quadruped_controller/interface/constraint/BSpline.h"
@@ -117,18 +115,14 @@ namespace ocs2::legged_robot {
     private:
         struct LockedSwingTrajectory {
             bool active = false;
-            bool useBspline = false;
             scalar_t startTime = 0.0;
             scalar_t endTime = 0.0;
-            std::shared_ptr<QuinticSplineCpg> referenceSpline;
             std::shared_ptr<BSpline> bspline;
 
             void reset() {
                 active = false;
-                useBspline = false;
                 startTime = 0.0;
                 endTime = 0.0;
-                referenceSpline.reset();
                 bspline.reset();
             }
 
@@ -185,11 +179,18 @@ namespace ocs2::legged_robot {
 
         static scalar_t swingTrajectoryScaling(scalar_t startTime, scalar_t finalTime, scalar_t swingTimeScale);
 
-        
+        static BSpline createSwingHeightBSpline(scalar_t swingStartTime,
+                                                scalar_t swingFinalTime,
+                                                scalar_t liftOffHeight,
+                                                scalar_t touchDownHeight,
+                                                scalar_t liftOffVelocity,
+                                                scalar_t touchDownVelocity,
+                                                scalar_t midHeight);
+
         scalar_t getRequiredSafeHeightAtPoint(const Eigen::Vector2d& xy,
                              const std::vector<const EdgeSphere*>& nearbySpheres) const;
 
-        TrajectoryCollisionInfo evaluateReferenceTrajectoryCollision(const QuinticSplineCpg& spline,
+        TrajectoryCollisionInfo evaluateReferenceTrajectoryCollision(const BSpline& spline,
                                         scalar_t swingStartTime,
                                         scalar_t swingFinalTime,
                                         const Eigen::Vector3d& liftOffPos3d,
@@ -200,9 +201,6 @@ namespace ocs2::legged_robot {
 
         bool applyLockedSwingTrajectory(size_t leg, size_t phaseIndex);
 
-        void lockReferenceSwingTrajectory(size_t leg, scalar_t startTime, scalar_t endTime,
-                         const QuinticSplineCpg& referenceSpline);
-
         void lockOptimizedSwingTrajectory(size_t leg, scalar_t startTime, scalar_t endTime,
                          const BSpline& bspline);
 
@@ -212,9 +210,7 @@ namespace ocs2::legged_robot {
 
 
         // feet_array_t<std::vector<SplineCpg> > feetHeightTrajectories_;
-        feet_array_t<std::vector<QuinticSplineCpg> > feetHeightTrajectories_;
-        feet_array_t<std::vector<BSpline>> feetHeightBsplines_;                             // 优化后的 B 样条轨迹
-        feet_array_t<std::vector<bool>> feetUseBSpline_;                                    // 是否使用 B 样条
+        feet_array_t<std::vector<BSpline> > feetHeightTrajectories_;                        // 每个相位当前使用的 B 样条轨迹
         feet_array_t<std::vector<std::pair<scalar_t, scalar_t>>> feetBSplineTimeRanges_;    // BSpline 对应的时间区间
         feet_array_t<std::vector<scalar_t> > feetHeightTrajectoriesEvents_;
         feet_array_t<std::vector<bool> > plannedContactFlags_;
