@@ -35,9 +35,6 @@ namespace ocs2::legged_robot
         PerceptiveLeggedPrecomputation(const PerceptiveLeggedPrecomputation& rhs);
 
     private:
-        std::pair<matrix_t, vector_t> getPolygonConstraint(
-            const convex_plane_decomposition::CgalPolygon2d& polygon) const;
-
         const ConvexRegionSelector* convexRegionSelectorPtr_;
         std::vector<FootPlacementConstraint::Parameter> footPlacementConParameters_;
    

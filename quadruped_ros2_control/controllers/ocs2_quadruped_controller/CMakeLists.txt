@@ -90,6 +90,7 @@ add_library(${PROJECT_NAME} SHARED
         src/perceptive/constraint/FootPlacementCBFConstraint.cpp
         src/perceptive/constraint/FootPlacementConstraint.cpp
         src/perceptive/constraint/SphereSdfConstraint.cpp
+        src/perceptive/common/FootPlacementSafetySet.cpp
         src/perceptive/interface/ConvexRegionSelector.cpp
         src/perceptive/interface/PerceptiveLeggedInterface.cpp
         src/perceptive/interface/PerceptiveLeggedPrecomputation.cpp

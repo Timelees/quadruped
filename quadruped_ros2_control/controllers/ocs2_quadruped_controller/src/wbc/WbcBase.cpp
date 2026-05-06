@@ -19,55 +19,14 @@
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include <ocs2_centroidal_model/ModelHelperFunctions.h>
 #include <ocs2_core/misc/LoadData.h>
-#include <convex_plane_decomposition/PolygonTypes.h>
 
+#include "ocs2_quadruped_controller/perceptive/common/FootPlacementSafetySet.h"
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
 
 namespace ocs2::legged_robot
 {
     namespace
     {
-        std::pair<matrix_t, vector_t> getPolygonConstraint(const convex_plane_decomposition::CgalPolygon2d& polygon)
-        {
-            const size_t numVertices = polygon.size();
-            matrix_t polytopeA = matrix_t::Zero(numVertices, 2);
-            vector_t polytopeB = vector_t::Zero(numVertices);
-
-            for (size_t i = 0; i < numVertices; ++i)
-            {
-                size_t j = i + 1;
-                if (j == numVertices)
-                {
-                    j = 0;
-                }
-                size_t k = j + 1;
-                if (k == numVertices)
-                {
-                    k = 0;
-                }
-
-                const auto pointA = polygon.vertex(i);
-                const auto pointB = polygon.vertex(j);
-                const auto pointC = polygon.vertex(k);
-
-                polytopeA.row(i) << pointB.y() - pointA.y(), pointA.x() - pointB.x();
-                polytopeB(i) = pointA.y() * pointB.x() - pointA.x() * pointB.y();
-                if (polytopeA.row(i) * (vector_t(2) << pointC.x(), pointC.y()).finished() + polytopeB(i) < 0)
-                {
-                    polytopeA.row(i) *= -1.0;
-                    polytopeB(i) *= -1.0;
-                }
-            }
-
-            constexpr scalar_t shrinkDistance = 0.01;
-            for (size_t i = 0; i < numVertices; ++i)
-            {
-                polytopeB(i) -= shrinkDistance * polytopeA.row(i).norm();
-            }
-
-            return {polytopeA, polytopeB};
-        }
-
         scalar_t clampSymmetric(scalar_t value, scalar_t limit)
         {
             if (limit <= 0.0)
@@ -371,8 +330,8 @@ namespace ocs2::legged_robot
 
         for (size_t leg = 0; leg < info_.numThreeDofContacts; ++leg)
         {
-            const auto polygon = selector.getConvexPolygon(leg, currentTime_);
-            const bool hasPolygon = polygon.size() >= 3;
+            const auto safetyPolygon = selector.getConvexPolygon(leg, currentTime_);
+            const bool hasPolygon = safetyPolygon.size() >= 3;
             const bool isContact = contact_flag_[leg];
             const scalar_t swingProgress = perceptiveRefMgr->getSwingTrajectoryPlanner()->getSwingPhaseProgress(leg, currentTime_);
             const bool isLateSwing = swingProgress >= 0.0 && swingProgress >= activationProgress;
@@ -387,21 +346,15 @@ namespace ocs2::legged_robot
                 continue;
             }
 
-            matrix_t polytopeA;
-            vector_t polytopeB;
-            std::tie(polytopeA, polytopeB) = getPolygonConstraint(polygon);
-            if (polytopeA.rows() == 0)
+            const auto halfSpace = foot_placement::buildWorldHalfSpace(
+                safetyPolygon, projection.regionPtr->transformPlaneToWorld);
+            if (halfSpace.a.rows() == 0)
             {
                 continue;
             }
 
-            matrix_t planeSelector = matrix_t::Zero(2, 3);
-            planeSelector(0, 0) = 1.0;
-            planeSelector(1, 1) = 1.0;
-            const auto planeToWorld = projection.regionPtr->transformPlaneToWorld;
-            const auto worldToPlane = planeToWorld.inverse();
-            const matrix_t A = polytopeA * planeSelector * worldToPlane.linear();
-            const vector_t b = polytopeB + polytopeA * worldToPlane.translation().head(2);
+            const matrix_t& A = halfSpace.a;
+            const vector_t& b = halfSpace.b;
             const size_t numRows = static_cast<size_t>(A.rows());
 
             const vector3_t& position = posMeasured[leg];

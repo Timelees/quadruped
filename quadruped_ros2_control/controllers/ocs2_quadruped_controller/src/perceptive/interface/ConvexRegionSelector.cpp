@@ -7,6 +7,7 @@
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include <ocs2_core/misc/Lookup.h>
 #include <ocs2_legged_robot/gait/MotionPhaseDefinition.h>
+#include <ocs2_quadruped_controller/perceptive/common/FootPlacementSafetySet.h>
 
 #include <convex_plane_decomposition/ConvexRegionGrowing.h>
 #include <convex_plane_decomposition/GeometryUtils.h>
@@ -75,7 +76,7 @@ namespace ocs2::legged_robot
             bool hasValidRegion = false;
             int supportGroup = -1;
             convex_plane_decomposition::PlanarTerrainProjection projection;
-            convex_plane_decomposition::CgalPolygon2d convexPolygon;
+            convex_plane_decomposition::CgalPolygon2d safetyPolygon;
             vector3_t nominalFoothold = vector3_t::Zero();
             vector3_t projectedFoothold = vector3_t::Zero();
             vector3_t predictedBasePosition = vector3_t::Zero();
@@ -571,7 +572,7 @@ namespace ocs2::legged_robot
         const auto index = lookup::findIndexInTimeArray(timeEvents_[leg], time);
         return feetProjections_[leg][index];
     }
-    // 返回凸多边形,确保安全的足端放置区域
+    // 返回统一安全集 polygon: 已完成 inward shrink，评分、MPC 和 WBC 都使用同一集合。
     convex_plane_decomposition::CgalPolygon2d ConvexRegionSelector::getConvexPolygon(size_t leg, scalar_t time) const
     {
         const auto index = lookup::findIndexInTimeArray(timeEvents_[leg], time);
@@ -699,19 +700,21 @@ namespace ocs2::legged_robot
                             safeProjection.regionPtr->boundaryWithInset.boundary,
                             safeProjection.positionInTerrainFrame,
                             static_cast<int>(numVertices_), growthFactor);
+                        const auto safetyPolygon = foot_placement::shrinkConvexPolygon(convexRegion);
 
-                        jointEvent.hasValidRegion = convexRegion.size() >= 3;
-                        jointEvent.convexPolygon = convexRegion;
+                        jointEvent.hasValidRegion = safetyPolygon.size() >= 3;
+                        jointEvent.safetyPolygon = safetyPolygon;
                         jointEvent.projectedFoothold = safeProjection.positionInWorld;
 
                         if (jointEvent.hasValidRegion)
                         {
-                            jointEvent.candidatesInTerrain = sampleFootholdCandidates(convexRegion, safeProjection.positionInTerrainFrame);
+                            jointEvent.candidatesInTerrain = sampleFootholdCandidates(
+                                safetyPolygon, safeProjection.positionInTerrainFrame);
                             if (jointEvent.hasLockedFoothold)
                             {
                                 const auto lockedCandidateInTerrain = positionInPlaneFrameFromPositionInWorld(
                                     jointEvent.lockedFoothold, safeProjection.regionPtr->transformPlaneToWorld);
-                                if (convex_plane_decomposition::isInside(lockedCandidateInTerrain, convexRegion))
+                                if (convex_plane_decomposition::isInside(lockedCandidateInTerrain, safetyPolygon))
                                 {
                                     bool duplicate = false;
                                     for (const auto& existing : jointEvent.candidatesInTerrain)
@@ -735,7 +738,7 @@ namespace ocs2::legged_robot
                             for (size_t candidateIndex = 0; candidateIndex < jointEvent.candidatesInTerrain.size(); ++candidateIndex)
                             {
                                 auto score = evaluateFootholdCandidate(
-                                    leg, standMiddleTime, *safeProjection.regionPtr, convexRegion,
+                                    leg, standMiddleTime, *safeProjection.regionPtr, safetyPolygon,
                                     jointEvent.candidatesInTerrain[candidateIndex], safeProjection.positionInTerrainFrame,
                                     desiredState, initState, desiredFootPosition, nominalFoothold, swingDuration,
                                     desiredYawRate);
@@ -822,7 +825,7 @@ namespace ocs2::legged_robot
                 }
 
                 feetProjections_[leg][i] = selectedProjection;
-                convexPolygons_[leg][i] = jointEvent.convexPolygon;
+                convexPolygons_[leg][i] = jointEvent.safetyPolygon;
                 nominalFootholds_[leg][i] = jointEvent.nominalFoothold;
 
                 if (i == 0 || phaseEventIndices[leg][i - 1] != eventIndex)
