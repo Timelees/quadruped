@@ -1,6 +1,5 @@
 #pragma once
 
-#include <memory>
 #include <vector>
 
 #include "ocs2_quadruped_controller/interface/constraint/QuinticSpline.h"
@@ -8,13 +7,13 @@
 namespace ocs2::legged_robot {
 
 /**
- * 两段五次样条拼接的摆动足高度轨迹生成器 (Central Pattern Generator)。
+ * 两段凸形样条拼接的摆动足高度轨迹生成器 (Central Pattern Generator)。
  *
- * 左段: liftOff  → midPoint (midTime_, midHeight, v=0, a=0)
+ * 左段: liftOff  → midPoint (midTime_, midHeight)
  * 右段: midPoint → touchDown
  *
- * 中点处 velocity=0, acceleration=0 保证拼接点 C² 连续，
- * 相比原始两段三次样条（仅 C¹ 连续）加速度更平滑。
+ * 默认轨迹使用两段无拐点的三次多项式，避免五次 Hermite smootherstep
+ * 在每半段内部形成 S 形曲线。保留类名以兼容已有接口。
  */
 class QuinticSplineCpg {
 public:
@@ -37,13 +36,21 @@ public:
     scalar_t finalTimeDerivative(scalar_t time) const;
 
 private:
+    static scalar_t evaluateConvexPosition(scalar_t time,
+                                           const QuinticSpline::Node& liftOff,
+                                           scalar_t midHeight,
+                                           const QuinticSpline::Node& touchDown);
+    scalar_t evaluateConvexVelocity(scalar_t time) const;
+    scalar_t evaluateConvexAcceleration(scalar_t time) const;
+
     scalar_t evaluateSampledSignal(const std::vector<scalar_t>& signal, scalar_t time) const;
     size_t findSegmentIndex(scalar_t time) const;
 
     bool useSampledTrajectory_ = false;
     scalar_t midTime_ = 0.0;
-    std::unique_ptr<QuinticSpline> leftSpline_;
-    std::unique_ptr<QuinticSpline> rightSpline_;
+    scalar_t midHeight_ = 0.0;
+    QuinticSpline::Node liftOff_{0.0, 0.0, 0.0, 0.0};
+    QuinticSpline::Node touchDown_{1.0, 0.0, 0.0, 0.0};
     std::vector<scalar_t> sampleTimes_;
     std::vector<scalar_t> samplePositions_;
     std::vector<scalar_t> sampleVelocities_;
