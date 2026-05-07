@@ -5,7 +5,7 @@
 #include "ocs2_quadruped_controller/wbc/WbcBase.h"
 
 #include <utility>
-#include <algorithm>
+// #include <algorithm>
 #include <vector>
 
 #include <pinocchio/fwd.hpp>  // forward declarations must be included first.
@@ -20,8 +20,8 @@
 #include <ocs2_centroidal_model/ModelHelperFunctions.h>
 #include <ocs2_core/misc/LoadData.h>
 
-#include "ocs2_quadruped_controller/perceptive/common/FootPlacementSafetySet.h"
-#include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
+// #include "ocs2_quadruped_controller/perceptive/common/FootPlacementSafetySet.h"
+// #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
 
 namespace ocs2::legged_robot
 {
@@ -309,25 +309,26 @@ namespace ocs2::legged_robot
 
     Task WbcBase::formulateFootPlacementCbfTask()
     {
+        
         const auto* perceptiveRefMgr = dynamic_cast<const PerceptiveLeggedReferenceManager*>(referenceManagerPtr_.get());
         if (perceptiveRefMgr == nullptr)
         {
             return {matrix_t(), vector_t(), matrix_t(), vector_t()};
         }
-
+        
         const auto& selector = *perceptiveRefMgr->getConvexRegionSelectorPtr();
         const scalar_t activationProgress = foot_cbf_activation_progress_ >= 0.0
                                                 ? foot_cbf_activation_progress_
                                                 : perceptiveRefMgr->getFootPlacementRelaxationConfig().swingActivationProgress;
         const scalar_t dt = std::max<scalar_t>(foot_cbf_relaxation_derivative_dt_, 1e-6);
-
+        
         ee_kinematics_->setPinocchioInterface(pinocchio_interface_measured_);
         const std::vector<vector3_t> posMeasured = ee_kinematics_->getPosition(vector_t());
         const std::vector<vector3_t> velMeasured = ee_kinematics_->getVelocity(vector_t(), vector_t());
-
+        
         std::vector<matrix_t> dBlocks;
         std::vector<vector_t> fBlocks;
-
+        
         for (size_t leg = 0; leg < info_.numThreeDofContacts; ++leg)
         {
             const auto safetyPolygon = selector.getConvexPolygon(leg, currentTime_);
@@ -339,30 +340,30 @@ namespace ocs2::legged_robot
             {
                 continue;
             }
-
+        
             const auto projection = selector.getProjection(leg, currentTime_);
             if (projection.regionPtr == nullptr)
             {
                 continue;
             }
-
+        
             const auto halfSpace = foot_placement::buildWorldHalfSpace(
                 safetyPolygon, projection.regionPtr->transformPlaneToWorld);
             if (halfSpace.a.rows() == 0)
             {
                 continue;
             }
-
+        
             const matrix_t& A = halfSpace.a;
             const vector_t& b = halfSpace.b;
             const size_t numRows = static_cast<size_t>(A.rows());
-
+        
             const vector3_t& position = posMeasured[leg];
             const vector3_t& velocity = velMeasured[leg];
             const matrix_t J = j_.block(3 * leg, 0, 3, info_.generalizedCoordinatesNum);
             const matrix_t dJ = dj_.block(3 * leg, 0, 3, info_.generalizedCoordinatesNum);
             const vector3_t dJv = dJ * v_measured_;
-
+        
             const scalar_t relaxation = perceptiveRefMgr->getFootPlacementRelaxation(leg, currentTime_);
             const scalar_t relaxationNext = perceptiveRefMgr->getFootPlacementRelaxation(leg, currentTime_ + dt);
             const scalar_t relaxationNext2 = perceptiveRefMgr->getFootPlacementRelaxation(leg, currentTime_ + 2.0 * dt);
@@ -371,7 +372,7 @@ namespace ocs2::legged_robot
             const scalar_t relaxationAccel = clampSymmetric(
                 (relaxationNext2 - 2.0 * relaxationNext + relaxation) / (dt * dt),
                 foot_cbf_max_relaxation_accel_);
-
+        
             vector_t relaxationOffset = vector_t::Zero(numRows);
             vector_t relaxationRateOffset = vector_t::Zero(numRows);
             vector_t relaxationAccelOffset = vector_t::Zero(numRows);
@@ -382,25 +383,25 @@ namespace ocs2::legged_robot
                 relaxationRateOffset(row) = relaxationRate * rowNorm;
                 relaxationAccelOffset(row) = relaxationAccel * rowNorm;
             }
-
+        
             const vector_t h = A * position + b + relaxationOffset;
             const vector_t hDot = A * velocity + relaxationRateOffset;
-
+        
             matrix_t dLeg = matrix_t::Zero(numRows, num_decision_vars_);
             dLeg.block(0, 0, numRows, info_.generalizedCoordinatesNum) = -A * J;
             vector_t fLeg = A * dJv + relaxationAccelOffset +
                             (foot_cbf_gamma_ + foot_cbf_xi_) * hDot +
                             foot_cbf_gamma_ * foot_cbf_xi_ * h;
-
+        
             dBlocks.push_back(std::move(dLeg));
             fBlocks.push_back(std::move(fLeg));
         }
-
+        
         if (dBlocks.empty())
         {
             return {matrix_t(), vector_t(), matrix_t(), vector_t()};
         }
-
+        
         matrix_t d = dBlocks.front();
         vector_t f = fBlocks.front();
         for (size_t index = 1; index < dBlocks.size(); ++index)
@@ -408,7 +409,7 @@ namespace ocs2::legged_robot
             d = Task::concatenateMatrices(d, dBlocks[index]);
             f = Task::concatenateVectors(f, fBlocks[index]);
         }
-
+        
         return {matrix_t(), vector_t(), d, f};
     }
 
@@ -446,44 +447,44 @@ namespace ocs2::legged_robot
         loadData::loadPtreeValue(pt, swing_kp_, prefix + "kp", verbose);
         loadData::loadPtreeValue(pt, swing_kd_, prefix + "kd", verbose);
 
-        prefix = "footPlacementCbfTask.";
-        if (verbose)
-        {
-            std::cerr << "\n #### Foot Placement CBF Task:";
-            std::cerr << "\n #### =============================================================================\n";
-        }
-        if (const auto gamma = pt.get_optional<scalar_t>(prefix + "gamma"))
-        {
-            foot_cbf_gamma_ = *gamma;
-        }
-        if (const auto xi = pt.get_optional<scalar_t>(prefix + "xi"))
-        {
-            foot_cbf_xi_ = *xi;
-        }
-        if (const auto activationProgress = pt.get_optional<scalar_t>(prefix + "swingActivationProgress"))
-        {
-            foot_cbf_activation_progress_ = *activationProgress;
-        }
-        if (const auto relaxationDerivativeDt = pt.get_optional<scalar_t>(prefix + "relaxationDerivativeDt"))
-        {
-            foot_cbf_relaxation_derivative_dt_ = *relaxationDerivativeDt;
-        }
-        if (const auto maxRelaxationRate = pt.get_optional<scalar_t>(prefix + "maxRelaxationRate"))
-        {
-            foot_cbf_max_relaxation_rate_ = *maxRelaxationRate;
-        }
-        if (const auto maxRelaxationAccel = pt.get_optional<scalar_t>(prefix + "maxRelaxationAccel"))
-        {
-            foot_cbf_max_relaxation_accel_ = *maxRelaxationAccel;
-        }
-        if (verbose)
-        {
-            std::cerr << prefix << "gamma: " << foot_cbf_gamma_ << std::endl;
-            std::cerr << prefix << "xi: " << foot_cbf_xi_ << std::endl;
-            std::cerr << prefix << "swingActivationProgress: " << foot_cbf_activation_progress_ << std::endl;
-            std::cerr << prefix << "relaxationDerivativeDt: " << foot_cbf_relaxation_derivative_dt_ << std::endl;
-            std::cerr << prefix << "maxRelaxationRate: " << foot_cbf_max_relaxation_rate_ << std::endl;
-            std::cerr << prefix << "maxRelaxationAccel: " << foot_cbf_max_relaxation_accel_ << std::endl;
-        }
+        // prefix = "footPlacementCbfTask.";
+        // if (verbose)
+        // {
+        //     std::cerr << "\n #### Foot Placement CBF Task:";
+        //     std::cerr << "\n #### =============================================================================\n";
+        // }
+        // if (const auto gamma = pt.get_optional<scalar_t>(prefix + "gamma"))
+        // {
+        //     foot_cbf_gamma_ = *gamma;
+        // }
+        // if (const auto xi = pt.get_optional<scalar_t>(prefix + "xi"))
+        // {
+        //     foot_cbf_xi_ = *xi;
+        // }
+        // if (const auto activationProgress = pt.get_optional<scalar_t>(prefix + "swingActivationProgress"))
+        // {
+        //     foot_cbf_activation_progress_ = *activationProgress;
+        // }
+        // if (const auto relaxationDerivativeDt = pt.get_optional<scalar_t>(prefix + "relaxationDerivativeDt"))
+        // {
+        //     foot_cbf_relaxation_derivative_dt_ = *relaxationDerivativeDt;
+        // }
+        // if (const auto maxRelaxationRate = pt.get_optional<scalar_t>(prefix + "maxRelaxationRate"))
+        // {
+        //     foot_cbf_max_relaxation_rate_ = *maxRelaxationRate;
+        // }
+        // if (const auto maxRelaxationAccel = pt.get_optional<scalar_t>(prefix + "maxRelaxationAccel"))
+        // {
+        //     foot_cbf_max_relaxation_accel_ = *maxRelaxationAccel;
+        // }
+        // if (verbose)
+        // {
+        //     std::cerr << prefix << "gamma: " << foot_cbf_gamma_ << std::endl;
+        //     std::cerr << prefix << "xi: " << foot_cbf_xi_ << std::endl;
+        //     std::cerr << prefix << "swingActivationProgress: " << foot_cbf_activation_progress_ << std::endl;
+        //     std::cerr << prefix << "relaxationDerivativeDt: " << foot_cbf_relaxation_derivative_dt_ << std::endl;
+        //     std::cerr << prefix << "maxRelaxationRate: " << foot_cbf_max_relaxation_rate_ << std::endl;
+        //     std::cerr << prefix << "maxRelaxationAccel: " << foot_cbf_max_relaxation_accel_ << std::endl;
+        // }
     }
 } // namespace legged
