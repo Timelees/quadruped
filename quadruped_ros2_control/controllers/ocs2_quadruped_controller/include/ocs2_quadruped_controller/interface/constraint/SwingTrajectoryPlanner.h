@@ -209,9 +209,8 @@ namespace ocs2::legged_robot {
         const size_t numFeet_;
 
 
-        // feet_array_t<std::vector<SplineCpg> > feetHeightTrajectories_;
-        feet_array_t<std::vector<BSpline> > feetHeightTrajectories_;                        // 每个相位当前使用的 B 样条轨迹
-        feet_array_t<std::vector<std::pair<scalar_t, scalar_t>>> feetBSplineTimeRanges_;    // BSpline 对应的时间区间
+        // Legacy swing height generator (matches baseline implementation).
+        feet_array_t<std::vector<SplineCpg> > feetHeightTrajectories_;
         feet_array_t<std::vector<scalar_t> > feetHeightTrajectoriesEvents_;
         feet_array_t<std::vector<bool> > plannedContactFlags_;
         feet_array_t<std::vector<int> > startTimesIndices_;

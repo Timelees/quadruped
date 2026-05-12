@@ -8,26 +8,18 @@ legged_robot_interface
 model_settings
 {
   positionErrorGain             0.0     // 位置误差增益
-  phaseTransitionStanceTime     0.2     // 相位转换时的站立时间
+  phaseTransitionStanceTime     0.1     // 相位转换时的站立时间
 
   verboseCppAd                  true    // 是否显示 C++ AD（自动微分）的详细信息
   recompileLibrariesCppAd       false
   modelFolderCppAd              ocs2_cpp_ad/cyberdog
-
-
-  includeRotorInertia           true    ; 是否包含电机转子旋转惯性
-  rotorInertiaZ                 4.78e-5 ；转子的旋转惯性
-  abadGearRatio                 7.75    ; abad gear ratio
-  hipGearRatio                  7.75    ; hip gear ratio
-  kneeGearRatio                 7.75    ; knee gear ratio
-
 }
 
 ; 摆动相轨迹配置
 swing_trajectory_config
 {
-  liftOffVelocity               0.05   // 离地速度 - 降低以减少冲击
-  touchDownVelocity            -0.05   // 触地速度 - 降低以减少落地冲击
+  liftOffVelocity               0.04   // 离地速度 - 降低以减少冲击
+  touchDownVelocity            -0.08   // 触地速度 - 降低以减少落地冲击
   swingHeight                   0.08  // 摆动高度 
   swingTimeScale                0.15   // 摆动时间缩放因子
  
@@ -41,7 +33,7 @@ ddp
   nThreads                        3
   threadPriority                  50
 
-  maxNumIterations                2
+  maxNumIterations                1
   minRelCost                      1e-1
   constraintTolerance             5e-3
 
@@ -80,7 +72,7 @@ sqp
 {
   nThreads                              3
   dt                                    0.01
-  sqpIteration                          2
+  sqpIteration                          1
   deltaTol                              1e-4
   g_max                                 1e-2
   g_min                                 1e-6
@@ -100,7 +92,7 @@ ipm
 {
   nThreads                              3
   dt                                    0.015
-  ipmIteration                          2
+  ipmIteration                          1
   deltaTol                              1e-4
   g_max                                 10.0
   g_min                                 1e-6
@@ -128,17 +120,6 @@ ipm
   initialDualMarginRate                 1e-2
 }
 
-; Rollout settings
-rollout
-{
-  AbsTolODE                       1e-5
-  RelTolODE                       1e-3
-  timeStep                        0.015
-  integratorType                  ODE45
-  maxNumStepsPerSecond            10000
-  checkNumericalStability         false
-}
-
 mpc
 {
   timeHorizon                     1.0  ; [s]
@@ -164,23 +145,23 @@ initialState
    ;; Base Pose: [position, orientation] ;;
    (6,0)  0.0     ; p_base_x
    (7,0)  0.0     ; p_base_y
-   (8,0)  0.26     ; p_base_z
+   (8,0)  0.28     ; p_base_z
    (9,0)  0.0     ; theta_base_z
    (10,0) 0.0     ; theta_base_y
    (11,0) 0.0     ; theta_base_x
 
    ;; Leg Joint Positions: [FL, RL, FR, RR] ;;
-   (12,0)  0.10   ; FL_hip_joint
-   (13,0)  0.68   ; FL_thigh_joint
+   (12,0) -0.10   ; FL_hip_joint
+   (13,0)  0.72   ; FL_thigh_joint
    (14,0) -1.44   ; FL_calf_joint
-   (15,0)  0.10   ; RL_hip_joint
-   (16,0)  0.68   ; RL_thigh_joint
+   (15,0) -0.10   ; RL_hip_joint
+   (16,0)  0.72   ; RL_thigh_joint
    (17,0) -1.44   ; RL_calf_joint
-   (18,0)  -0.10   ; FR_hip_joint
-   (19,0)  0.68   ; FR_thigh_joint
+   (18,0)  0.10   ; FR_hip_joint
+   (19,0)  0.72   ; FR_thigh_joint
    (20,0) -1.44   ; FR_calf_joint
-   (21,0)  -0.10   ; RR_hip_joint
-   (22,0)  0.68   ; RR_thigh_joint
+   (21,0)  0.10   ; RR_hip_joint
+   (22,0)  0.72   ; RR_thigh_joint
    (23,0) -1.44   ; RR_calf_joint
 }
 
@@ -201,7 +182,7 @@ Q
   (6,6)   1000.0   ; p_base_x -- 增大以减少x漂移
   (7,7)   1000.0   ; p_base_y -- 增大以减少y漂移
   (8,8)   1500.0   ; p_base_z -- 增大以减少z漂移
-  (9,9)   100.0    ; theta_base_z   -- 增大以减少姿态的z旋转
+  (9,9)   200.0    ; theta_base_z   -- 增大以减少姿态的z旋转
   (10,10) 300.0    ; theta_base_y
   (11,11) 300.0    ; theta_base_x
 
@@ -275,17 +256,17 @@ selfCollision
   ; Self Collision pairs
   collisionLinkPairs
   {
-    [0] "FL_knee, FR_knee"      // cyberdog的小腿
-    [1] "RL_knee, RR_knee"
-    [2] "FL_knee, RL_knee"
-    [3] "FR_knee, RR_knee"
-    [4] "FL_knee, FR_knee"
-    [5] "RL_knee, RR_knee"
-    [6] "FL_knee, RL_knee"
-    [7] "FR_knee, RR_knee"
+    [0] "FL_calf, FR_calf"
+    [1] "RL_calf, RR_calf"
+    [2] "FL_calf, RL_calf"
+    [3] "FR_calf, RR_calf"
+    [4] "FL_foot, FR_foot"
+    [5] "RL_foot, RR_foot"
+    [6] "FL_foot, RL_foot"
+    [7] "FR_foot, RR_foot"
   }
 
-  minimumDistance  0.05
+  minimumDistance  0.01
 
   ; relaxed log barrier parameters
   mu      1e-2
@@ -344,14 +325,14 @@ frictionConeTask
 
 swingLegTask
 {
-    kp                   400  ; 
-    kd                   30   ; 
+    kp                   200  ; 
+    kd                   25   ; 
 }
 
 weight
 {
     swingLeg        150      ; 增大摆动腿权重以提高轨迹跟踪
-    baseAccel       1        ; 增大基座加速度权重
+    baseAccel       2        ; 增大基座加速度权重
     contactForce    0.01
 }
 
@@ -389,7 +370,7 @@ kalmanFilter
     footSensorNoiseVelocity     0.1
     footHeightSensorNoise       0.01
 
-    highSuspectNumber           10000   
+    highSuspectNumber           100   
 }
 
 

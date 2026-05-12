@@ -185,7 +185,7 @@ namespace ocs2::legged_robot
         double meas_noise_bg_ = 0.0001;    // 陀螺仪偏置测量噪声
         double meas_noise_encoder_ = 0.02; // 编码器测量噪声
         double meas_noise_attitude_ = 0.01; // IMU姿态软约束噪声 (小值=强约束, 大值=弱约束)
-
+        double meas_noise_attitude_yaw_ = 0.01; // IMU姿态软约束噪声 (小值=强约束, 大值=弱约束)
         double high_suspect_number = 10000.0;
 
         // 足端参数

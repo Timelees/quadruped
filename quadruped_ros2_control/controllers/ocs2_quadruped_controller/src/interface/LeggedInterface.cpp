@@ -197,50 +197,50 @@ namespace ocs2::legged_robot
         // ========== 电机转子惯量：使用 Pinocchio armature 并入动力学 ==========
         // armature 是加在关节空间质量矩阵对角线上的常数项，典型用于 reflected rotor inertia。
         // 这里在 interface 层统一设置，确保所有用到 pinocchio_interface_ptr_ 的模块（AD 动力学、预计算、估计器等）一致。
-        {
-            boost::property_tree::ptree pt;
-            read_info(task_file, pt);
-            const std::string prefix = "model_settings.";
+        // {
+        //     boost::property_tree::ptree pt;
+        //     read_info(task_file, pt);
+        //     const std::string prefix = "model_settings.";
 
-            bool includeRotorInertia = false;
-            scalar_t rotorInertiaZ = 4.78e-5; // [kg*m^2] 默认取 cyberdog xacro const.xacro 的 rotor_izz
-            scalar_t abadGearRatio = 7.75;
-            scalar_t hipGearRatio = 7.75;
-            scalar_t kneeGearRatio = 7.75;
+        //     bool includeRotorInertia = false;
+        //     scalar_t rotorInertiaZ = 4.78e-5; // [kg*m^2] 默认取 cyberdog xacro const.xacro 的 rotor_izz
+        //     scalar_t abadGearRatio = 7.75;
+        //     scalar_t hipGearRatio = 7.75;
+        //     scalar_t kneeGearRatio = 7.75;
 
-            loadData::loadPtreeValue(pt, includeRotorInertia, prefix + "includeRotorInertia", false);
-            loadData::loadPtreeValue(pt, rotorInertiaZ, prefix + "rotorInertiaZ", false);
-            loadData::loadPtreeValue(pt, abadGearRatio, prefix + "abadGearRatio", false);
-            loadData::loadPtreeValue(pt, hipGearRatio, prefix + "hipGearRatio", false);
-            loadData::loadPtreeValue(pt, kneeGearRatio, prefix + "kneeGearRatio", false);
+        //     loadData::loadPtreeValue(pt, includeRotorInertia, prefix + "includeRotorInertia", false);
+        //     loadData::loadPtreeValue(pt, rotorInertiaZ, prefix + "rotorInertiaZ", false);
+        //     loadData::loadPtreeValue(pt, abadGearRatio, prefix + "abadGearRatio", false);
+        //     loadData::loadPtreeValue(pt, hipGearRatio, prefix + "hipGearRatio", false);
+        //     loadData::loadPtreeValue(pt, kneeGearRatio, prefix + "kneeGearRatio", false);
 
-            const auto& model = pinocchio_interface_ptr_->getModel();
-            Eigen::VectorXd armature = Eigen::VectorXd::Zero(model.nv);
-            if (includeRotorInertia) {
-                // 假设广义速度顺序为 base(6) + nJoints 个 1DoF 关节
-                constexpr int baseDofs = 6;
-                const int jointDofs = static_cast<int>(model_settings_.jointNames.size());
-                const int nv = static_cast<int>(model.nv);
-                if (nv >= baseDofs + jointDofs && jointDofs >= 12) {
-                    const scalar_t gear[3] = {abadGearRatio, hipGearRatio, kneeGearRatio};
-                    for (int leg = 0; leg < 4; ++leg) {
-                        for (int j = 0; j < 3; ++j) {
-                            const int idx = baseDofs + leg * 3 + j;
-                            const scalar_t N = gear[j];
-                            armature[idx] = (N * N) * rotorInertiaZ;
-                        }
-                    }
-                }
-            }
-            if (includeRotorInertia) {
-                pinocchio::Model modelWithArmature = model; // copy
-                modelWithArmature.armature = armature;
-                *pinocchio_interface_ptr_ = PinocchioInterface(modelWithArmature, pinocchio_interface_ptr_->getUrdfModelPtr());
-            }
+        //     const auto& model = pinocchio_interface_ptr_->getModel();
+        //     Eigen::VectorXd armature = Eigen::VectorXd::Zero(model.nv);
+        //     if (includeRotorInertia) {
+        //         // 假设广义速度顺序为 base(6) + nJoints 个 1DoF 关节
+        //         constexpr int baseDofs = 6;
+        //         const int jointDofs = static_cast<int>(model_settings_.jointNames.size());
+        //         const int nv = static_cast<int>(model.nv);
+        //         if (nv >= baseDofs + jointDofs && jointDofs >= 12) {
+        //             const scalar_t gear[3] = {abadGearRatio, hipGearRatio, kneeGearRatio};
+        //             for (int leg = 0; leg < 4; ++leg) {
+        //                 for (int j = 0; j < 3; ++j) {
+        //                     const int idx = baseDofs + leg * 3 + j;
+        //                     const scalar_t N = gear[j];
+        //                     armature[idx] = (N * N) * rotorInertiaZ;
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     if (includeRotorInertia) {
+        //         pinocchio::Model modelWithArmature = model; // copy
+        //         modelWithArmature.armature = armature;
+        //         *pinocchio_interface_ptr_ = PinocchioInterface(modelWithArmature, pinocchio_interface_ptr_->getUrdfModelPtr());
+        //     }
 
             
 
-        }
+        // }
 
         // CentroidModelInfo 质心动力学模型
         centroidal_model_info_ = centroidal_model::createCentroidalModelInfo(

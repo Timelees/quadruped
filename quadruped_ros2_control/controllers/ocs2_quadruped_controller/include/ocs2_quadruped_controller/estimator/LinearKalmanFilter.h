@@ -65,7 +65,7 @@ namespace ocs2::legged_robot
         scalar_t footSensorNoisePosition_ = 0.005;
         scalar_t footSensorNoiseVelocity_ = 0.1;
         scalar_t footHeightSensorNoise_ = 0.01;
-        scalar_t high_suspect_number_ = 10000.0;
+        scalar_t high_suspect_number_ = 100.0;
 
     private:
         // 接触点数量（3D 接触 + 6D 接触：4）、接触点总维度（每足端 3D 位置：12）、状态向量维度（6D 基座状态 + 足端位置：18）、	观测向量维度（足端位置、速度和高度：28  ）
@@ -115,11 +115,6 @@ namespace ocs2::legged_robot
                                   std::array<scalar_t, 4>& contact_phase,
                                   std::array<scalar_t, 4>& swing_phase);
 
-        // 点云话题订阅 (用于调试足端位置处的点云高度)
-        rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_sub_;
-        std::mutex pointcloud_mutex_;
-        sensor_msgs::msg::PointCloud2::SharedPtr latest_pointcloud_;
-        bool pointcloud_received_ = false;
 
         // TF2 变换 (用于点云坐标变换)
         std::shared_ptr<tf2_ros::Buffer> tf_buffer_;

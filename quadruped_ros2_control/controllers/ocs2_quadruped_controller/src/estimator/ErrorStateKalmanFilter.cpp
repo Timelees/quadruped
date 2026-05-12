@@ -104,7 +104,20 @@ namespace ocs2::legged_robot
         // 初始化状态误差
         dx.setZero();
 
+        // 初始化协方差: 位置/速度/姿态/足端起手可以宽松，偏置要小一些，
+        // 否则第一次观测会把 ba/bg 拉飞。
         P.setIdentity();
+        P.block<3, 3>(ESKFNominalState::POS_IDX, ESKFNominalState::POS_IDX) *= 1e-2;   // 1cm σ
+        P.block<3, 3>(ESKFNominalState::VEL_IDX, ESKFNominalState::VEL_IDX) *= 1e-2;   // 0.1 m/s σ
+        P.block<3, 3>(ESKFNominalState::ROT_IDX, ESKFNominalState::ROT_IDX) *= 1e-2;   // ~6° σ
+        for (int i = 0; i < 4; ++i)
+        {
+            const int f_idx = ESKFNominalState::F1_IDX + 3 * i;
+            P.block<3, 3>(f_idx, f_idx) *= 1e-2;
+        }
+        P.block<3, 3>(ESKFNominalState::BA_IDX, ESKFNominalState::BA_IDX) *= 1e-4;     // 0.01 m/s² σ
+        P.block<3, 3>(ESKFNominalState::BG_IDX, ESKFNominalState::BG_IDX) *= 1e-4;     // 0.01 rad/s σ
+
         Q.setIdentity();
         R.setIdentity();
     }
@@ -312,48 +325,48 @@ namespace ocs2::legged_robot
             logger_->saveDataToCSV("P_diag_acc_ba.csv", "P_ba_x, P_ba_y, P_ba_z", P_diag_ba);
             Eigen::Vector3d P_diag_bg(safe_sqrt(P_post(24, 24)), safe_sqrt(P_post(25, 25)), safe_sqrt(P_post(26, 26)));
             logger_->saveDataToCSV("P_diag_gyro_bg.csv", "P_bg_x, P_bg_y, P_bg_z", P_diag_bg);
-            // 位置和其他的交叉协方差
-            Eigen::Vector3d P_pos_vel_cov(safe_sqrt(P_post(0, 3)), safe_sqrt(P_post(1, 4)), safe_sqrt(P_post(2, 5)));
-            logger_->saveDataToCSV("P_pos_vel_cov.csv", "P_pos_vel_x, P_pos_vel_y, P_pos_vel_z", P_pos_vel_cov);
-            Eigen::Vector3d P_pos_rot_cov(safe_sqrt(P_post(0, 6)), safe_sqrt(P_post(1, 7)), safe_sqrt(P_post(2, 8)));
-            logger_->saveDataToCSV("P_pos_rot_cov.csv", "P_pos_rot_x, P_pos_rot_y, P_pos_rot_z", P_pos_rot_cov);
-            Eigen::Vector3d P_pos_foot1_cov(safe_sqrt(P_post(0, 9)), safe_sqrt(P_post(1, 10)), safe_sqrt(P_post(2, 11)));
-            logger_->saveDataToCSV("P_pos_foot1_cov.csv", "P_pos_foot1_x, P_pos_foot1_y, P_pos_foot1_z", P_pos_foot1_cov);
-            Eigen::Vector3d P_pos_foot2_cov(safe_sqrt(P_post(0, 12)), safe_sqrt(P_post(1, 13)), safe_sqrt(P_post(2, 14)));
-            logger_->saveDataToCSV("P_pos_foot2_cov.csv", "P_pos_foot2_x, P_pos_foot2_y, P_pos_foot2_z", P_pos_foot2_cov);
-            Eigen::Vector3d P_pos_foot3_cov(safe_sqrt(P_post(0, 15)), safe_sqrt(P_post(1, 16)), safe_sqrt(P_post(2, 17)));
-            logger_->saveDataToCSV("P_pos_foot3_cov.csv", "P_pos_foot3_x, P_pos_foot3_y, P_pos_foot3_z", P_pos_foot3_cov);
-            Eigen::Vector3d P_pos_foot4_cov(safe_sqrt(P_post(0, 18)), safe_sqrt(P_post(1, 19)), safe_sqrt(P_post(2, 20)));
-            logger_->saveDataToCSV("P_pos_foot4_cov.csv", "P_pos_foot4_x, P_pos_foot4_y, P_pos_foot4_z", P_pos_foot4_cov);
-            Eigen::Vector3d P_pos_ba_cov(safe_sqrt(P_post(0, 21)), safe_sqrt(P_post(1, 22)), safe_sqrt(P_post(2, 23)));
-            logger_->saveDataToCSV("P_pos_ba_cov.csv", "P_pos_ba_x, P_pos_ba_y, P_pos_ba_z", P_pos_ba_cov);
-            Eigen::Vector3d P_pos_bg_cov(safe_sqrt(P_post(0, 24)), safe_sqrt(P_post(1, 25)), safe_sqrt(P_post(2, 26)));
-            logger_->saveDataToCSV("P_pos_bg_cov.csv", "P_pos_bg_x, P_pos_bg_y, P_pos_bg_z", P_pos_bg_cov);
+            // // 位置和其他的交叉协方差
+            // Eigen::Vector3d P_pos_vel_cov(safe_sqrt(P_post(0, 3)), safe_sqrt(P_post(1, 4)), safe_sqrt(P_post(2, 5)));
+            // logger_->saveDataToCSV("P_pos_vel_cov.csv", "P_pos_vel_x, P_pos_vel_y, P_pos_vel_z", P_pos_vel_cov);
+            // Eigen::Vector3d P_pos_rot_cov(safe_sqrt(P_post(0, 6)), safe_sqrt(P_post(1, 7)), safe_sqrt(P_post(2, 8)));
+            // logger_->saveDataToCSV("P_pos_rot_cov.csv", "P_pos_rot_x, P_pos_rot_y, P_pos_rot_z", P_pos_rot_cov);
+            // Eigen::Vector3d P_pos_foot1_cov(safe_sqrt(P_post(0, 9)), safe_sqrt(P_post(1, 10)), safe_sqrt(P_post(2, 11)));
+            // logger_->saveDataToCSV("P_pos_foot1_cov.csv", "P_pos_foot1_x, P_pos_foot1_y, P_pos_foot1_z", P_pos_foot1_cov);
+            // Eigen::Vector3d P_pos_foot2_cov(safe_sqrt(P_post(0, 12)), safe_sqrt(P_post(1, 13)), safe_sqrt(P_post(2, 14)));
+            // logger_->saveDataToCSV("P_pos_foot2_cov.csv", "P_pos_foot2_x, P_pos_foot2_y, P_pos_foot2_z", P_pos_foot2_cov);
+            // Eigen::Vector3d P_pos_foot3_cov(safe_sqrt(P_post(0, 15)), safe_sqrt(P_post(1, 16)), safe_sqrt(P_post(2, 17)));
+            // logger_->saveDataToCSV("P_pos_foot3_cov.csv", "P_pos_foot3_x, P_pos_foot3_y, P_pos_foot3_z", P_pos_foot3_cov);
+            // Eigen::Vector3d P_pos_foot4_cov(safe_sqrt(P_post(0, 18)), safe_sqrt(P_post(1, 19)), safe_sqrt(P_post(2, 20)));
+            // logger_->saveDataToCSV("P_pos_foot4_cov.csv", "P_pos_foot4_x, P_pos_foot4_y, P_pos_foot4_z", P_pos_foot4_cov);
+            // Eigen::Vector3d P_pos_ba_cov(safe_sqrt(P_post(0, 21)), safe_sqrt(P_post(1, 22)), safe_sqrt(P_post(2, 23)));
+            // logger_->saveDataToCSV("P_pos_ba_cov.csv", "P_pos_ba_x, P_pos_ba_y, P_pos_ba_z", P_pos_ba_cov);
+            // Eigen::Vector3d P_pos_bg_cov(safe_sqrt(P_post(0, 24)), safe_sqrt(P_post(1, 25)), safe_sqrt(P_post(2, 26)));
+            // logger_->saveDataToCSV("P_pos_bg_cov.csv", "P_pos_bg_x, P_pos_bg_y, P_pos_bg_z", P_pos_bg_cov);
 
             // 观测
-            MeasVec y_log = y;
-            for (int i = 0; i < 4; i++)
-            {
-                // 足端位置残差 (body系)
-                Eigen::Vector3d foot_pos_residual = y_log.segment<3>(ESKFNominalState::MEAS_FPOS_IDX + 3 * i);
-                logger_->saveDataToCSV("y_pos_residual_foot_" + std::to_string(i) + ".csv", "y_x, y_y, y_z", foot_pos_residual);
+            // MeasVec y_log = y;
+            // for (int i = 0; i < 4; i++)
+            // {
+            //     // 足端位置残差 (body系)
+            //     Eigen::Vector3d foot_pos_residual = y_log.segment<3>(ESKFNominalState::MEAS_FPOS_IDX + 3 * i);
+            //     logger_->saveDataToCSV("y_pos_residual_foot_" + std::to_string(i) + ".csv", "y_x, y_y, y_z", foot_pos_residual);
 
-                // 足端速度残差 (世界系，支撑相应为0)
-                Eigen::Vector3d foot_vel_residual = y_log.segment<3>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i);
-                logger_->saveDataToCSV("y_vel_residual_foot_" + std::to_string(i) + ".csv", "yv_x, yv_y, yv_z", foot_vel_residual);
-            }
+            //     // 足端速度残差 (世界系，支撑相应为0)
+            //     Eigen::Vector3d foot_vel_residual = y_log.segment<3>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i);
+            //     logger_->saveDataToCSV("y_vel_residual_foot_" + std::to_string(i) + ".csv", "yv_x, yv_y, yv_z", foot_vel_residual);
+            // }
             // 足端高度残差
-            Eigen::Vector4d foot_height_residual;
-            for (int i = 0; i < 4; i++)
-            {
-                foot_height_residual(i) = y_log(ESKFNominalState::MEAS_FHEIGHT_IDX + i);
-            }
-            logger_->saveDataToCSV("y_height02_residual.csv", "yh_0, yh_2, unused",
-                                   Eigen::Vector3d(foot_height_residual(0), foot_height_residual(2), 0.0));
-            logger_->saveDataToCSV("y_height13_residual.csv", "yh_1, yh_3, unused",
-                                   Eigen::Vector3d(foot_height_residual(1), foot_height_residual(3), 0.0));
+            // Eigen::Vector4d foot_height_residual;
+            // for (int i = 0; i < 4; i++)
+            // {
+            //     foot_height_residual(i) = y_log(ESKFNominalState::MEAS_FHEIGHT_IDX + i);
+            // }
+            // logger_->saveDataToCSV("y_height02_residual.csv", "yh_0, yh_2, unused",
+            //                        Eigen::Vector3d(foot_height_residual(0), foot_height_residual(2), 0.0));
+            // logger_->saveDataToCSV("y_height13_residual.csv", "yh_1, yh_3, unused",
+            //                        Eigen::Vector3d(foot_height_residual(1), foot_height_residual(3), 0.0));
 
-            // ==================== Ground Truth 对比日志 ====================
+            // // ==================== Ground Truth 对比日志 ====================
             if (ground_truth_enabled_)
             {
                 // Ground Truth 姿态 (欧拉角 ZYX)
@@ -364,39 +377,44 @@ namespace ocs2::legged_robot
                 logger_->saveDataToCSV("gazeboTrue_angvel.csv", "gt_wx, gt_wy, gt_wz", gt_angular_velocity_);
                 // 位置误差 (估计值 - 真值)
                 Eigen::Vector3d pos_error = state_pos - gt_position_;
-                logger_->saveDataToCSV("posEstiTruthComprison_x.csv", "Est_pos, Truth_pos, Error", std::initializer_list<double>{state_pos(0), gt_position_(0), pos_error(0)});
-                logger_->saveDataToCSV("posEstiTruthComprison_y.csv", "Est_pos, Truth_pos, Error", std::initializer_list<double>{state_pos(1), gt_position_(1), pos_error(1)});
-                logger_->saveDataToCSV("posEstiTruthComprison_z.csv", "Est_pos, Truth_pos, Error", std::initializer_list<double>{state_pos(2), gt_position_(2), pos_error(2)});
+                logger_->saveDataToCSV("posEstiTruthComprison_x.csv", "Est_pos, Truth_pos, Error", std::initializer_list<double>{state_pos(0), gt_position_(0), 0});
+                logger_->saveDataToCSV("posEstiTruthComprison_y.csv", "Est_pos, Truth_pos, Error", std::initializer_list<double>{state_pos(1), gt_position_(1), 0});
+                logger_->saveDataToCSV("posEstiTruthComprison_z.csv", "Est_pos, Truth_pos, Error", std::initializer_list<double>{state_pos(2), gt_position_(2), 0});
                 // 速度误差 (估计值 - 真值)
                 Eigen::Vector3d vel_error = state_vel - gt_linear_velocity_;
-                logger_->saveDataToCSV("velEstiTruthComprison_x.csv", "Est_vel, Truth_vel, Error", std::initializer_list<double>{state_vel(0), gt_linear_velocity_(0), vel_error(0)});
-                logger_->saveDataToCSV("velEstiTruthComprison_y.csv", "Est_vel, Truth_vel, Error", std::initializer_list<double>{state_vel(1), gt_linear_velocity_(1), vel_error(1)});
-                logger_->saveDataToCSV("velEstiTruthComprison_z.csv", "Est_vel, Truth_vel, Error", std::initializer_list<double>{state_vel(2), gt_linear_velocity_(2), vel_error(2)});
+                logger_->saveDataToCSV("velEstiTruthComprison_x.csv", "Est_vel, Truth_vel, Error", std::initializer_list<double>{state_vel(0), gt_linear_velocity_(0), 0});
+                logger_->saveDataToCSV("velEstiTruthComprison_y.csv", "Est_vel, Truth_vel, Error", std::initializer_list<double>{state_vel(1), gt_linear_velocity_(1), 0});
+                logger_->saveDataToCSV("velEstiTruthComprison_z.csv", "Est_vel, Truth_vel, Error", std::initializer_list<double>{state_vel(2), gt_linear_velocity_(2), 0});
                 // 姿态误差 (估计值 - 真值)
                 Eigen::Vector3d rot_error = state_rot_zyx - gt_rot_zyx;
-                logger_->saveDataToCSV("rotEstiTruthComprison_x.csv", "Est_rot, Truth_rot, Error", std::initializer_list<double>{state_rot_zyx(0), gt_rot_zyx(0), rot_error(0)});
-                logger_->saveDataToCSV("rotEstiTruthComprison_y.csv", "Est_rot, Truth_rot, Error", std::initializer_list<double>{state_rot_zyx(1), gt_rot_zyx(1), rot_error(1)});
-                logger_->saveDataToCSV("rotEstiTruthComprison_z.csv", "Est_rot, Truth_rot, Error", std::initializer_list<double>{state_rot_zyx(2), gt_rot_zyx(2), rot_error(2)});
+                logger_->saveDataToCSV("rotEstiTruthComprison_x.csv", "Est_rot, Truth_rot, Error", std::initializer_list<double>{state_rot_zyx(0), gt_rot_zyx(0), 0});
+                logger_->saveDataToCSV("rotEstiTruthComprison_y.csv", "Est_rot, Truth_rot, Error", std::initializer_list<double>{state_rot_zyx(1), gt_rot_zyx(1), 0});
+                logger_->saveDataToCSV("rotEstiTruthComprison_z.csv", "Est_rot, Truth_rot, Error", std::initializer_list<double>{state_rot_zyx(2), gt_rot_zyx(2), 0});
                 // 角速度误差 (估计值 - 真值), 注意估计器使用的是去偏后的角速度
                 Eigen::Vector3d angvel_error = omega_unbias - gt_angular_velocity_;
-                logger_->saveDataToCSV("angvelEstiTruthComprison_x.csv", "Est_angvel, Truth_angvel, Error", std::initializer_list<double>{omega_unbias(0), gt_angular_velocity_(0), angvel_error(0)});
-                logger_->saveDataToCSV("angvelEstiTruthComprison_y.csv", "Est_angvel, Truth_angvel, Error", std::initializer_list<double>{omega_unbias(1), gt_angular_velocity_(1), angvel_error(1)});
-                logger_->saveDataToCSV("angvelEstiTruthComprison_z.csv", "Est_angvel, Truth_angvel, Error", std::initializer_list<double>{omega_unbias(2), gt_angular_velocity_(2), angvel_error(2)});
+                logger_->saveDataToCSV("angvelEstiTruthComprison_x.csv", "Est_angvel, Truth_angvel, Error", std::initializer_list<double>{omega_unbias(0), gt_angular_velocity_(0), 0});
+                logger_->saveDataToCSV("angvelEstiTruthComprison_y.csv", "Est_angvel, Truth_angvel, Error", std::initializer_list<double>{omega_unbias(1), gt_angular_velocity_(1), 0});
+                logger_->saveDataToCSV("angvelEstiTruthComprison_z.csv", "Est_angvel, Truth_angvel, Error", std::initializer_list<double>{omega_unbias(2), gt_angular_velocity_(2), 0});
             }
         }
 
-        // 更新输出状态
+        // ==================== 把 ESKF 估计结果写回 rbd_state_ ====================
+        // rbd_state_ 布局: [姿态 zyx(3) | base 位置(3) | 关节位置(12)
+        //                  | base 角速度(3) | base 线速度(3) | 关节速度(12)]
+        // 注意 base 角速度采用 OCS2 的 "global angular velocity"（Euler ZYX 导数变换出来的全局形式）。
+        // 这里直接用 R_wb * (gyro - bg) 即可，等价但少一次中间转换。
         Eigen::Matrix3d R_wb_out = xHat_.q.toRotationMatrix();
         Eigen::Vector3d omega_body_out = in.gyro - xHat_.bg;
         Eigen::Vector3d omega_world_out = R_wb_out * omega_body_out;
 
-        Eigen::Vector3d p_body = xHat_.p;
-        Eigen::Vector3d v_body = xHat_.v;
+        const Eigen::Vector3d p_body = xHat_.p;
+        const Eigen::Vector3d v_body = xHat_.v;
+        const vector3_t zyx_eskf = quatToZyx(xHat_.q);
 
-        vector3_t zyx = quatToZyx(xHat_.q);
-
-        rbd_state_.segment<3>(3) = p_body; // 使用转换后的body位置
-        rbd_state_.segment<3>(21) = v_body; // 使用转换后的body速度
+        rbd_state_.segment<3>(0) = zyx_eskf;                                                      // 姿态(ESKF)
+        rbd_state_.segment<3>(3) = p_body;                                                        // base 位置
+        rbd_state_.segment<3>(info_.generalizedCoordinatesNum) = omega_world_out;                 // base 角速度(ESKF, world)
+        rbd_state_.segment<3>(info_.generalizedCoordinatesNum + 3) = v_body;                      // base 线速度
 
         auto odom = getOdomMsg();
         odom.header.stamp = time;
@@ -455,23 +473,23 @@ namespace ocs2::legged_robot
         // 协方差传播: P_k = A * P_{k-1} * A^T + B * Q * B^T
         P = A * P * A.transpose() + B * Q * B.transpose();
 
-        // ba (加速度偏置) 解耦
-        for (int i = 0; i < 3; ++i)
+        // 偏置可观测性较弱，但不要把 P 的 ba/bg 行列整体清零——那等价于
+        // 把交叉协方差也抹掉，会让姿态观测 (fuseImuAttitude / 足端运动学) 失去
+        // 通过 A(ROT, BG) = -I*dt 反推 bg 的能力，长期 yaw / pitch 漂移得不到修正。
+        // 这里只对 ba/bg 的方差做下限/上限，防止数值爆炸或过度自信。
+        const double bias_var_min = 1e-8;
+        const double bias_var_max = 1.0;
+        auto clampDiag = [&](int idx)
         {
-            int ba_idx = ESKFNominalState::BA_IDX + i;
-            P.row(ba_idx).setZero();
-            P.col(ba_idx).setZero();
-            P(ba_idx, ba_idx) = 1e-10;
-        }
-
-        // bg 解耦
-        for (int i = 0; i < 3; ++i)
-        {
-            int bg_idx = ESKFNominalState::BG_IDX + i;
-            P.row(bg_idx).setZero();
-            P.col(bg_idx).setZero();
-            P(bg_idx, bg_idx) = 1e-10;
-        }
+            for (int i = 0; i < 3; ++i)
+            {
+                double &v = P(idx + i, idx + i);
+                if (!std::isfinite(v) || v < bias_var_min) v = bias_var_min;
+                if (v > bias_var_max) v = bias_var_max;
+            }
+        };
+        clampDiag(ESKFNominalState::BA_IDX);
+        clampDiag(ESKFNominalState::BG_IDX);
 
         // 确保P对称正定
         P = 0.5 * (P + P.transpose());
@@ -549,7 +567,6 @@ namespace ocs2::legged_robot
 
         for (int i = 0; i < 4; ++i)
         {
-            // 启动阶段足力可能还没超过阈值，但机器人已经静止落地。
             // 若四条腿都未报接触，临时用弱运动学支撑约束，避免高度只靠IMU积分漂移。
             const bool isContact = contact_flag_[i] || !has_measured_contact;
             const int foot_state_idx = ESKFNominalState::F1_IDX + 3 * i;
@@ -654,38 +671,44 @@ namespace ocs2::legged_robot
     void ErrorStateKalmanFilter::fuseImuAttitude()
     {
         // ========================================================================
-        // IMU 姿态软约束：将 ESKF 估计的旋转柔性约束到 IMU 输出 (quat_)
+        // IMU 姿态软约束：以 IMU 自带的方向作为附加观测，柔性约束 ESKF 旋转。
         //
-        // 观测模型:
-        //   z = Log(xHat_.q^{-1} * quat_)   观测: ESKF与IMU的旋转差异
-        //   h = 0                            预测: 如果ESKF旋转正确, 差异为0
-        //   y = z                            残差
-        //   C_att = I (3x3) at ROT_IDX       雅可比: 直接观测δΘ
+        // 与足端运动学观测保持一致，采用 body-frame 误差: q_true = q_eskf ⊗ Exp(δθ_body)
+        //     y_att = Log(q_eskf^{-1} ⊗ q_imu)        (body frame)
+        //     C_att = I (3x3) at ROT_IDX
         //
-        // meas_noise_attitude_ 控制约束强度:
-        //   小值(0.01): 强约束, ESKF 旋转紧跟 IMU (稳定但损失运动学修正)
-        //   大值(0.1+): 弱约束, 更多依赖运动学修正 (更精确但可能不稳定)
+        // 噪声分离: roll/pitch 用 meas_noise_attitude_，yaw 用 meas_noise_attitude_yaw_。
+        // 这两个值是 world-frame 下 zyx 上的标准差；为保持与 body-frame 残差一致，
+        // 通过 R_att_body = R_wb^T * diag(rp, rp, yaw)^2 * R_wb 投影回 body frame。
         // ========================================================================
 
-        // 计算旋转残差: Log(q_eskf^{-1} ⊗ q_imu)
+        // 1) body-frame 姿态残差
         Eigen::Quaterniond dq = xHat_.q.inverse() * quat_;
         dq.normalize();
         Eigen::Vector3d y_att = Sophus::SO3d(dq).log();
 
-        // 观测雅可比 C_att (3 x STATE_DIM): 仅在 ROT_IDX 处为 I
+        // 2) 观测雅可比：仅作用在 δθ_body 上
         Eigen::Matrix<double, 3, ESKFNominalState::STATE_DIM> C_att;
         C_att.setZero();
         C_att.block<3, 3>(0, ESKFNominalState::ROT_IDX) = Eigen::Matrix3d::Identity();
 
-        // 观测噪声
-        Eigen::Matrix3d R_att = (meas_noise_attitude_ * meas_noise_attitude_) * Eigen::Matrix3d::Identity();
+        // 3) world-frame 上 roll/pitch/yaw 噪声 → body frame
+        const double sigma_rp2 = meas_noise_attitude_ * meas_noise_attitude_;
+        const double sigma_yaw2 = meas_noise_attitude_yaw_ * meas_noise_attitude_yaw_;
+        Eigen::Matrix3d R_att_world = Eigen::Matrix3d::Zero();
+        R_att_world(0, 0) = sigma_rp2;
+        R_att_world(1, 1) = sigma_rp2;
+        R_att_world(2, 2) = sigma_yaw2;
+        const Eigen::Matrix3d R_wb = xHat_.q.toRotationMatrix();
+        Eigen::Matrix3d R_att = R_wb.transpose() * R_att_world * R_wb;
 
-        // 标准卡尔曼更新
+        // 4) 标准卡尔曼更新（约束在姿态子块上，避免 yaw 大噪声把别的状态也轻易拉走）
         Eigen::Matrix3d S_att = C_att * P * C_att.transpose() + R_att;
-        Eigen::Matrix<double, ESKFNominalState::STATE_DIM, 3> K_att = P * C_att.transpose() * S_att.inverse();
+        Eigen::Matrix<double, ESKFNominalState::STATE_DIM, 3> K_att =
+            P * C_att.transpose() * S_att.ldlt().solve(Eigen::Matrix3d::Identity());
         StateVec dx_att = K_att * y_att;
 
-        // 限制姿态修正量
+        // 5) 单步姿态修正量限幅，避免大跳变
         const double max_att_correction = 0.05; // rad (~2.8°)
         for (int i = 0; i < 3; ++i)
         {
@@ -693,14 +716,11 @@ namespace ocs2::legged_robot
                 dx_att(ESKFNominalState::ROT_IDX + i), -max_att_correction, max_att_correction);
         }
 
-        // 注入误差状态
         injectErrorState(dx_att);
 
-        // 更新协方差 (约瑟夫形式)
         StateCov I_KC = StateCov::Identity() - K_att * C_att;
         P = I_KC * P * I_KC.transpose() + K_att * R_att * K_att.transpose();
 
-        // 重置误差状态 (姿态部分)
         resetErrorState(dx_att);
 
         P = 0.5 * (P + P.transpose());
@@ -784,10 +804,12 @@ namespace ocs2::legged_robot
         odom.pose.pose.position.y = p_body.y();
         odom.pose.pose.position.z = p_body.z();
 
-        odom.pose.pose.orientation.x = quat_.x();
-        odom.pose.pose.orientation.y = quat_.y();
-        odom.pose.pose.orientation.z = quat_.z();
-        odom.pose.pose.orientation.w = quat_.w();
+        // 输出 ESKF 融合后的姿态，而不是裸 IMU 的 quat_
+        const Eigen::Quaterniond q_out = xHat_.q.normalized();
+        odom.pose.pose.orientation.x = q_out.x();
+        odom.pose.pose.orientation.y = q_out.y();
+        odom.pose.pose.orientation.z = q_out.z();
+        odom.pose.pose.orientation.w = q_out.w();
 
         for (int i = 0; i < 3; ++i)
         {
@@ -844,6 +866,7 @@ namespace ocs2::legged_robot
         loadData::loadPtreeValue(pt, meas_noise_bg_, prefix + "MeasurementNoiseBiasGyroscope", verbose);
         loadData::loadPtreeValue(pt, meas_noise_encoder_, prefix + "MeasurementNoiseEncoder", verbose);
         loadData::loadPtreeValue(pt, meas_noise_attitude_, prefix + "MeasurementNoiseAttitude", verbose);
+        loadData::loadPtreeValue(pt, meas_noise_attitude_yaw_, prefix + "MeasurementNoiseAttitudeYaw", verbose);
         loadData::loadPtreeValue(pt, foot_radius_, prefix + "FootRadius", verbose);
         loadData::loadPtreeValue(pt, min_contact_trust_, prefix + "MinContactTrust", verbose);
 

@@ -29,7 +29,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "ocs2_quadruped_controller/interface/SwitchedModelReferenceManager.h"
 
-#include <algorithm>
 #include <cmath>
 
 /* 管理步态模式和摆动轨迹的参考信息 */
@@ -49,9 +48,9 @@ namespace ocs2::legged_robot {
         
     }
 
-    // 获取接触状态
+    // 获取接触状态：以 ModeSchedule 为准（与 gait.info 一致）
     contact_flag_t SwitchedModelReferenceManager::getContactFlags(scalar_t time) const {
-        return swingTrajectoryPtr_->getContactFlags(time);
+        return modeNumber2StanceLeg(this->getModeSchedule().modeAtTime(time));
     }
 
     // 修改参考轨迹
@@ -59,6 +58,8 @@ namespace ocs2::legged_robot {
                                                          const vector_t &initState,
                                                          TargetTrajectories &targetTrajectories,
                                                          ModeSchedule &modeSchedule) {
+        (void)initState;
+        (void)targetTrajectories;
         const auto timeHorizon = finalTime - initTime;
         modeSchedule = gaitSchedulePtr_->getModeSchedule(initTime - timeHorizon, finalTime + timeHorizon);
 
