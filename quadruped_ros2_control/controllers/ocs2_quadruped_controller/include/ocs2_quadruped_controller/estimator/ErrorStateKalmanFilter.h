@@ -166,7 +166,7 @@ namespace ocs2::legged_robot
         bool feet_world_initialized_ = false;
         // 接触估计器
         std::unique_ptr<ContactEstimator> contact_estimator_;
-        bool use_contact_estimator_ = true;  // 是否使用接触估计器
+        bool use_contact_estimator_ = false;  // 是否使用接触估计器
         std::array<double, 4> contact_prob_ = {0.0, 0.0, 0.0, 0.0}; // 接触概率
         // 步态相位信息获取
         std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr_;
@@ -190,7 +190,7 @@ namespace ocs2::legged_robot
 
         // 足端参数
         double foot_radius_ = 0.019; // 足端半径，用于高度约束
-            double min_contact_trust_ = 0.05; // 接触概率下限，避免观测被完全关闭
+        double min_contact_trust_ = 0.05; // 接触概率下限，避免观测被完全关闭
         double swing_inflate_ = 100.0; // 摆动相膨胀系数
         
 

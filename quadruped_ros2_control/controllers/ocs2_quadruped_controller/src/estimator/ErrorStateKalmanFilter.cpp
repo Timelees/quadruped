@@ -164,9 +164,35 @@ namespace ocs2::legged_robot
             Jc[i] = J_full_.topRows<3>();
         }
 
-        // 初始化足端世界坐标
+        // 初始化机体高度和足端世界坐标
         if (!feet_world_initialized_)
         {
+            xHat_.q = quat_;
+            xHat_.q.normalize();
+
+            double base_height_sum = 0.0;
+            int base_height_count = 0;
+            for (int i = 0; i < 4; ++i)
+            {
+                if (contact_flag_[i])
+                {
+                    const scalar_t terrain_height = queryFootTerrainHeight(xHat_.p, foot_pos_[i], 0.0);
+                    base_height_sum += static_cast<double>(terrain_height) + foot_radius_ - foot_pos_[i].z();
+                    ++base_height_count;
+                }
+            }
+            if (base_height_count == 0)
+            {
+                for (int i = 0; i < 4; ++i)
+                {
+                    const scalar_t terrain_height = queryFootTerrainHeight(xHat_.p, foot_pos_[i], 0.0);
+                    base_height_sum += static_cast<double>(terrain_height) + foot_radius_ - foot_pos_[i].z();
+                }
+                base_height_count = 4;
+            }
+            xHat_.p.z() = base_height_sum / static_cast<double>(base_height_count);
+            xHat_.v.setZero();
+
             for (int i = 0; i < 4; ++i)
             {
                 xHat_.f[i] = xHat_.p + foot_pos_[i];
@@ -429,19 +455,6 @@ namespace ocs2::legged_robot
         // 协方差传播: P_k = A * P_{k-1} * A^T + B * Q * B^T
         P = A * P * A.transpose() + B * Q * B.transpose();
 
-        // =================== 不可观测/弱可观测量的 P 矩阵解耦 ===================
-        // 在腿式里程计 ESKF 中，某些状态量的可观测性很弱：
-        // 1. ba: 观测模型C矩阵中ba列全为零，只通过A(vel,ba)=-R*dt间接影响
-        //        如果不解耦，ba的不确定性会通过交叉协方差"拉偏"速度和位置估计
-        // 2. bg.z: 4条腿对称分布，C(bg.z)的贡献相互抵消，yaw偏置几乎不可观测
-        //
-        // 解耦策略：将这些状态的P行/列清零，仅保留极小的自身方差
-        // 效果：卡尔曼增益K中对应列接近零，观测不会修正这些不可观测量
-        //       同时这些量也不会通过交叉协方差反向污染可观测量(p, v, θ)
-        //
-        // 注意：在真实机器人上可能需要重新评估，如有外部yaw参考（磁力计/视觉）
-        //       或有独立的加速度计偏置标定流程，可移除对应的解耦代码
-
         // ba (加速度偏置) 解耦
         for (int i = 0; i < 3; ++i)
         {
@@ -493,15 +506,18 @@ namespace ocs2::legged_robot
 
     void ErrorStateKalmanFilter::setCovarianceQ(ProcessNoiseCov &Q, double dt)
     {
+        (void)dt;
+
         Q.setIdentity();
         // 过程噪声协方差 (连续时间噪声)
         // [ n_g(3), n_a(3), n_f1(3), n_f2(3), n_f3(3), n_f4(3), n_ba(3), n_bg(3) ]
         Q.block(0, 0, 3, 3) *= (proc_noise_gyro_ * proc_noise_gyro_);      // 角速度噪声（影响姿态积分）
         Q.block(3, 3, 3, 3) *= (proc_noise_acc_ * proc_noise_acc_);        // 加速度噪声（影响速度积分）
         Q.block(6, 6, 12, 12) *= (proc_noise_fpos_ * proc_noise_fpos_);    // 足端过程噪声
+        const bool has_measured_contact = std::any_of(contact_flag_.begin(), contact_flag_.end(), [](bool contact) { return contact; });
         for (int i = 0; i < 4; ++i)
         {
-            bool isContact = contact_flag_[i];
+            bool isContact = contact_flag_[i] || !has_measured_contact;
             Q.block(6 + 3 * i, 6 + 3 * i, 3, 3) = (isContact ? 1.0 : high_suspect_number) * Q.block(6 + 3 * i, 6 + 3 * i, 3, 3);
         }
         Q.block(18, 18, 3, 3) *= (proc_noise_ba_ * proc_noise_ba_); // 偏置加速度噪声
@@ -510,6 +526,8 @@ namespace ocs2::legged_robot
 
     void ErrorStateKalmanFilter::measurementModelKinematics(const ESKFNominalState &x, const ESKFInput &in, MeasVec &y, MeasJacobian &C, MeasCov &R)
     {
+        (void)in;
+
         // 初始化输出
         y.setZero();
         C.setZero();
@@ -526,15 +544,20 @@ namespace ocs2::legged_robot
         Eigen::Vector3d p_k = x.p; // body位置 (世界系)
         Eigen::Vector3d v_k = x.v; // body速度 (世界系)
 
+        const bool has_measured_contact = std::any_of(contact_flag_.begin(), contact_flag_.end(), [](bool contact) { return contact; });
+        const double missing_contact_noise_scale = has_measured_contact ? 1.0 : 10.0;
+
         for (int i = 0; i < 4; ++i)
         {
-            const bool isContact = contact_flag_[i];
+            // 启动阶段足力可能还没超过阈值，但机器人已经静止落地。
+            // 若四条腿都未报接触，临时用弱运动学支撑约束，避免高度只靠IMU积分漂移。
+            const bool isContact = contact_flag_[i] || !has_measured_contact;
             const int foot_state_idx = ESKFNominalState::F1_IDX + 3 * i;
 
             // ==================== 足端位置观测 ====================
             Eigen::Vector3d diff_world = x.f[i] - p_k;           // f - p (世界系)
             Eigen::Vector3d diff_body = RwT * diff_world;         // G^T(f - p) (体系)
-            Eigen::Vector3d z_pos = RwT * foot_pos_[i];           // FK 测量转到体系
+            Eigen::Vector3d z_pos = RwT * foot_pos_[i];           // FK world-aligned 测量转到体系
             Eigen::Vector3d delta_ypos = z_pos - diff_body;       // 残差 (体系)
             Eigen::Matrix3d R_pos_i = R_fpos;
 
@@ -547,6 +570,7 @@ namespace ocs2::legged_robot
                 // 编码器噪声传播
                 Eigen::Matrix3d Jc_leg_body = RwT * Jc[i].middleCols<3>(6 + 3 * i);
                 R_pos_i += Jc_leg_body * R_phi * Jc_leg_body.transpose();
+                R_pos_i *= missing_contact_noise_scale;
             } else {
                 y.segment<3>(ESKFNominalState::MEAS_FPOS_IDX + 3 * i) = Eigen::Vector3d::Zero();
                 C.block<3, ESKFNominalState::STATE_DIM>(ESKFNominalState::MEAS_FPOS_IDX + 3 * i, 0).setZero();
@@ -558,6 +582,7 @@ namespace ocs2::legged_robot
             if (isContact) {
                 y.segment<3>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i) = -(RwT * (v_k + foot_vel_[i]));
                 C.block<3, 3>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i, ESKFNominalState::VEL_IDX) = RwT;
+                R_vel_i *= missing_contact_noise_scale;
             } else {
                 y.segment<3>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i).setZero();
                 C.block<3, ESKFNominalState::STATE_DIM>(ESKFNominalState::MEAS_FVEL_IDX + 3 * i, 0).setZero();
@@ -567,8 +592,10 @@ namespace ocs2::legged_robot
             // ==================== 足端高度观测 ====================
             double R_height_i = R_fheight;
             if (isContact) {
-                y(ESKFNominalState::MEAS_FHEIGHT_IDX + i) = foot_radius_ - x.f[i].z();
+                const scalar_t terrain_height = queryTerrainHeight(x.f[i].x(), x.f[i].y(), 0.0);
+                y(ESKFNominalState::MEAS_FHEIGHT_IDX + i) = static_cast<double>(terrain_height) + foot_radius_ - x.f[i].z();
                 C(ESKFNominalState::MEAS_FHEIGHT_IDX + i, foot_state_idx + 2) = 1.0;
+                R_height_i *= missing_contact_noise_scale;
             } else {
                 y(ESKFNominalState::MEAS_FHEIGHT_IDX + i) = 0.0;
                 C.row(ESKFNominalState::MEAS_FHEIGHT_IDX + i).setZero();

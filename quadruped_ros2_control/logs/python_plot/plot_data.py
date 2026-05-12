@@ -12,24 +12,38 @@ from collections import defaultdict
 import numpy as np
 import matplotlib.pyplot as plt
 
-ROOT = os.path.dirname(__file__)
-DATA_DIR = os.path.join(ROOT, 'data')
-OUT_DIR = os.path.join(ROOT, 'plot_fig')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGS_DIR = os.path.dirname(SCRIPT_DIR)
+DATA_DIR = os.path.join(LOGS_DIR, 'data')
+OUT_DIR = os.path.join(LOGS_DIR, 'plot_fig')
 
 
 def read_csv(path):
     with open(path, 'r', newline='') as f:
         reader = csv.reader(f)
         try:
-            header = next(reader)
+            header = [h.strip() for h in next(reader)]
         except StopIteration:
-            return [], []
-        rows = [row for row in reader if row]
-    # convert to float where possible, keep as np.array of floats
-    if not rows:
-        return header, np.empty((0, len(header)))
-    arr = np.array([[float(x) for x in row] for row in rows], dtype=float)
-    return header, arr
+            return [], np.empty((0, 0))
+        ncols = len(header)
+        parsed = []
+        for row in reader:
+            if not row:
+                continue
+            row = [c.strip() for c in row]
+            if all(c == '' for c in row):
+                continue
+            if len(row) < ncols:
+                row = row + [''] * (ncols - len(row))
+            elif len(row) > ncols:
+                row = row[:ncols]
+            try:
+                parsed.append([float(c) if c != '' else float('nan') for c in row])
+            except ValueError:
+                continue
+    if not parsed:
+        return header, np.empty((0, ncols))
+    return header, np.array(parsed, dtype=float)
 
 
 def group_files(files):

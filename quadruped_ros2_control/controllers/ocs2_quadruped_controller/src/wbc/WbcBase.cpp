@@ -4,8 +4,8 @@
 
 #include "ocs2_quadruped_controller/wbc/WbcBase.h"
 
+#include <algorithm>
 #include <utility>
-// #include <algorithm>
 #include <vector>
 
 #include <pinocchio/fwd.hpp>  // forward declarations must be included first.
@@ -20,8 +20,8 @@
 #include <ocs2_centroidal_model/ModelHelperFunctions.h>
 #include <ocs2_core/misc/LoadData.h>
 
-// #include "ocs2_quadruped_controller/perceptive/common/FootPlacementSafetySet.h"
-// #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
+#include "ocs2_quadruped_controller/perceptive/common/FootPlacementSafetySet.h"
+#include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
 
 namespace ocs2::legged_robot
 {

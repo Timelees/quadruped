@@ -137,7 +137,7 @@ def launch_setup(context, *args, **kwargs):
                 on_exit=[ocs2_controller],
             )
         ),
-        elevation_launch_mapping_launch,
+        # elevation_launch_mapping_launch,
 
         world_to_map_tf_publisher,
         map_to_odom_tf_publisher,
