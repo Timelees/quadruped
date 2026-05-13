@@ -40,8 +40,6 @@ namespace ocs2::legged_robot
             // desired state trajectory
             vector_t currentPose = observation.state.segment<6>(6);
             currentPose(2) = command_height_;
-            currentPose(4) = 0;
-            currentPose(5) = 0;
             vector_array_t stateTrajectory(2, vector_t::Zero(observation.state.size()));
             stateTrajectory[0] << vector_t::Zero(6), currentPose, default_joint_state_;
             stateTrajectory[1] << vector_t::Zero(6), targetPose, default_joint_state_;
@@ -64,7 +62,13 @@ namespace ocs2::legged_robot
         scalar_t command_height_{};
         scalar_t time_to_target_{};
         scalar_t target_displacement_velocity_{};
+        scalar_t target_lateral_velocity_{};
         scalar_t target_rotation_velocity_{};
+
+        // When yaw rate command is ~0, hold a fixed world yaw so MPC regulates heading (avoids passive drift in crab walk).
+        bool yaw_hold_initialized_{false};
+        scalar_t yaw_hold_value_{0};
+        static constexpr scalar_t kYawRateDeadzone = 0.02; // [rad/s], below = treat as no yaw command
     };
 }
 

@@ -7,6 +7,90 @@
 
 namespace ocs2::legged_robot
 {
+	namespace
+	{
+		scalar_t computeSwingPhaseProgressFromModeSchedule(
+			const ModeSchedule& modeSchedule,
+			const ConvexRegionSelector& selector,
+			size_t leg,
+			scalar_t time)
+		{
+			if (modeSchedule.eventTimes.empty() || modeSchedule.modeSequence.empty())
+			{
+				return scalar_t(-1.0);
+			}
+
+			const auto contactFlagStocks = selector.extractContactFlags(modeSchedule.modeSequence);
+			if (leg >= contactFlagStocks.size())
+			{
+				return scalar_t(-1.0);
+			}
+
+			const auto& contactFlags = contactFlagStocks[leg];
+			if (contactFlags.empty())
+			{
+				return scalar_t(-1.0);
+			}
+
+			// clamp to phase index range
+			size_t phaseIndex = 0;
+			for (size_t k = 0; k + 1 < modeSchedule.eventTimes.size(); ++k)
+			{
+				if (time >= modeSchedule.eventTimes[k] && time < modeSchedule.eventTimes[k + 1])
+				{
+					phaseIndex = k;
+					break;
+				}
+				if (time >= modeSchedule.eventTimes.back())
+				{
+					phaseIndex = modeSchedule.eventTimes.size() - 1;
+				}
+			}
+
+			const size_t clampedIndex = std::min(phaseIndex, contactFlags.size() - 1);
+			if (contactFlags[clampedIndex])
+			{
+				return scalar_t(-1.0);
+			}
+
+			// find swing start index (previous stance)
+			int startIdx = -1;
+			for (int i = static_cast<int>(clampedIndex) - 1; i >= 0; --i)
+			{
+				if (contactFlags[static_cast<size_t>(i)])
+				{
+					startIdx = i;
+					break;
+				}
+			}
+			// find swing final index (next stance)
+			int finalIdx = static_cast<int>(contactFlags.size()) - 1;
+			for (size_t i = clampedIndex + 1; i < contactFlags.size(); ++i)
+			{
+				if (contactFlags[i])
+				{
+					finalIdx = static_cast<int>(i) - 1;
+					break;
+				}
+			}
+			if (startIdx < 0)
+			{
+				return scalar_t(-1.0);
+			}
+
+			const int lastEvent = static_cast<int>(modeSchedule.eventTimes.size()) - 1;
+			const int safeStart = std::min(std::max(startIdx, 0), lastEvent);
+			const int safeFinal = std::min(std::max(finalIdx, 0), lastEvent);
+
+			const scalar_t t0 = modeSchedule.eventTimes[static_cast<size_t>(safeStart)];
+			const scalar_t t1_raw = modeSchedule.eventTimes[static_cast<size_t>(safeFinal)];
+			const scalar_t t1 = (t1_raw > t0) ? t1_raw : (t0 + scalar_t(1e-3));
+
+			const scalar_t alpha = (time - t0) / (t1 - t0);
+			return std::min<scalar_t>(1.0, std::max<scalar_t>(0.0, alpha));
+		}
+	}
+
 	FootPlacementCBFConstraint::FootPlacementCBFConstraint(const SwitchedModelReferenceManager& referenceManager,
 														   const EndEffectorKinematics<scalar_t>& endEffectorKinematics,
 										   size_t contactPointIndex,
@@ -34,7 +118,8 @@ namespace ocs2::legged_robot
 		const auto& selector = *refMgr.getConvexRegionSelectorPtr();
 		const bool hasPolygon = selector.getConvexPolygon(contactPointIndex_, time).size() >= 3;
 		const bool isContact = refMgr.getContactFlags(time)[contactPointIndex_];
-		const scalar_t swingProgress = refMgr.getSwingTrajectoryPlanner()->getSwingPhaseProgress(contactPointIndex_, time);
+		const scalar_t swingProgress = computeSwingPhaseProgressFromModeSchedule(
+			refMgr.getModeSchedule(), selector, contactPointIndex_, time);
 		const scalar_t activationProgress = config_.swingActivationProgress >= 0.0
 		                                        ? config_.swingActivationProgress
 		                                        : refMgr.getFootPlacementRelaxationConfig().swingActivationProgress;

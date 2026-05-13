@@ -4,48 +4,25 @@
 
 #include "ocs2_quadruped_controller/wbc/WbcBase.h"
 
-#include <algorithm>
 #include <utility>
-#include <vector>
-
+#include <ocs2_centroidal_model/AccessHelperFunctions.h>
+#include <ocs2_centroidal_model/ModelHelperFunctions.h>
+#include <ocs2_core/misc/LoadData.h>
 #include <pinocchio/fwd.hpp>  // forward declarations must be included first.
 #include <pinocchio/algorithm/centroidal.hpp>
 #include <pinocchio/algorithm/crba.hpp>
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/rnea.hpp>
 
-#include <boost/property_tree/info_parser.hpp>
-#include <ocs2_legged_robot/gait/MotionPhaseDefinition.h>
-#include <ocs2_centroidal_model/AccessHelperFunctions.h>
-#include <ocs2_centroidal_model/ModelHelperFunctions.h>
-#include <ocs2_core/misc/LoadData.h>
-
-#include "ocs2_quadruped_controller/perceptive/common/FootPlacementSafetySet.h"
-#include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
-
 namespace ocs2::legged_robot
 {
-    namespace
-    {
-        scalar_t clampSymmetric(scalar_t value, scalar_t limit)
-        {
-            if (limit <= 0.0)
-            {
-                return 0.0;
-            }
-            return std::clamp(value, -limit, limit);
-        }
-    }
-
     WbcBase::WbcBase(const PinocchioInterface& pinocchioInterface, CentroidalModelInfo info,
-                     const PinocchioEndEffectorKinematics& eeKinematics,
-                     std::shared_ptr<SwitchedModelReferenceManager> referenceManagerPtr)
+                     const PinocchioEndEffectorKinematics& eeKinematics)
         : pinocchio_interface_measured_(pinocchioInterface),
           pinocchio_interface_desired_(pinocchioInterface),
           info_(std::move(info)),
           ee_kinematics_(eeKinematics.clone()),
           mapping_(info_),
-          referenceManagerPtr_(std::move(referenceManagerPtr)),
           input_last_(vector_t::Zero(info_.inputDim))
     {
         num_decision_vars_ = info_.generalizedCoordinatesNum + 3 * info_.numThreeDofContacts + info_.actuatedDofNum;
@@ -55,10 +32,9 @@ namespace ocs2::legged_robot
 
     vector_t WbcBase::update(const vector_t& stateDesired, const vector_t& inputDesired,
                              const vector_t& rbdStateMeasured, size_t mode,
-                             scalar_t /*period*/, scalar_t currentTime)
+                             scalar_t /*period*/)
     {
         contact_flag_ = modeNumber2StanceLeg(mode);
-        currentTime_ = currentTime;
         num_contacts_ = 0;
         for (const bool flag : contact_flag_)
         {
@@ -81,9 +57,9 @@ namespace ocs2::legged_robot
         q_measured_.tail(info_.actuatedDofNum) = rbdStateMeasured.segment(6, info_.actuatedDofNum);     // 关节角度
         v_measured_.head<3>() = rbdStateMeasured.segment<3>(info_.generalizedCoordinatesNum + 3);       // 基座线速度
         v_measured_.segment<3>(3) = getEulerAnglesZyxDerivativesFromGlobalAngularVelocity<scalar_t>(
-            q_measured_.segment<3>(3), rbdStateMeasured.segment<3>(info_.generalizedCoordinatesNum));   // 基座角速度
+            q_measured_.segment<3>(3), rbdStateMeasured.segment<3>(info_.generalizedCoordinatesNum));
         v_measured_.tail(info_.actuatedDofNum) = rbdStateMeasured.segment(
-            info_.generalizedCoordinatesNum + 6, info_.actuatedDofNum);     // 关节速度
+            info_.generalizedCoordinatesNum + 6, info_.actuatedDofNum);
 
         const auto& model = pinocchio_interface_measured_.getModel();
         auto& data = pinocchio_interface_measured_.getData();
@@ -307,111 +283,7 @@ namespace ocs2::legged_robot
         return {a, b, matrix_t(), vector_t()};
     }
 
-    Task WbcBase::formulateFootPlacementCbfTask()
-    {
-        
-        const auto* perceptiveRefMgr = dynamic_cast<const PerceptiveLeggedReferenceManager*>(referenceManagerPtr_.get());
-        if (perceptiveRefMgr == nullptr)
-        {
-            return {matrix_t(), vector_t(), matrix_t(), vector_t()};
-        }
-        
-        const auto& selector = *perceptiveRefMgr->getConvexRegionSelectorPtr();
-        const scalar_t activationProgress = foot_cbf_activation_progress_ >= 0.0
-                                                ? foot_cbf_activation_progress_
-                                                : perceptiveRefMgr->getFootPlacementRelaxationConfig().swingActivationProgress;
-        const scalar_t dt = std::max<scalar_t>(foot_cbf_relaxation_derivative_dt_, 1e-6);
-        
-        ee_kinematics_->setPinocchioInterface(pinocchio_interface_measured_);
-        const std::vector<vector3_t> posMeasured = ee_kinematics_->getPosition(vector_t());
-        const std::vector<vector3_t> velMeasured = ee_kinematics_->getVelocity(vector_t(), vector_t());
-        
-        std::vector<matrix_t> dBlocks;
-        std::vector<vector_t> fBlocks;
-        
-        for (size_t leg = 0; leg < info_.numThreeDofContacts; ++leg)
-        {
-            const auto safetyPolygon = selector.getConvexPolygon(leg, currentTime_);
-            const bool hasPolygon = safetyPolygon.size() >= 3;
-            const bool isContact = contact_flag_[leg];
-            const scalar_t swingProgress = perceptiveRefMgr->getSwingTrajectoryPlanner()->getSwingPhaseProgress(leg, currentTime_);
-            const bool isLateSwing = swingProgress >= 0.0 && swingProgress >= activationProgress;
-            if (!(hasPolygon && !isContact && isLateSwing))
-            {
-                continue;
-            }
-        
-            const auto projection = selector.getProjection(leg, currentTime_);
-            if (projection.regionPtr == nullptr)
-            {
-                continue;
-            }
-        
-            const auto halfSpace = foot_placement::buildWorldHalfSpace(
-                safetyPolygon, projection.regionPtr->transformPlaneToWorld);
-            if (halfSpace.a.rows() == 0)
-            {
-                continue;
-            }
-        
-            const matrix_t& A = halfSpace.a;
-            const vector_t& b = halfSpace.b;
-            const size_t numRows = static_cast<size_t>(A.rows());
-        
-            const vector3_t& position = posMeasured[leg];
-            const vector3_t& velocity = velMeasured[leg];
-            const matrix_t J = j_.block(3 * leg, 0, 3, info_.generalizedCoordinatesNum);
-            const matrix_t dJ = dj_.block(3 * leg, 0, 3, info_.generalizedCoordinatesNum);
-            const vector3_t dJv = dJ * v_measured_;
-        
-            const scalar_t relaxation = perceptiveRefMgr->getFootPlacementRelaxation(leg, currentTime_);
-            const scalar_t relaxationNext = perceptiveRefMgr->getFootPlacementRelaxation(leg, currentTime_ + dt);
-            const scalar_t relaxationNext2 = perceptiveRefMgr->getFootPlacementRelaxation(leg, currentTime_ + 2.0 * dt);
-            const scalar_t relaxationRate = clampSymmetric((relaxationNext - relaxation) / dt,
-                                                           foot_cbf_max_relaxation_rate_);
-            const scalar_t relaxationAccel = clampSymmetric(
-                (relaxationNext2 - 2.0 * relaxationNext + relaxation) / (dt * dt),
-                foot_cbf_max_relaxation_accel_);
-        
-            vector_t relaxationOffset = vector_t::Zero(numRows);
-            vector_t relaxationRateOffset = vector_t::Zero(numRows);
-            vector_t relaxationAccelOffset = vector_t::Zero(numRows);
-            for (int row = 0; row < A.rows(); ++row)
-            {
-                const scalar_t rowNorm = A.row(row).norm();
-                relaxationOffset(row) = relaxation * rowNorm;
-                relaxationRateOffset(row) = relaxationRate * rowNorm;
-                relaxationAccelOffset(row) = relaxationAccel * rowNorm;
-            }
-        
-            const vector_t h = A * position + b + relaxationOffset;
-            const vector_t hDot = A * velocity + relaxationRateOffset;
-        
-            matrix_t dLeg = matrix_t::Zero(numRows, num_decision_vars_);
-            dLeg.block(0, 0, numRows, info_.generalizedCoordinatesNum) = -A * J;
-            vector_t fLeg = A * dJv + relaxationAccelOffset +
-                            (foot_cbf_gamma_ + foot_cbf_xi_) * hDot +
-                            foot_cbf_gamma_ * foot_cbf_xi_ * h;
-        
-            dBlocks.push_back(std::move(dLeg));
-            fBlocks.push_back(std::move(fLeg));
-        }
-        
-        if (dBlocks.empty())
-        {
-            return {matrix_t(), vector_t(), matrix_t(), vector_t()};
-        }
-        
-        matrix_t d = dBlocks.front();
-        vector_t f = fBlocks.front();
-        for (size_t index = 1; index < dBlocks.size(); ++index)
-        {
-            d = Task::concatenateMatrices(d, dBlocks[index]);
-            f = Task::concatenateVectors(f, fBlocks[index]);
-        }
-        
-        return {matrix_t(), vector_t(), d, f};
-    }
+    // Foot placement CBF task is not part of the baseline WBC.
 
     void WbcBase::loadTasksSetting(const std::string& taskFile, const bool verbose)
     {

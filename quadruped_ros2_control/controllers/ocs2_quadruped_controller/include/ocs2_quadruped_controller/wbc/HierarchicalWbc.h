@@ -15,7 +15,7 @@ namespace ocs2::legged_robot
 
         vector_t update(const vector_t& stateDesired, const vector_t& inputDesired, const vector_t& rbdStateMeasured,
                         size_t mode,
-                        scalar_t period, scalar_t currentTime) override;
+                        scalar_t period) override;
     };
 } // namespace legged
 #endif // HIERARCHICALWBC_H

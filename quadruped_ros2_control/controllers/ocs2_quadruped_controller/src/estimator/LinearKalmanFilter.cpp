@@ -102,6 +102,7 @@ namespace ocs2::legged_robot
     {
  
         scalar_t dt = period.seconds(); // 控制器时间周期
+        controller_time_ += dt;
         updateJointStates();            // 更新关节状态
 
         // 使用 ContactEstimator 估计足端接触状态和足端力
@@ -122,14 +123,16 @@ namespace ocs2::legged_robot
             const vector3_t p_wb = xHat_.segment<3>(0); // base world position (来自 KF 估计)
             for (int i = 0; i < 4; ++i)
             {
-                const scalar_t terrainHeight = queryFootTerrainHeight(p_wb, eePosRelWorld[i], 0.0);
+                const scalar_t terrainHeight = 0.0;
                 foot_heights[i] = static_cast<double>(p_wb.z() + eePosRelWorld[i].z() - terrainHeight);
             }
 
             // 从 MPC 的 ModeSchedule 获取接触相位和摆动相位
             std::array<double, 4> contact_phase;
             std::array<double, 4> swing_phase;
-            const double current_time = time.seconds();
+            // 关键：MPC/ReferenceManager 使用的是从 0 累加的控制时间（与 ModeSchedule.eventTimes 一致），
+            // 而不是 ROS 时间戳（可能是 epoch 秒）。两者混用会导致步态相位查询错位。
+            const double current_time = controller_time_;
             getGaitPhaseFromMPC(current_time, contact_phase, swing_phase);
 
             // 获取估计的足端力

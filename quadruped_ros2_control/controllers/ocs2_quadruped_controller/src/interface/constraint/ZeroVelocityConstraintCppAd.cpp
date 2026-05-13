@@ -53,9 +53,6 @@ namespace ocs2::legged_robot {
 
     bool ZeroVelocityConstraintCppAd::isActive(scalar_t time) const {
         bool isContact = referenceManagerPtr_->getContactFlags(time)[contactPointIndex_];
-        // 调试：支撑相时激活零速约束
-        // std::cout << "[ZeroVel] Leg " << contactPointIndex_ 
-        //           << " t=" << time << " isContact=" << isContact << std::endl;
         return isContact;
     }
 
@@ -63,12 +60,6 @@ namespace ocs2::legged_robot {
     vector_t ZeroVelocityConstraintCppAd::getValue(scalar_t time, const vector_t &state, const vector_t &input,
                                                    const PreComputation &preComp) const {
         vector_t vel = eeLinearConstraintPtr_->getValue(time, state, input, preComp);
-        // 调试：检查约束值（支撑相足端速度应接近0）
-        // if (isActive(time) && vel.norm() > 0.01) {
-        //     std::cout << "[ZeroVel] Leg " << contactPointIndex_ 
-        //               << " velocity=" << vel.transpose() 
-        //               << " norm=" << vel.norm() << std::endl;
-        // }
         return vel;
     }
 

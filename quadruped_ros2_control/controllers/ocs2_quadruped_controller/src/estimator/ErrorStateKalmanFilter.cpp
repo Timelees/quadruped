@@ -125,6 +125,7 @@ namespace ocs2::legged_robot
     vector_t ErrorStateKalmanFilter::update(const rclcpp::Time &time, const rclcpp::Duration &period)
     {
         double dt = period.seconds();
+        controller_time_ += dt;
         // 更新基础状态（关节、接触、IMU）
         updateJointStates();
         if (use_contact_estimator_ && contact_estimator_){
@@ -189,7 +190,7 @@ namespace ocs2::legged_robot
             {
                 if (contact_flag_[i])
                 {
-                    const scalar_t terrain_height = queryFootTerrainHeight(xHat_.p, foot_pos_[i], 0.0);
+                    const scalar_t terrain_height = 0.0;
                     base_height_sum += static_cast<double>(terrain_height) + foot_radius_ - foot_pos_[i].z();
                     ++base_height_count;
                 }
@@ -198,7 +199,7 @@ namespace ocs2::legged_robot
             {
                 for (int i = 0; i < 4; ++i)
                 {
-                    const scalar_t terrain_height = queryFootTerrainHeight(xHat_.p, foot_pos_[i], 0.0);
+                    const scalar_t terrain_height =  0.0;
                     base_height_sum += static_cast<double>(terrain_height) + foot_radius_ - foot_pos_[i].z();
                 }
                 base_height_count = 4;
@@ -609,7 +610,7 @@ namespace ocs2::legged_robot
             // ==================== 足端高度观测 ====================
             double R_height_i = R_fheight;
             if (isContact) {
-                const scalar_t terrain_height = queryTerrainHeight(x.f[i].x(), x.f[i].y(), 0.0);
+                const scalar_t terrain_height = 0.0;
                 y(ESKFNominalState::MEAS_FHEIGHT_IDX + i) = static_cast<double>(terrain_height) + foot_radius_ - x.f[i].z();
                 C(ESKFNominalState::MEAS_FHEIGHT_IDX + i, foot_state_idx + 2) = 1.0;
                 R_height_i *= missing_contact_noise_scale;
@@ -744,14 +745,15 @@ namespace ocs2::legged_robot
         const vector3_t p_wb = xHat_.p; // base world position (来自 KF 估计)
         for (int i = 0; i < 4; ++i)
         {
-            const scalar_t terrainHeight = queryFootTerrainHeight(p_wb, eePosRelWorld[i], 0.0);
+            const scalar_t terrainHeight =0.0;
             foot_heights[i] = static_cast<double>(p_wb.z() + eePosRelWorld[i].z() - terrainHeight);
         }
 
         // 从 MPC 的 ModeSchedule 获取接触相位和摆动相位
         std::array<double, 4> contact_phase = {0.5, 0.5, 0.5, 0.5};
         std::array<double, 4> swing_phase = {-1.0, -1.0, -1.0, -1.0};
-        const double current_time = time.seconds();
+        // 与 MPC/ReferenceManager 的时间基准保持一致（使用从 0 累加的控制时间，而非 ROS 时间戳）。
+        const double current_time = controller_time_;
         const auto &modeSchedule = reference_manager_ptr_->getModeSchedule();
         const auto contactPhasePerLeg = getContactPhasePerLeg(current_time, modeSchedule);
         const auto swingPhasePerLeg = getSwingPhasePerLeg(current_time, modeSchedule);

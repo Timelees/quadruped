@@ -20,7 +20,7 @@ swing_trajectory_config
 {
   liftOffVelocity               0.04   // 离地速度 - 降低以减少冲击
   touchDownVelocity            -0.08   // 触地速度 - 降低以减少落地冲击
-  swingHeight                   0.08  // 摆动高度 
+  swingHeight                   0.085
   swingTimeScale                0.15   // 摆动时间缩放因子
  
 }
@@ -171,20 +171,20 @@ Q
   scaling 1e+0
 
   ;; Normalized Centroidal Momentum: [linear, angular] ;;
-  (0,0)   15.0     ; vcom_x  -- 增大以更好跟踪速度指令
-  (1,1)   15.0     ; vcom_y 
+  (0,0)   35.0     ; vcom_x  -- 增大以更好跟踪速度指令
+  (1,1)   35.0     ; vcom_y 
   (2,2)   100.0     ; vcom_z
-  (3,3)   10.0      ; L_x / robotMass
+  (3,3)   30.0      ; L_x / robotMass
   (4,4)   30.0      ; L_y / robotMass
   (5,5)   30.0     ; L_z / robotMass
 
   ;; Base Pose: [position, orientation] ;;
-  (6,6)   1000.0   ; p_base_x -- 增大以减少x漂移
+  (6,6)   2000.0   ; p_base_x -- 增大以减少x漂移
   (7,7)   1000.0   ; p_base_y -- 增大以减少y漂移
   (8,8)   1500.0   ; p_base_z -- 增大以减少z漂移
-  (9,9)   200.0    ; theta_base_z   -- 增大以减少姿态的z旋转
-  (10,10) 300.0    ; theta_base_y
-  (11,11) 300.0    ; theta_base_x
+  (9,9)   500.0    ; theta_base_z
+  (10,10) 350.0    ; theta_base_y
+  (11,11) 350.0    ; theta_base_x
 
   ;; Leg Joint Positions: [FL, RL, FR, RR] ;; -- 增加以更好跟踪关节位置
   (12,12) 5.0     ; FL_hip_joint
@@ -207,18 +207,18 @@ R
   scaling 1e-3
 
   ;; Feet Contact Forces: [FL, FR, RL, RR] ;; 接触力权重
-  (0,0)   1.0       ; front_left_force
-  (1,1)   1.0       ; front_left_force
-  (2,2)   1.0       ; front_left_force
-  (3,3)   1.0       ; front_right_force
-  (4,4)   1.0       ; front_right_force
-  (5,5)   1.0       ; front_right_force
-  (6,6)   1.0       ; rear_left_force
-  (7,7)   1.0       ; rear_left_force
-  (8,8)   1.0       ; rear_left_force
-  (9,9)   1.0       ; rear_right_force
-  (10,10) 1.0       ; rear_right_force
-  (11,11) 1.0       ; rear_right_force
+  (0,0)   2.0       ; front_left_force
+  (1,1)   2.0       ; front_left_force
+  (2,2)   2.0       ; front_left_force
+  (3,3)   2.0       ; front_right_force
+  (4,4)   2.0       ; front_right_force
+  (5,5)   2.0       ; front_right_force
+  (6,6)   2.0       ; rear_left_force
+  (7,7)   2.0       ; rear_left_force
+  (8,8)   2.0       ; rear_left_force
+  (9,9)   2.0       ; rear_right_force
+  (10,10) 2.0       ; rear_right_force
+  (11,11) 2.0       ; rear_right_force
 
   ;; foot velocity relative to base: [FL, RL, FR, RR] (uses the Jacobian at nominal configuration) ;; 足端速度权重，平滑的足端运动
   (12,12) 5000.0    ; x
@@ -238,7 +238,7 @@ R
 ; 软摩擦椎约束，允许不满足摩擦椎，但是会被惩罚 【当前使用软约束】
 frictionConeSoftConstraint
 {
-  frictionCoefficient    0.3        // 摩擦系数 - 增大以减少足端滑动
+  frictionCoefficient    0.5        // 摩擦系数 - 增大以减少足端滑动
 
   ; relaxed log barrier parameters  // 松弛障碍函数配置
   mu                     0.1        // 惩罚权重，控制不等式约束不满足条件时惩罚的强度
@@ -320,20 +320,20 @@ footPlacementCbfTask
 ; 摩擦椎硬约束，必须严格满足摩擦椎约束，否则求解不可达
 frictionConeTask
 {
-  frictionCoefficient    0.3  ; 与frictionConeSoftConstraint保持一致
+  frictionCoefficient    0.5
 }
 
 swingLegTask
 {
-    kp                   200  ; 
-    kd                   25   ; 
+    kp                   400  ; 
+    kd                   30   ; 
 }
 
 weight
 {
-    swingLeg        150      ; 增大摆动腿权重以提高轨迹跟踪
-    baseAccel       2        ; 增大基座加速度权重
-    contactForce    0.01
+    swingLeg        200
+    baseAccel       5
+    contactForce    0.005
 }
 
 ; 足端触地估计
@@ -357,7 +357,7 @@ contactEstimator
 ; State Estimation
 kalmanFilter
 {
-    is_enabled_logger           false        ; 是否开启日志
+    is_enabled_logger           true        ; 是否开启日志
     sim_mode                    true        ; 仿真/实机模式
 
     ; LinearKalmanFilter parameters
@@ -370,7 +370,8 @@ kalmanFilter
     footSensorNoiseVelocity     0.1
     footHeightSensorNoise       0.01
 
-    highSuspectNumber           100   
+    highSuspectNumber           100
+
 }
 
 

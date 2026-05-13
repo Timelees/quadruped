@@ -104,10 +104,13 @@ namespace ocs2::legged_robot
 
         // 接触估计器
         std::unique_ptr<ContactEstimator> contact_estimator_;
-        bool use_contact_estimator_ = true;  // 是否使用接触估计器
+        bool use_contact_estimator_ = false;  // 是否使用接触估计器
 
         // 步态相位信息获取
         std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr_;
+
+        // 与 MPC/ModeSchedule 一致的控制时间（从 0 累加，避免使用 ROS 时间戳导致相位错位）
+        scalar_t controller_time_ = 0.0;
    
     
         // 从 MPC 的 ModeSchedule 获取支撑相和摆动相

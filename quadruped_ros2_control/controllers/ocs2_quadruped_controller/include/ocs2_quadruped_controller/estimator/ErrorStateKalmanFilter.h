@@ -171,6 +171,9 @@ namespace ocs2::legged_robot
         // 步态相位信息获取
         std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr_;
 
+        // 与 MPC/ModeSchedule 一致的控制时间（从 0 累加，避免使用 ROS 时间戳导致相位错位）
+        double controller_time_ = 0.0;
+
 
         double proc_noise_acc_ = 0.017; // 加速度过程噪声
         double proc_noise_gyro_ = 0.002; // 角速度过程噪声

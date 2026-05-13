@@ -46,9 +46,6 @@ namespace ocs2::legged_robot {
 
     bool ZeroForceConstraint::isActive(scalar_t time) const {
         bool isSwing = !referenceManagerPtr_->getContactFlags(time)[contactPointIndex_];
-        // 调试输出：检查约束是否在正确的时机激活
-        // std::cout << "[ZeroForce] Leg " << contactPointIndex_ 
-        //           << " at t=" << time << " isSwing=" << isSwing << std::endl;
         return isSwing;
     }
 
@@ -56,12 +53,6 @@ namespace ocs2::legged_robot {
     vector_t ZeroForceConstraint::getValue(scalar_t time, const vector_t &state, const vector_t &input,
                                            const PreComputation &preComp) const {
         vector_t force = centroidal_model::getContactForces(input, contactPointIndex_, info_);
-        // 调试输出：检查约束值（摆动相时应接近0）
-        // if (isActive(time) && force.norm() > 0.1) {
-        //     std::cout << "[ZeroForce] Leg " << contactPointIndex_ 
-        //               << " force=" << force.transpose() 
-        //               << " norm=" << force.norm() << std::endl;
-        // }
         return force;
     }
 

@@ -168,7 +168,7 @@ namespace ocs2::legged_robot
         options.setToMPC();
         options.printLevel = qpOASES::PL_LOW;
         qpProblem.setOptions(options);
-        int nWsr = 100;
+        int nWsr = 20;
 
         qpProblem.init(h_.data(), c_.data(), d_.data(), nullptr, nullptr, nullptr, f_.data(), nWsr);
         vector_t qpSol(numDecisionVars_ + numSlackVars_);

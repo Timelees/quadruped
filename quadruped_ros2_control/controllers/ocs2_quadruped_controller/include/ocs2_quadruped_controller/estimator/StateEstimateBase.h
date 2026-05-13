@@ -61,14 +61,6 @@ namespace ocs2::legged_robot
     protected:
         void initPublishers();
 
-        void initTerrainMapSubscriber();
-
-        scalar_t queryTerrainHeight(scalar_t worldX, scalar_t worldY, scalar_t defaultHeight = 0.0) const;
-
-        scalar_t queryFootTerrainHeight(const vector3_t& basePosition,
-                                        const vector3_t& footPositionInWorldAligned,
-                                        scalar_t defaultHeight = 0.0) const;
-
         void updateAngular(const vector3_t &zyx, const vector_t &angularVel);
 
         void updateLinear(const vector_t &pos, const vector_t &linearVel);

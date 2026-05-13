@@ -185,14 +185,7 @@ namespace ocs2::legged_robot
         // 感知模式：传入 edge sphere 数据，使摆动相轨迹避开地形边缘
         dynamic_cast<PerceptiveLeggedReferenceManager&>(*reference_manager_ptr_).setEdgeSpheres(edgeSpheresPtr_);
 
-        // 启用 CLF-CBF QP 摆动轨迹优化器 — 利用地形高程信息避免足端碰撞
-        {
-            auto terrainInterface = std::make_shared<GridMapTerrainInterface>(
-                planarTerrainPtr_, "smooth_planar");
-            reference_manager_ptr_->getSwingTrajectoryPlanner()->setQpOptimizer(terrainInterface);
-            // 传入 EdgeSphere 数据以启用球障碍 CBF 约束
-            reference_manager_ptr_->getSwingTrajectoryPlanner()->setEdgeSpheres(edgeSpheresPtr_);
-        }
+        // NOTE: SwingTrajectoryPlanner 已回退到基线版本（无 QP/避碰接口），感知层仅保留参考管理与落足区域选择。
     }
 
     void PerceptiveLeggedInterface::setupPreComputation(const std::string& /*taskFile*/,

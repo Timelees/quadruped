@@ -16,6 +16,71 @@
 
 namespace ocs2::legged_robot
 {
+    namespace
+    {
+        scalar_t computeSwingPhaseProgressFromModeSchedule(const ModeSchedule& modeSchedule,
+                                                           const feet_array_t<std::vector<bool>>& contactFlagStocks,
+                                                           size_t leg, scalar_t time)
+        {
+            if (modeSchedule.eventTimes.empty() || modeSchedule.modeSequence.empty())
+            {
+                return scalar_t(-1.0);
+            }
+
+            if (leg >= contactFlagStocks.size())
+            {
+                return scalar_t(-1.0);
+            }
+            const auto& contactFlags = contactFlagStocks[leg];
+            if (contactFlags.empty())
+            {
+                return scalar_t(-1.0);
+            }
+
+            const size_t phaseIndex = lookup::findIndexInTimeArray(modeSchedule.eventTimes, time);
+            const size_t clampedIndex = std::min(phaseIndex, contactFlags.size() - 1);
+            if (contactFlags[clampedIndex])
+            {
+                return scalar_t(-1.0);
+            }
+
+            // find swing start index (previous stance)
+            int startIdx = -1;
+            for (int i = static_cast<int>(clampedIndex) - 1; i >= 0; --i)
+            {
+                if (contactFlags[static_cast<size_t>(i)])
+                {
+                    startIdx = i;
+                    break;
+                }
+            }
+            // find swing final index (next stance)
+            int finalIdx = static_cast<int>(contactFlags.size()) - 1;
+            for (size_t i = clampedIndex + 1; i < contactFlags.size(); ++i)
+            {
+                if (contactFlags[i])
+                {
+                    finalIdx = static_cast<int>(i) - 1;
+                    break;
+                }
+            }
+            if (startIdx < 0)
+            {
+                return scalar_t(-1.0);
+            }
+            const int lastEvent = static_cast<int>(modeSchedule.eventTimes.size()) - 1;
+            const int safeStart = std::min(std::max(startIdx, 0), lastEvent);
+            const int safeFinal = std::min(std::max(finalIdx, 0), lastEvent);
+
+            const scalar_t t0 = modeSchedule.eventTimes[static_cast<size_t>(safeStart)];
+            const scalar_t t1_raw = modeSchedule.eventTimes[static_cast<size_t>(safeFinal)];
+            const scalar_t t1 = (t1_raw > t0) ? t1_raw : (t0 + scalar_t(1e-3));
+
+            const scalar_t alpha = (time - t0) / (t1 - t0);
+            return std::min<scalar_t>(1.0, std::max<scalar_t>(0.0, alpha));
+        }
+    }
+
     
     
     
@@ -281,12 +346,14 @@ namespace ocs2::legged_robot
     contact_flag_t PerceptiveLeggedReferenceManager::getFootPlacementFlags(scalar_t time) const
     {
         contact_flag_t flag;
+        const auto contactFlagStocks = convexRegionSelectorPtr_->extractContactFlags(getModeSchedule().modeSequence);
         const auto finalTime = convexRegionSelectorPtr_->getInitStandFinalTimes();
         for (int i = 0; i < flag.size(); ++i)
         {
             const bool hasPolygon = convexRegionSelectorPtr_->getConvexPolygon(i, time).size() >= 3;    // 是否有有效的支撑多边形
             const bool isContact = getContactFlags(time)[i];                                            // 当前是否在接触相
-            const scalar_t swingProgress = getSwingTrajectoryPlanner()->getSwingPhaseProgress(i, time);
+            const scalar_t swingProgress = computeSwingPhaseProgressFromModeSchedule(
+                getModeSchedule(), contactFlagStocks, static_cast<size_t>(i), time);
             const bool isLateSwing = swingProgress >= footPlacementRelaxationConfig_.swingActivationProgress;
             flag[i] = hasPolygon && time >= finalTime[i] && (isContact || isLateSwing);
         }
@@ -297,7 +364,9 @@ namespace ocs2::legged_robot
     // hiw​(x,t)=Ai​⋅pWi​​(x)+bi​+s(t)⋅1≥0中的s()
     scalar_t PerceptiveLeggedReferenceManager::getFootPlacementRelaxation(size_t leg, scalar_t time) const
     {
-        const scalar_t swingProgress = getSwingTrajectoryPlanner()->getSwingPhaseProgress(leg, time);
+        const auto contactFlagStocks = convexRegionSelectorPtr_->extractContactFlags(getModeSchedule().modeSequence);
+        const scalar_t swingProgress = computeSwingPhaseProgressFromModeSchedule(
+            getModeSchedule(), contactFlagStocks, leg, time);
         if (swingProgress < 0.0)
         {
             return 0.0;

@@ -4,13 +4,21 @@
 
 #include "ocs2_quadruped_controller/control/TargetManager.h"
 
+#include <angles/angles.h>
 #include <ocs2_core/misc/LoadData.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
 
+#include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace ocs2::legged_robot
 {
+    namespace
+    {
+        // Hold each /cmd_vel sample for this many control cycles (~0.2 s at 500 Hz -> 100 cycles if divisor 5).
+        constexpr int kCmdVelHoldCycleDivisor = 5;
+    }
     TargetManager::TargetManager(CtrlInterfaces& ctrl_component,
                                  rclcpp_lifecycle::LifecycleNode::SharedPtr node,
                                  const std::shared_ptr<ReferenceManagerInterface>& referenceManagerPtr,
@@ -27,34 +35,37 @@ namespace ocs2::legged_robot
         loadData::loadCppDataType(task_file, "mpc.timeHorizon", time_to_target_);
         loadData::loadCppDataType(reference_file, "targetRotationVelocity", target_rotation_velocity_);
         loadData::loadCppDataType(reference_file, "targetDisplacementVelocity", target_displacement_velocity_);
-
+        loadData::loadCppDataType(reference_file, "targetLateralVelocity", target_lateral_velocity_);
         twist_sub_ = node_->create_subscription<geometry_msgs::msg::Twist>(
             "/cmd_vel", 10, [this](const geometry_msgs::msg::Twist::SharedPtr msg)
             {
                 buffer_.writeFromNonRT(*msg);
-                twist_count = ctrl_component_.frequency_ / 5;
-                RCLCPP_INFO(node_->get_logger(), "Twist count: %i", twist_count);
+                twist_count = std::max(1, ctrl_component_.frequency_ / kCmdVelHoldCycleDivisor);
+                RCLCPP_DEBUG(node_->get_logger(), "cmd_vel buffered, hold cycles: %i", twist_count);
             });
     }
 
     void TargetManager::update(SystemObservation& observation)
     {
-        // 速度指令处理
-        vector_t cmdGoal = vector_t::Zero(6);   // [vx, vy, vz, ω_roll, ω_pitch, ω_yaw]
+        // Body-frame command: linear (vx,vy,vz), yaw rate about base z (maps to state theta_base_z).
+        vector_t cmdGoal = vector_t::Zero(6);
 
         if (buffer_.readFromRT() == nullptr || twist_count <= 0)
         {
-            cmdGoal[0] = ctrl_component_.control_inputs_.ly * target_displacement_velocity_;
-            cmdGoal[1] = -ctrl_component_.control_inputs_.lx * target_displacement_velocity_;
+            // Body frame: vx 用前后上限，vy 用侧向上限。
+            cmdGoal[0] = ctrl_component_.control_inputs_.ly * target_displacement_velocity_;   
+            cmdGoal[1] = -ctrl_component_.control_inputs_.lx * target_lateral_velocity_;
             cmdGoal[2] = ctrl_component_.control_inputs_.ry;
             cmdGoal[3] = -ctrl_component_.control_inputs_.rx * target_rotation_velocity_;
         }
         else
-        {   
-            // 使用外部Twist指令
+        {
             const geometry_msgs::msg::Twist twist = *buffer_.readFromRT();
-            cmdGoal[0] = twist.linear.x;
-            cmdGoal[1] = twist.linear.y;
+            // 假定 linear.x/y 为机体系速度 [m/s]，按 reference 中前后/侧向最大速度限幅。
+            cmdGoal[0] = std::clamp(static_cast<scalar_t>(twist.linear.x), -target_displacement_velocity_,
+                                    target_displacement_velocity_);
+            cmdGoal[1] = std::clamp(static_cast<scalar_t>(twist.linear.y), -target_lateral_velocity_,
+                                    target_lateral_velocity_);
             cmdGoal[2] = 0;
             cmdGoal[3] = twist.angular.z;
             twist_count--;
@@ -64,37 +75,42 @@ namespace ocs2::legged_robot
             }
         }
 
-        // 坐标系转换，将速度指令从机器人坐标系转换到世界坐标系
-        // 当前位姿：位置 x, y, z 和 ZYX 欧拉角
+        // Linear cmd is in body frame; rotate to world. Base euler in state: [theta_z, theta_y, theta_x] (ZYX).
         const vector_t currentPose = observation.state.segment<6>(6);
         const Eigen::Matrix<scalar_t, 3, 1> zyx = currentPose.tail(3);
         vector_t cmd_vel_rot = getRotationMatrixFromZyxEulerAngles(zyx) * cmdGoal.head(3);
-        // std::cout << "观测值observation.state: 位置(" << currentPose(0) << ", " << currentPose(1) << ", " << currentPose(2)
-        //           << "), 姿态(yaw,pitch,roll: " << currentPose(3) << ", " << currentPose(4) << ", " << currentPose(5) << ")" << std::endl;
-        
-        // std::cout << "指令: 旋转(" << cmd_vel_rot(0) << ", " << cmd_vel_rot(1) << ", " << cmd_vel_rot(2) << "), 速度("
-        //           << cmdGoal(0) << ", " << cmdGoal(1) << ", " << cmdGoal(2) << ")" << std::endl;
+
+        // 航向参考：有显式 yaw 角速度时按指令积分；否则保持已锁定的世界 yaw，使 MPC 对侧走中的偏航有恢复项。
+        scalar_t yaw_target;
+        if (std::abs(cmdGoal(3)) > kYawRateDeadzone)
+        {
+            yaw_target = currentPose(3) + cmdGoal(3) * time_to_target_;
+            yaw_hold_value_ = yaw_target;
+            yaw_hold_initialized_ = true;
+        }
+        else
+        {
+            if (!yaw_hold_initialized_)
+            {
+                yaw_hold_value_ = currentPose(3);
+                yaw_hold_initialized_ = true;
+            }
+            yaw_target = currentPose(3) +
+                angles::shortest_angular_distance(currentPose(3), yaw_hold_value_);
+        }
+
         const vector_t targetPose = [&]
         {
-            vector_t target(6);     // targetPose，6D：x, y, z, roll, pitch, yaw
-             // 位置计算
-            target(0) = currentPose(0) + cmd_vel_rot(0) * time_to_target_;
-            target(1) = currentPose(1) + cmd_vel_rot(1) * time_to_target_;
-            target(2) = command_height_;
-            // 姿态
-            target(3) = currentPose(3) + cmdGoal(3) * time_to_target_;
-            target(4) = 0;
-            target(5) = 0;
+            vector_t target(6); // [px, py, pz, theta_base_z, theta_base_y, theta_base_x]
+            target(0) = currentPose(0) + cmd_vel_rot(0) * time_to_target_;  // px
+            target(1) = currentPose(1) + cmd_vel_rot(1) * time_to_target_; // py
+            target(2) = command_height_;    // pz
+            target(3) = yaw_target;         // yaw
+            target(4) = 0;                  // roll
+            target(5) = 0;                  // pitch
             return target;
         }();
 
-        // std::cout << "目标位姿: 旋转(" << cmd_vel_rot(0) << ", " << cmd_vel_rot(1) << ", " << cmd_vel_rot(2) << "), 位置("
-        //           << targetPose(0) << ", " << targetPose(1) << ", " << targetPose(2) << ")" << std::endl;
-        // std::cout << "目标姿态: 旋转(" << targetPose(3) << ", " << targetPose(4) << ", " << targetPose(5) << "), 速度("
-        //           << cmdGoal(3) << ", " << cmdGoal(4) << ", " << cmdGoal(5) << ")" << std::endl;
-
-        // 目标位姿计算
-        // 轨迹生成与设置
         const scalar_t targetReachingTime = observation.time + time_to_target_;
         auto trajectories =
             targetPoseToTargetTrajectories(targetPose, observation, targetReachingTime);
