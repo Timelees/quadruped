@@ -104,7 +104,7 @@ namespace ocs2::legged_robot
 
         // 接触估计器
         std::unique_ptr<ContactEstimator> contact_estimator_;
-        bool use_contact_estimator_ = false;  // 是否使用接触估计器
+        bool use_contact_estimator_ = true;  // 是否使用接触估计器
 
         // 步态相位信息获取
         std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr_;

@@ -1,0 +1,37 @@
+Trajectory Evaluation Report
+Data directory: /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/logs/data
+
+Summary (RMSE):
+  Metric    Value      Unit
+  ATEatt    0.000025   rad
+  ATEpos    0.083807   m
+  RPEatt    0.000025   rad
+  RPEpos    0.075195   m
+
+Detailed statistics:
+ATEatt:
+  mean   : 0.000011 rad
+  median : 0.000010 rad
+  std    : 0.000022 rad
+  max    : 0.000438 rad
+  count  : 424
+
+ATEpos:
+  mean   : 0.075173 m
+  median : 0.081063 m
+  std    : 0.037050 m
+  max    : 0.125238 m
+  count  : 424
+
+RPEatt 1m:
+  mean   : 0.000002 rad
+  median : 0.000000 rad
+  std    : 0.000025 rad
+  max    : 0.000437 rad
+  count  : 311
+RPEpos 1m:
+  mean   : 0.075149 m
+  median : 0.074957 m
+  std    : 0.002624 m
+  max    : 0.082536 m
+  count  : 311

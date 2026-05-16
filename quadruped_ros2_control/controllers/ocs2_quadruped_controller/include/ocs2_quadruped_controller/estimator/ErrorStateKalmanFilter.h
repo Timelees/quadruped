@@ -248,6 +248,7 @@ namespace ocs2::legged_robot
         Eigen::Quaterniond gt_orientation_ = Eigen::Quaterniond::Identity();
         Eigen::Vector3d gt_angular_velocity_ = Eigen::Vector3d::Zero();
         bool ground_truth_enabled_ = true; // 是否启用Ground Truth对比
+        bool sim_mode_ = true;             // true:仿真，false:实机
 
         // STA Observer
         // STAObserver sta_observer_;

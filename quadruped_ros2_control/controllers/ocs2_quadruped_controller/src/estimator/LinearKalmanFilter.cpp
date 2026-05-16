@@ -1,3 +1,4 @@
+#include <initializer_list>
 #include <map>
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
@@ -13,6 +14,47 @@
 
 #include <ocs2_robotic_tools/common/RotationDerivativesTransforms.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
+
+namespace
+{
+constexpr ocs2::scalar_t kTrotCycleDuration = 0.6;
+constexpr int kTrotGaitSampleCount = 12;
+
+bool isPureTrotGait(ocs2::scalar_t current_time,
+                      const ocs2::legged_robot::SwitchedModelReferenceManager& reference_manager)
+{
+    const auto& mode_schedule = reference_manager.getModeSchedule();
+    if (mode_schedule.modeSequence.empty())
+    {
+        return false;
+    }
+
+    const size_t current_mode = mode_schedule.modeAtTime(current_time);
+    if (current_mode != ocs2::legged_robot::LF_RH && current_mode != ocs2::legged_robot::RF_LH)
+    {
+        return false;
+    }
+
+    bool has_lf_rh = false;
+    bool has_rf_lh = false;
+    for (int i = 0; i <= kTrotGaitSampleCount; ++i)
+    {
+        const ocs2::scalar_t sample_time =
+            current_time +
+            kTrotCycleDuration * static_cast<ocs2::scalar_t>(i) /
+                static_cast<ocs2::scalar_t>(kTrotGaitSampleCount);
+        const size_t mode = mode_schedule.modeAtTime(sample_time);
+        if (mode != ocs2::legged_robot::LF_RH && mode != ocs2::legged_robot::RF_LH)
+        {
+            return false;
+        }
+        has_lf_rh |= mode == ocs2::legged_robot::LF_RH;
+        has_rf_lh |= mode == ocs2::legged_robot::RF_LH;
+    }
+
+    return has_lf_rh && has_rf_lh;
+}
+}  // namespace
 
 namespace ocs2::legged_robot
 {
@@ -76,13 +118,13 @@ namespace ocs2::legged_robot
         }
         // 订阅外部的定位话题，通过 RealtimeBuffer 异步接收数据
         // 当前使用仿真真值，后续替换视觉里程计的数据
-        localization_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
-            "Ground_Truth", 10,
-            [this](const nav_msgs::msg::Odometry::SharedPtr msg)
-            {
-                localization_buffer_.writeFromNonRT(*msg);
-                topicUpdated_ = true;
-            });
+        // localization_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
+        //     "Ground_Truth", 10,
+        //     [this](const nav_msgs::msg::Odometry::SharedPtr msg)
+        //     {
+        //         localization_buffer_.writeFromNonRT(*msg);
+        //         topicUpdated_ = true;
+        //     });
         // 初始化接触估计器
         if (use_contact_estimator_)
         {
@@ -253,67 +295,57 @@ namespace ocs2::legged_robot
             Eigen::Vector3d state_pos = xHat_.segment<3>(0); // 位置估计值
             Eigen::Vector3d state_vel = xHat_.segment<3>(3); // 速度估计值
 
-            logger_->saveDataToCSV("state_pos.csv", "pos_x, pos_y, pos_z", state_pos);
-            logger_->saveDataToCSV("state_vel.csv", "vel_x, vel_y, vel_z", state_vel);
-            logger_->saveDataToCSV("state_zyx.csv", "yaw, pitch, roll", state_zyx);
+            const double log_time = controller_time_;
 
-            matrix_t p_log = p_;
-            Eigen::Vector3d P_diag_pos(p_log(0, 0), p_log(1, 1), p_log(2, 2));
-            Eigen::Vector3d P_diag_vel(p_log(3, 3), p_log(4, 4), p_log(5, 5));
-            Eigen::Vector3d P_diag_foot1(p_log(6, 6), p_log(7, 7), p_log(8, 8));
-            Eigen::Vector3d P_diag_foot2(p_log(9, 9), p_log(10, 10), p_log(11, 11));
-            Eigen::Vector3d P_diag_foot3(p_log(12, 12), p_log(13, 13), p_log(14, 14));
-            Eigen::Vector3d P_diag_foot4(p_log(15, 15), p_log(16, 16), p_log(17, 17));
-            logger_->saveDataToCSV("P_diag_pos.csv", "P_diag_pos_x, P_diag_pos_y, P_diag_pos_z", P_diag_pos);
-            logger_->saveDataToCSV("P_diag_vel.csv", "P_diag_vel_x, P_diag_vel_y, P_diag_vel_z", P_diag_vel);
-            logger_->saveDataToCSV("P_diag_foot1.csv", "P_diag_foot1_x, P_diag_foot1_y, P_diag_foot1_z", P_diag_foot1);
-            logger_->saveDataToCSV("P_diag_foot2.csv", "P_diag_foot2_x, P_diag_foot2_y, P_diag_foot2_z", P_diag_foot2);
-            logger_->saveDataToCSV("P_diag_foot3.csv", "P_diag_foot3_x, P_diag_foot3_y, P_diag_foot3_z", P_diag_foot3);
-            logger_->saveDataToCSV("P_diag_foot4.csv", "P_diag_foot4_x, P_diag_foot4_y, P_diag_foot4_z", P_diag_foot4);
+            logger_->saveDataToCSV("state_pos.csv", "pos_x, pos_y, pos_z", log_time, state_pos);
+            logger_->saveDataToCSV("state_vel.csv", "vel_x, vel_y, vel_z", log_time, state_vel);
+            logger_->saveDataToCSV("state_zyx.csv", "yaw, pitch, roll", log_time, state_zyx);
 
-            // 观测残差 (ey = y - yModel)
-            vector_t ey_log = ey;
-            for (int i = 0; i < 4; i++)
+            
+            // Ground Truth 对比日志仅在纯 trot 步态下写入，避免站立/切步态阶段污染评估数据
+            const bool is_trot_gait =
+                reference_manager_ptr_ && isPureTrotGait(controller_time_, *reference_manager_ptr_);
+            if (ground_truth_enabled_ && sim_mode_ && is_trot_gait)
             {
-                // 足端位置观测残差 (body系)
-                Eigen::Vector3d foot_pos_residual = ey_log.segment<3>(3 * i);
-                logger_->saveDataToCSV("y_pos_residual_foot_" + std::to_string(i) + ".csv", "ey_x, ey_y, ey_z", foot_pos_residual);
+                const Eigen::Vector3d gt_rot_zyx = quatToZyx(gt_orientation_);
 
-                // 足端速度观测残差 (body系)
-                Eigen::Vector3d foot_vel_residual = ey_log.segment<3>(12 + 3 * i);
-                logger_->saveDataToCSV("y_vel_residual_foot_" + std::to_string(i) + ".csv", "eyv_x, eyv_y, eyv_z", foot_vel_residual);
-            }
-            Eigen::Vector4d foot_height_residual;
-            for (int i = 0; i < 4; i++)
-            {
-                foot_height_residual(i) = ey_log(24 + i);
-            }
-            logger_->saveDataToCSV("y_height02_residual.csv", "eyh_0, eyh_2, unused",
-                                   Eigen::Vector3d(foot_height_residual(0), foot_height_residual(2), 0.0));
-            logger_->saveDataToCSV("y_height13_residual.csv", "eyh_1, eyh_3, unused",
-                                   Eigen::Vector3d(foot_height_residual(1), foot_height_residual(3), 0.0));
+                const Eigen::Vector3d pos_error = state_pos - gt_position_;
+                const Eigen::Vector3d vel_error = state_vel - gt_linear_velocity_;
+                const Eigen::Vector3d rot_error = state_zyx - gt_rot_zyx;
+                const Eigen::Vector3d angvel_error = angular_vel_local_ - gt_angular_velocity_;
 
-            // ==================== Ground Truth 对比日志 ====================
-            if (ground_truth_enabled_ && sim_mode_)
-            {
-                // Ground Truth 姿态 (欧拉角 ZYX)
-                Eigen::Vector3d gt_rot_zyx = quatToZyx(gt_orientation_);
-                logger_->saveDataToCSV("gazeboTrue_rot_zyx.csv", "gt_yaw, gt_pitch, gt_roll", gt_rot_zyx);
-                logger_->saveDataToCSV("gazeboTrue_pos.csv", "gt_pos_x, gt_pos_y, gt_pos_z", gt_position_);
-                logger_->saveDataToCSV("gazeboTrue_vel.csv", "gt_vel_x, gt_vel_y, gt_vel_z", gt_linear_velocity_);
-                logger_->saveDataToCSV("gazeboTrue_angvel.csv", "gt_wx, gt_wy, gt_wz", gt_angular_velocity_);
-                // 位置误差 (估计值 - 真值)
-                Eigen::Vector3d pos_error = state_pos - gt_position_;
-                logger_->saveDataToCSV("posEstiTruthError.csv", "err_x, err_y, err_z", pos_error);
-                // 速度误差 (估计值 - 真值)
-                Eigen::Vector3d vel_error = state_vel - gt_linear_velocity_;
-                logger_->saveDataToCSV("velEstiTruthError.csv", "err_vx, err_vy, err_vz", vel_error);
-                // 姿态误差 (估计值 - 真值)
-                Eigen::Vector3d rot_error = state_zyx - gt_rot_zyx;
-                logger_->saveDataToCSV("rotEstiTruthError.csv", "err_yaw, err_pitch, err_roll", rot_error);
-                // 角速度误差 (估计值 - 真值)
-                Eigen::Vector3d angvel_error = angular_vel_local_ - gt_angular_velocity_;
-                logger_->saveDataToCSV("angvelEstiTruthError.csv", "err_wx, err_wy, err_wz", angvel_error);
+
+                logger_->saveDataToCSV("pos_est_true_x.csv", "est_x, gt_x", log_time,
+                                       std::initializer_list<double>{state_pos(0), gt_position_(0)});      
+                logger_->saveDataToCSV("pos_est_true_y.csv", "est_y, gt_y", log_time,
+                                       std::initializer_list<double>{state_pos(1), gt_position_(1)});
+                logger_->saveDataToCSV("pos_est_true_z.csv", "est_z, gt_z", log_time,
+                                       std::initializer_list<double>{state_pos(2), gt_position_(2)});
+                logger_->saveDataToCSV("pos_error.csv", "pos_x, pos_y, pos_z", log_time, pos_error);
+
+                logger_->saveDataToCSV("vel_est_true_x.csv", "est_vx, gt_vx", log_time,
+                                        std::initializer_list<double>{state_vel(0), gt_linear_velocity_(0)});
+                logger_->saveDataToCSV("vel_est_true_y.csv", "est_vy, gt_vy", log_time,
+                                        std::initializer_list<double>{state_vel(1), gt_linear_velocity_(1)});
+                logger_->saveDataToCSV("vel_est_true_z.csv", "est_vz, gt_vz", log_time,
+                                        std::initializer_list<double>{state_vel(2), gt_linear_velocity_(2)});
+                logger_->saveDataToCSV("vel_error.csv", "vel_x, vel_y, vel_z", log_time, vel_error);
+
+                logger_->saveDataToCSV("rot_est_true_yaw.csv", "est_yaw, gt_yaw", log_time,
+                                        std::initializer_list<double>{state_zyx(0), gt_rot_zyx(0)});
+                logger_->saveDataToCSV("rot_est_true_pitch.csv", "est_pitch, gt_pitch", log_time,
+                                        std::initializer_list<double>{state_zyx(1), gt_rot_zyx(1)});
+                logger_->saveDataToCSV("rot_est_true_roll.csv", "est_roll, gt_roll", log_time,
+                                        std::initializer_list<double>{state_zyx(2), gt_rot_zyx(2)});
+                logger_->saveDataToCSV("rot_error.csv", "rot_x, rot_y, rot_z", log_time, rot_error);
+
+                logger_->saveDataToCSV("angvel_est_true_wx.csv", "est_wx, gt_wx", log_time,
+                                        std::initializer_list<double>{angular_vel_local_(0), gt_angular_velocity_(0)});
+                logger_->saveDataToCSV("angvel_est_true_wy.csv", "est_wy, gt_wy", log_time,
+                                        std::initializer_list<double>{angular_vel_local_(1), gt_angular_velocity_(1)});
+                logger_->saveDataToCSV("angvel_est_true_wz.csv", "est_wz, gt_wz", log_time,
+                                        std::initializer_list<double>{angular_vel_local_(2), gt_angular_velocity_(2)});
+                logger_->saveDataToCSV("angvel_error.csv", "angvel_x, angvel_y, angvel_z", log_time, angvel_error);
             }
         }
 

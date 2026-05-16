@@ -362,12 +362,12 @@ kalmanFilter
 
     ; LinearKalmanFilter parameters
     footRadius                  0.02
-    imuProcessNoisePosition     0.02
-    imuProcessNoiseVelocity     0.02
+    imuProcessNoisePosition     0.005
+    imuProcessNoiseVelocity     0.005
     footProcessNoisePosition    0.002
 
-    footSensorNoisePosition     0.005
-    footSensorNoiseVelocity     0.1
+    footSensorNoisePosition     0.002
+    footSensorNoiseVelocity     0.005
     footHeightSensorNoise       0.01
 
     highSuspectNumber           100
@@ -379,6 +379,7 @@ kalmanFilter
 ErrorStateKalmanFilter
 {
     is_enabled_logger                 true        // 是否开启日志
+    sim_mode                          true        // 仿真/实机模式
 
     SwingInflate                      100.0        // 摆动相噪声放大倍数
     

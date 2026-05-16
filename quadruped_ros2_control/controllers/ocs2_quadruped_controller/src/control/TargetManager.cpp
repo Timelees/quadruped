@@ -62,10 +62,8 @@ namespace ocs2::legged_robot
         {
             const geometry_msgs::msg::Twist twist = *buffer_.readFromRT();
             // 假定 linear.x/y 为机体系速度 [m/s]，按 reference 中前后/侧向最大速度限幅。
-            cmdGoal[0] = std::clamp(static_cast<scalar_t>(twist.linear.x), -target_displacement_velocity_,
-                                    target_displacement_velocity_);
-            cmdGoal[1] = std::clamp(static_cast<scalar_t>(twist.linear.y), -target_lateral_velocity_,
-                                    target_lateral_velocity_);
+            cmdGoal[0] = twist.linear.x;
+            cmdGoal[1] = twist.linear.y;
             cmdGoal[2] = 0;
             cmdGoal[3] = twist.angular.z;
             twist_count--;
