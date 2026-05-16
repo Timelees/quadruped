@@ -351,13 +351,15 @@ contactEstimator
     contactProcessNoise        0.998   ; 过程噪声，越大 Kalman 增益越大
     tauMeasureNoise            0.93    ; 力观测噪声
     fheightMeasureNoise        0.841   ; 高度观测噪声
+
+    is_enabled_logger          false    ; 是否记录接触概率相关 CSV 日志
 }
 
 
 ; State Estimation
 kalmanFilter
 {
-    is_enabled_logger           true        ; 是否开启日志
+    is_enabled_logger           false        ; 是否开启日志
     sim_mode                    true        ; 仿真/实机模式
 
     ; LinearKalmanFilter parameters
@@ -405,5 +407,16 @@ ErrorStateKalmanFilter
     MeasurementNoiseAttitude          0.005        // IMU姿态软约束噪声 [rad] 
     
     FootRadius                        0.019       // 足端半径
+
+    useSTA                            true        // 是否启用 STA 扰动观测器
+    sta
+    {
+        bandwidth                     5.0         // STA 观测器带宽 L
+        qdWindow                      20          // 在线估计 Qd 的扰动历史窗口
+        epsilon                       1e-6        // STA 归一化项防除零阈值
+        qdRegularization              1e-6        // Qd 对角正则项
+        maxCovariance                 10.0        // Qd 对角限幅
+        maxDisturbance                50.0        // z1 分量限幅
+    }
     
 }

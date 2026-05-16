@@ -180,6 +180,10 @@ namespace ocs2::legged_robot
             // 获取估计的足端力
             auto foot_forces = contact_estimator_->getFootForces();
 
+            const bool is_trot_gait =
+                reference_manager_ptr_ && isPureTrotGait(controller_time_, *reference_manager_ptr_);
+            contact_estimator_->setControllerTime(controller_time_);
+            contact_estimator_->setTrotGaitActive(is_trot_gait);
             // 更新接触估计
             contact_estimator_->update(foot_forces, foot_heights, contact_phase, swing_phase);
 

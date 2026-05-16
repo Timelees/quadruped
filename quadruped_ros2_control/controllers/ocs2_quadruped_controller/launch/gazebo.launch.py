@@ -282,7 +282,7 @@ def generate_launch_description():
     # 原地旋转30s: 'j:30.0'  
     traject_motion_sequence = DeclareLaunchArgument(
         'traject_motion_sequence',
-        default_value= 'j:30.0',
+        default_value='w:7.15',
         description='Motion sequence for traject_build'
     )
     traject_cmd2_to_cmd3_delay = DeclareLaunchArgument(

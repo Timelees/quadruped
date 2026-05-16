@@ -31,6 +31,10 @@ namespace ocs2::legged_robot
           pinocchio_interface_(std::move(pinocchio_interface)),
           ee_kinematics_(ee_kinematics.clone())
     {
+        (void)node;
+        logger_ = std::make_unique<quadruped::logs::LogSave>();
+        logger_->setEnabled(is_logger_enabled_);
+
         // 初始化机器人状态向量
         rbd_state_.setZero(2 * info_.generalizedCoordinatesNum);
         setup();
@@ -133,6 +137,8 @@ namespace ocs2::legged_robot
                 is_swing = 0;
             }
 
+            gait_phase_ref_[i] = gait_phase;
+
             scalar_t P_gait = computeGaitPhaseProbability(gait_phase, i, is_swing, is_contact); // 基于步态相位的接触概率
             scalar_t P_height = computeHeightProbability(foot_heights[i], i);                   // 基于足端高度的接触概率
             scalar_t P_force = computeForceProbability(foot_forces[i], i, is_swing);            // 基于足端力的接触概率
@@ -175,6 +181,32 @@ namespace ocs2::legged_robot
         {
             contact_prob_[i] = std::clamp(X_est_(i), 0.0, 1.0);
             contact_flags_[i] = (contact_prob_[i] > contact_threshold_);
+        }
+
+        // 日志记录（与 ESKF 相同：每 10 个控制周期写一次）
+        static int log_counter = 0;
+        log_counter++;
+        if (is_logger_enabled_ && is_trot_gait_active_ && logger_ && (log_counter % 10 == 0))
+        {
+            const double log_time = controller_time_;
+
+            logger_->saveDataToCSV(
+                "contact_gait_phase_prob.csv",
+                "FL_phase, FL_prob",
+                log_time,
+                {gait_phase_ref_[0], P_contact_[0]});
+
+            logger_->saveDataToCSV(
+                "contact_height_prob.csv",
+                "FL_height, FL_prob",
+                log_time,
+                {foot_heights[0], P_height_[0]});
+
+            logger_->saveDataToCSV(
+                "contact_force_prob.csv",
+                "FL_force, FL_prob",
+                log_time,
+                {foot_forces[0], P_force_[0]});
         }
     }
 
@@ -356,6 +388,11 @@ namespace ocs2::legged_robot
         loadData::loadPtreeValue(pt, sigma_hz_, prefix + "footHeightSigma", verbose);
         loadData::loadPtreeValue(pt, sigma_fz_, prefix + "footForceSigma", verbose);
         loadData::loadPtreeValue(pt, force_threshold_, prefix + "footForceThreshold", verbose);
+        loadData::loadPtreeValue(pt, is_logger_enabled_, prefix + "is_enabled_logger", verbose);
+        if (logger_)
+        {
+            logger_->setEnabled(is_logger_enabled_);
+        }
     }
 
 } // namespace ocs2::legged_robot

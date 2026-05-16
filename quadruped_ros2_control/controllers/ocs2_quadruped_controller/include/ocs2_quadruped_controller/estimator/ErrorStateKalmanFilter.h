@@ -24,7 +24,7 @@
 
 
 #include <sophus/so3.hpp>
-// #include "STAObserver.h"
+#include "STAObserver.h"
 
 #include "log_save.h"
 #include <rclcpp/rclcpp.hpp>
@@ -93,16 +93,16 @@ namespace ocs2::legged_robot
 
         Eigen::Vector3d acc;      // 加速度计测量 (机体系)
         Eigen::Vector3d gyro;     // 陀螺仪测量 (机体系)
+        Eigen::Vector3d dist_pos; // 位置扰动 (STA)
         Eigen::Vector3d dist_vel; // 速度扰动 (STA)
-        Eigen::Vector3d dist_acc; // 加速度扰动 (STA)
         Eigen::Vector3d dist_rot; // 姿态扰动 (STA)
 
         ESKFInput()
         {
             acc.setZero();
             gyro.setZero();
+            dist_pos.setZero();
             dist_vel.setZero();
-            dist_acc.setZero();
             dist_rot.setZero();
         }
     };
@@ -166,12 +166,12 @@ namespace ocs2::legged_robot
         bool feet_world_initialized_ = false;
         // 接触估计器
         std::unique_ptr<ContactEstimator> contact_estimator_;
-        bool use_contact_estimator_ = false;  // 是否使用接触估计器
+        bool use_contact_estimator_ = true;  // 是否使用接触估计器
         std::array<double, 4> contact_prob_ = {0.0, 0.0, 0.0, 0.0}; // 接触概率
         // 步态相位信息获取
         std::shared_ptr<SwitchedModelReferenceManager> reference_manager_ptr_;
 
-        // 与 MPC/ModeSchedule 一致的控制时间（从 0 累加，避免使用 ROS 时间戳导致相位错位）
+        // 与 MPC/ModeSchedule 一致的控制时间
         double controller_time_ = 0.0;
 
 
@@ -189,12 +189,21 @@ namespace ocs2::legged_robot
         double meas_noise_encoder_ = 0.02; // 编码器测量噪声
         double meas_noise_attitude_ = 0.01; // IMU姿态软约束噪声 (小值=强约束, 大值=弱约束)
         double meas_noise_attitude_yaw_ = 0.01; // IMU姿态软约束噪声 (小值=强约束, 大值=弱约束)
-        double high_suspect_number = 10000.0;
+        double high_suspect_number = 100.0;
 
         // 足端参数
         double foot_radius_ = 0.019; // 足端半径，用于高度约束
         double min_contact_trust_ = 0.05; // 接触概率下限，避免观测被完全关闭
         double swing_inflate_ = 100.0; // 摆动相膨胀系数
+
+        // STA Observer parameters  
+        bool use_sta_observer_ = true; // 是否使用STA Observer
+        double sta_bandwidth_ = 5.0; // STA Observer带宽
+        int sta_qd_window_ = 20; // STA Observer协方差窗口大小
+        double sta_epsilon_ = 1e-6; // STA Observer误差阈值
+        double sta_qd_regularization_ = 1e-6; // STA Observer协方差正则化参数
+        double sta_qd_max_ = 10.0; // STA Observer最大协方差
+        double sta_max_disturbance_ = 50.0; // STA Observer最大扰动
         
 
         ESKFNominalState xHat_;                            // 滤波器状态估计值
@@ -251,7 +260,7 @@ namespace ocs2::legged_robot
         bool sim_mode_ = true;             // true:仿真，false:实机
 
         // STA Observer
-        // STAObserver sta_observer_;
+        STAObserver sta_observer_;
 
         // 日志保存
         std::unique_ptr<quadruped::logs::LogSave> logger_;

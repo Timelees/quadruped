@@ -55,7 +55,7 @@ add_library(${PROJECT_NAME} SHARED
         src/estimator/FromOdomTopic.cpp
         src/estimator/ErrorStateKalmanFilter.cpp
         src/estimator/ContactEstimator.cpp
-        # src/estimator/STAObserver.cpp
+        src/estimator/STAObserver.cpp
 
 
         src/wbc/HierarchicalWbc.cpp

@@ -158,6 +158,7 @@ namespace ocs2::legged_robot
 
         Q.setIdentity();
         R.setIdentity();
+        sta_observer_.init(1.1 * sta_bandwidth_, 1.5 * std::sqrt(sta_bandwidth_));
     }
 
     vector_t ErrorStateKalmanFilter::update(const rclcpp::Time &time, const rclcpp::Duration &period)
@@ -167,6 +168,7 @@ namespace ocs2::legged_robot
         // 更新基础状态（关节、接触、IMU）
         updateJointStates();
         if (use_contact_estimator_ && contact_estimator_){
+            // RCLCPP_INFO(node_->get_logger(), "Use ContactEstimator to estimate foot state and contact state");
             footStateEstimation(time, period); // 足端力和接触状态估计
         }else{
             updateContact();        // 使用足端力阈值进行接触状态更新
@@ -265,13 +267,13 @@ namespace ocs2::legged_robot
 
         in.acc = linear_accel_local_;
         in.gyro = angular_vel_local_;
-        // 暂时不加扰动
-        in.dist_acc = Eigen::Vector3d::Zero();
-        in.dist_vel = Eigen::Vector3d::Zero();
-        in.dist_rot = Eigen::Vector3d::Zero();
-
-        // 记录预测前的状态
-        ESKFNominalState x_before_predict = xHat_; // 预测前状态
+        if (use_sta_observer_)
+        {
+            const STADisturbanceVec disturbance = sta_observer_.getDisturbance();
+            in.dist_pos = disturbance.segment<3>(STADisturbance::POS_IDX);
+            in.dist_vel = disturbance.segment<3>(STADisturbance::VEL_IDX);
+            in.dist_rot = disturbance.segment<3>(STADisturbance::ROT_IDX);
+        }
 
         // ESKF 预测
         eskfPrediction(dt, in);
@@ -284,6 +286,12 @@ namespace ocs2::legged_robot
 
         // IMU 姿态软约束：防止 ESKF 旋转估计偏离 IMU 的姿态信息
         fuseImuAttitude();
+
+        if (use_sta_observer_)
+        {
+            const Eigen::Vector3d omega_body = in.gyro - xHat_.bg;
+            sta_observer_.update(dt, xHat_, omega_body);
+        }
 
         // 更新 Ground Truth 数据
         updateGroundTruth();
@@ -392,9 +400,9 @@ namespace ocs2::legged_robot
         Eigen::Vector3d a_world = R * a_unbias + g;       // 世界系下的加速度
 
         // =================== 名义状态传播 ===================
-        xHat_.p = xHat_.p + xHat_.v * dt + 0.5 * a_world * dt * dt;
-        xHat_.v = xHat_.v + a_world * dt;
-        Eigen::Vector3d delta_theta = omega_unbias * dt;
+        xHat_.p = xHat_.p + xHat_.v * dt + 0.5 * a_world * dt * dt + u.dist_pos * dt;
+        xHat_.v = xHat_.v + a_world * dt + u.dist_vel * dt;
+        Eigen::Vector3d delta_theta = (omega_unbias + u.dist_rot) * dt;
         Eigen::Quaterniond dq = Sophus::SO3d::exp(delta_theta).unit_quaternion();
         xHat_.q = xHat_.q * dq;
         xHat_.q.normalize();
@@ -425,6 +433,15 @@ namespace ocs2::legged_robot
 
         // 协方差传播: P_k = A * P_{k-1} * A^T + B * Q * B^T
         P = A * P * A.transpose() + B * Q * B.transpose();
+        if (use_sta_observer_)
+        {
+            Eigen::Matrix<double, ESKFNominalState::STATE_DIM, STADisturbance::DISTURBANCE_DIM> Bd;
+            Bd.setZero();
+            Bd.block<3, 3>(ESKFNominalState::POS_IDX, STADisturbance::POS_IDX) = Eigen::Matrix3d::Identity();
+            Bd.block<3, 3>(ESKFNominalState::VEL_IDX, STADisturbance::VEL_IDX) = Eigen::Matrix3d::Identity();
+            Bd.block<3, 3>(ESKFNominalState::ROT_IDX, STADisturbance::ROT_IDX) = Eigen::Matrix3d::Identity();
+            P += Bd * sta_observer_.getDisturbanceCovariance() * Bd.transpose();
+        }
 
         // 偏置可观测性较弱，但不要把 P 的 ba/bg 行列整体清零——那等价于
         // 把交叉协方差也抹掉，会让姿态观测 (fuseImuAttitude / 足端运动学) 失去
@@ -725,6 +742,10 @@ namespace ocs2::legged_robot
         // 获取估计的足端力
         auto foot_forces = contact_estimator_->getFootForces();
 
+        const bool is_trot_gait =
+            reference_manager_ptr_ && isPureTrotGait(controller_time_, *reference_manager_ptr_);
+        contact_estimator_->setControllerTime(controller_time_);
+        contact_estimator_->setTrotGaitActive(is_trot_gait);
         // 更新接触估计
         contact_estimator_->update(foot_forces, foot_heights, contact_phase, swing_phase);
 
@@ -822,6 +843,18 @@ namespace ocs2::legged_robot
         loadData::loadPtreeValue(pt, meas_noise_attitude_yaw_, prefix + "MeasurementNoiseAttitudeYaw", verbose);
         loadData::loadPtreeValue(pt, foot_radius_, prefix + "FootRadius", verbose);
         loadData::loadPtreeValue(pt, min_contact_trust_, prefix + "MinContactTrust", verbose);
+
+        loadData::loadPtreeValue(pt, use_sta_observer_, prefix + "useSTA", verbose);
+        loadData::loadPtreeValue(pt, sta_bandwidth_, prefix + "sta.bandwidth", verbose);
+        loadData::loadPtreeValue(pt, sta_qd_window_, prefix + "sta.qdWindow", verbose);
+        loadData::loadPtreeValue(pt, sta_epsilon_, prefix + "sta.epsilon", verbose);
+        loadData::loadPtreeValue(pt, sta_qd_regularization_, prefix + "sta.qdRegularization", verbose);
+        loadData::loadPtreeValue(pt, sta_qd_max_, prefix + "sta.maxCovariance", verbose);
+        loadData::loadPtreeValue(pt, sta_max_disturbance_, prefix + "sta.maxDisturbance", verbose);
+
+        sta_observer_.setBandwidth(sta_bandwidth_);
+        sta_observer_.setParameters(sta_qd_window_, sta_epsilon_, sta_qd_regularization_,
+                                    sta_qd_max_, sta_max_disturbance_);
 
         if (use_contact_estimator_ && contact_estimator_)
         {

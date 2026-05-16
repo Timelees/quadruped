@@ -121,6 +121,12 @@ namespace ocs2::legged_robot
 
         void loadSettings(const std::string &task_file, bool verbose);
 
+        /** @brief 与 ESKF 控制时间对齐，用于 CSV 时间戳 */
+        void setControllerTime(scalar_t t) { controller_time_ = t; }
+
+        /** @brief 仅在纯 trot 步态下写入接触概率日志（与 ESKF GT 日志策略一致） */
+        void setTrotGaitActive(bool active) { is_trot_gait_active_ = active; }
+
     private:
     
         void updateDynamicsParameters();
@@ -210,6 +216,13 @@ namespace ocs2::legged_robot
 
         bool initialized_ = false;
         scalar_t dt_ = 0.002; // 500Hz控制频率
+
+        // 日志
+        std::unique_ptr<quadruped::logs::LogSave> logger_;
+        bool is_logger_enabled_ = true;
+        bool is_trot_gait_active_ = false;
+        scalar_t controller_time_ = 0.0;
+        std::array<scalar_t, NUM_LEGS> gait_phase_ref_{};
 
     };
 
