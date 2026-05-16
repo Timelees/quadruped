@@ -137,6 +137,24 @@ void LogSave::saveDataToCSV(const std::string &filename, const std::string &head
     saveDataToCSV(filename, header, std::initializer_list<double>{data(0), data(1), data(2)});
 }
 
+void LogSave::saveDataToCSV(const std::string &filename, const std::string &header, const double timestamp,
+                            const Eigen::Vector3d &data) {
+    saveDataToCSV(filename, header, timestamp,
+                  std::initializer_list<double>{data(0), data(1), data(2)});
+}
+
+void LogSave::saveDataToCSV(const std::string &filename, const std::string &header, const double timestamp,
+                            std::initializer_list<double> data) {
+    if (!enabled_.load()) return;
+    if (filename.empty()) return;
+
+    std::vector<double> cols;
+    cols.reserve(1 + data.size());
+    cols.push_back(timestamp);
+    cols.insert(cols.end(), data.begin(), data.end());
+    saveDataToCSV(filename, "time," + header, cols);
+}
+
 void LogSave::saveDataToCSV(const std::string &filename, const std::string &header, const Eigen::VectorXd &data) {
     if (!enabled_.load()) return;
     if (filename.empty()) return;

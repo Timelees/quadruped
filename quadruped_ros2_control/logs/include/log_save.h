@@ -39,6 +39,12 @@ public:
     // Save data to the csv file
     void saveDataToCSV(const std::string &filename, const std::string &header, const Eigen::Vector3d &data);
 
+    // Save data with controller/sim time as the first CSV column (header gets "time," prefix)
+    void saveDataToCSV(const std::string &filename, const std::string &header, double timestamp,
+                       const Eigen::Vector3d &data);
+    void saveDataToCSV(const std::string &filename, const std::string &header, double timestamp,
+                       std::initializer_list<double> data);
+
     // Save variable-length row to CSV (more columns)
     void saveDataToCSV(const std::string &filename, const std::string &header, const Eigen::VectorXd &data);
     void saveDataToCSV(const std::string &filename, const std::string &header, const std::vector<double> &data);

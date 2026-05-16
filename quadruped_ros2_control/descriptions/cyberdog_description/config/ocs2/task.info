@@ -386,21 +386,21 @@ ErrorStateKalmanFilter
     ; ==================== 过程噪声Q (对IMU预测的不信任程度) ====================
     ; 核心原理：值越大 -> 不信任IMU积分，更依赖观测校正
     ;          值越小 -> 信任IMU积分，观测校正作用减弱
-    ProcessNoiseAcceleration          0.15        // 加速度过程噪声 [m/s^2] 
-    ProcessNoiseGyroscope             0.003       // 角速度过程噪声 [rad/s] 
-    ProcessNoiseFootPosition          0.005      // 足端位置过程噪声 [m] 
-    ProcessNoiseBiasAcceleration      0.02     // 加速度计偏置过程噪声 [m/s^3]                         
-    ProcessNoiseBiasGyroscope         0.02     // 陀螺仪偏置过程噪声 [rad/s^2]
+    ProcessNoiseAcceleration          0.5          // 加速度过程噪声 [m/s^2] 
+    ProcessNoiseGyroscope             0.01        // 角速度过程噪声 [rad/s] 
+    ProcessNoiseFootPosition          0.004        // 足端位置过程噪声 [m] 
+    ProcessNoiseBiasAcceleration      0.004        // 加速度计偏置过程噪声 [m/s^3]                         
+    ProcessNoiseBiasGyroscope         0.003        // 陀螺仪偏置过程噪声 [rad/s^2]
               
     ; ==================== 观测噪声R (对运动学测量的不信任程度) ====================
     ; 核心原理：值越小 -> 信任运动学观测，观测校正作用强
     ;          值越大 -> 不信任运动学观测，更依赖IMU积分
     
     MeasurementNoiseFootVelocity      0.005          // 足端速度观测噪声 [m/s]               
-    MeasurementNoiseFootPosition      0.003       // 足端位置观测噪声 [m]                                 
-    MeasurementNoiseFootHeight        0.003       // 足端高度观测噪声 [m] 
+    MeasurementNoiseFootPosition      0.0045         // 足端位置观测噪声 [m]                                 
+    MeasurementNoiseFootHeight        0.003         // 足端高度观测噪声 [m] 
                                                   
-    MeasurementNoiseEncoder           0.005       // 关节编码器观测噪声 [rad] 
+    MeasurementNoiseEncoder           0.005         // 关节编码器观测噪声 [rad] 
 
     MeasurementNoiseAttitude          0.005        // IMU姿态软约束噪声 [rad] 
     
