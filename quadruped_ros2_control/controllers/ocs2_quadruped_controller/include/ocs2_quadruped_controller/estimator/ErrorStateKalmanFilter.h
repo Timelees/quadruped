@@ -33,6 +33,9 @@
 namespace ocs2::legged_robot {
     class SwitchedModelReferenceManager;
 }
+namespace ocs2 {
+    class MPC_MRT_Interface;
+}
 
 namespace ocs2::legged_robot
 {
@@ -139,8 +142,14 @@ namespace ocs2::legged_robot
             reference_manager_ptr_ = reference_manager_ptr;
         }
 
+        void setMpcMrtInterface(MPC_MRT_Interface* mpc_mrt_interface) {
+            mpc_mrt_interface_ = mpc_mrt_interface;
+        }
+
     private:
         PinocchioInterface pinocchio_interface_;
+        PinocchioInterface sta_pinocchio_interface_;
+        MPC_MRT_Interface* mpc_mrt_interface_ = nullptr;
         std::unique_ptr<PinocchioEndEffectorKinematics> ee_kinematics_; // 使用pinocchio接口计算运动学
         // 足端帧名称
         const std::array<std::string, 4> foot_frame_names_ = {
@@ -196,15 +205,19 @@ namespace ocs2::legged_robot
         double min_contact_trust_ = 0.05; // 接触概率下限，避免观测被完全关闭
         double swing_inflate_ = 100.0; // 摆动相膨胀系数
 
-        // STA Observer parameters  
-        bool use_sta_observer_ = true; // 是否使用STA Observer
-        double sta_bandwidth_ = 5.0; // STA Observer带宽
-        int sta_qd_window_ = 20; // STA Observer协方差窗口大小
-        double sta_epsilon_ = 1e-6; // STA Observer误差阈值
-        double sta_qd_regularization_ = 1e-6; // STA Observer协方差正则化参数
-        double sta_qd_max_ = 10.0; // STA Observer最大协方差
-        double sta_max_disturbance_ = 50.0; // STA Observer最大扰动
-        
+        // STA Observer parameters
+        bool use_sta_observer_ = true;
+        int sta_qd_window_ = 20;
+        double sta_epsilon_ = 1e-6;
+        double sta_qd_regularization_ = 1e-6;
+        double sta_qd_max_ = 10.0;
+        double sta_dist_lpf_ = 0.85;
+        double sta_gated_decay_ = 0.92;
+        int sta_min_stance_legs_ = 2;
+        STAChannelParams sta_pos_params_{};
+        STAChannelParams sta_vel_params_{};
+        STAChannelParams sta_rot_params_{};
+
 
         ESKFNominalState xHat_;                            // 滤波器状态估计值
         StateVec dx;                                       // 误差状态
@@ -234,6 +247,20 @@ namespace ocs2::legged_robot
 
         /** IMU 姿态软约束：独立卡尔曼更新，将 ESKF 旋转柔性约束到 IMU 输出 */
         void fuseImuAttitude();
+
+        /** 由 MPC 输入与 OCS2 质心动力学计算单步名义运动（与 ESKF 后验对比得到扰动） */
+        STADynamicsInput computeStaDynamicsModel(double dt);
+        vector_t computeStaCentroidalState(const vector_t& q_pino, const vector_t& v_pino,
+                                           const Eigen::Matrix<scalar_t, 6, Eigen::Dynamic>&
+                                               centroidal_momentum_matrix) const;
+        bool computeStaMpcInput(const vector_t& current_state, vector_t& mpc_input);
+
+        STAGatingInput computeStaGatingInput() const;
+
+        void configureStaObserver();
+
+        vector_t sta_prev_mpc_joint_velocities_;
+        bool sta_has_prev_mpc_joint_velocities_ = false;
 
         /**基于运动学的观测模型
          * 根据当前名义状态x和输入in，计算观测残差y、雅可比C和噪声协方差R

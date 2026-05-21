@@ -5,11 +5,16 @@
 
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/centroidal.hpp>
 
 #include <utility>
 #include <algorithm>
 #include <cmath>
+#include <exception>
 
+#include <ocs2_centroidal_model/AccessHelperFunctions.h>
+#include <ocs2_centroidal_model/ModelHelperFunctions.h>
+#include <ocs2_mpc/MPC_MRT_Interface.h>
 #include <ocs2_quadruped_controller/interface/SwitchedModelReferenceManager.h>
 #include <ocs2_core/misc/LoadData.h>
 #include <ocs2_robotic_tools/common/RotationDerivativesTransforms.h>
@@ -64,6 +69,7 @@ namespace ocs2::legged_robot
                                                    const rclcpp_lifecycle::LifecycleNode::SharedPtr &node)
         : StateEstimateBase(std::move(info), ctrl_component, node),
           pinocchio_interface_(std::move(pinocchio_interface)),
+          sta_pinocchio_interface_(pinocchio_interface_),
           ee_kinematics_(ee_kinematics.clone()),
           ee_frame_ids_{}
     {
@@ -140,6 +146,9 @@ namespace ocs2::legged_robot
             Ji.resize(3, nv);
             Ji.setZero();
         }
+        // 初始化 STA 观察器
+        sta_prev_mpc_joint_velocities_.setZero(static_cast<Eigen::Index>(info_.actuatedDofNum));
+        sta_has_prev_mpc_joint_velocities_ = false;
         // 初始化状态误差
         dx.setZero();
 
@@ -158,7 +167,10 @@ namespace ocs2::legged_robot
 
         Q.setIdentity();
         R.setIdentity();
-        sta_observer_.init(1.1 * sta_bandwidth_, 1.5 * std::sqrt(sta_bandwidth_));
+
+
+        configureStaObserver();
+        sta_observer_.init(0.0, 0.0);
     }
 
     vector_t ErrorStateKalmanFilter::update(const rclcpp::Time &time, const rclcpp::Duration &period)
@@ -270,9 +282,21 @@ namespace ocs2::legged_robot
         if (use_sta_observer_)
         {
             const STADisturbanceVec disturbance = sta_observer_.getDisturbance();
-            in.dist_pos = disturbance.segment<3>(STADisturbance::POS_IDX);
-            in.dist_vel = disturbance.segment<3>(STADisturbance::VEL_IDX);
-            in.dist_rot = disturbance.segment<3>(STADisturbance::ROT_IDX);
+            in.dist_pos.setZero();
+            in.dist_vel.setZero();
+            in.dist_rot.setZero();
+            if (sta_pos_params_.enable_learning)
+            {
+                in.dist_pos = disturbance.segment<3>(STADisturbance::POS_IDX);
+            }
+            if (sta_vel_params_.enable_learning)
+            {
+                in.dist_vel = disturbance.segment<3>(STADisturbance::VEL_IDX);
+            }
+            if (sta_rot_params_.enable_learning)
+            {
+                in.dist_rot = disturbance.segment<3>(STADisturbance::ROT_IDX);
+            }
         }
 
         // ESKF 预测
@@ -289,8 +313,10 @@ namespace ocs2::legged_robot
 
         if (use_sta_observer_)
         {
-            const Eigen::Vector3d omega_body = in.gyro - xHat_.bg;
-            sta_observer_.update(dt, xHat_, omega_body);
+            const STADynamicsInput dynamics = computeStaDynamicsModel(dt);
+            STAGatingInput gating = computeStaGatingInput();
+            gating.dynamics_valid = dynamics.valid;
+            sta_observer_.update(dt, xHat_, dynamics, gating);
         }
 
         // 更新 Ground Truth 数据
@@ -437,9 +463,9 @@ namespace ocs2::legged_robot
         {
             Eigen::Matrix<double, ESKFNominalState::STATE_DIM, STADisturbance::DISTURBANCE_DIM> Bd;
             Bd.setZero();
-            Bd.block<3, 3>(ESKFNominalState::POS_IDX, STADisturbance::POS_IDX) = Eigen::Matrix3d::Identity();
-            Bd.block<3, 3>(ESKFNominalState::VEL_IDX, STADisturbance::VEL_IDX) = Eigen::Matrix3d::Identity();
-            Bd.block<3, 3>(ESKFNominalState::ROT_IDX, STADisturbance::ROT_IDX) = Eigen::Matrix3d::Identity();
+            Bd.block<3, 3>(ESKFNominalState::POS_IDX, STADisturbance::POS_IDX) = Eigen::Matrix3d::Identity() * dt;
+            Bd.block<3, 3>(ESKFNominalState::VEL_IDX, STADisturbance::VEL_IDX) = Eigen::Matrix3d::Identity() * dt;
+            Bd.block<3, 3>(ESKFNominalState::ROT_IDX, STADisturbance::ROT_IDX) = Eigen::Matrix3d::Identity() * dt;
             P += Bd * sta_observer_.getDisturbanceCovariance() * Bd.transpose();
         }
 
@@ -463,6 +489,202 @@ namespace ocs2::legged_robot
 
         // 确保P对称正定
         P = 0.5 * (P + P.transpose());
+    }
+
+    vector_t ErrorStateKalmanFilter::computeStaCentroidalState(
+        const vector_t& q_pino, const vector_t& v_pino,
+        const Eigen::Matrix<scalar_t, 6, Eigen::Dynamic>& centroidal_momentum_matrix) const
+    {
+        vector_t state(static_cast<Eigen::Index>(info_.stateDim));
+        state.setZero();
+        centroidal_model::getNormalizedMomentum(state, info_).noalias() =
+            centroidal_momentum_matrix * v_pino / static_cast<double>(info_.robotMass);
+        centroidal_model::getGeneralizedCoordinates(state, info_) = q_pino;
+        return state;
+    }
+
+    bool ErrorStateKalmanFilter::computeStaMpcInput(const vector_t& current_state, vector_t& mpc_input)
+    {
+        if (mpc_mrt_interface_ != nullptr && mpc_mrt_interface_->initialPolicyReceived() &&
+            current_state.size() == static_cast<Eigen::Index>(info_.stateDim) && current_state.allFinite())
+        {
+            try
+            {
+                mpc_mrt_interface_->updatePolicy();
+                vector_t policy_state;
+                size_t planned_mode = 0;
+                mpc_mrt_interface_->evaluatePolicy(controller_time_, current_state, policy_state,
+                                                   mpc_input, planned_mode);
+                if (mpc_input.size() == static_cast<Eigen::Index>(info_.inputDim) && mpc_input.allFinite())
+                {
+                    ctrl_component_.mpc_input_.assign(mpc_input.data(), mpc_input.data() + mpc_input.size());
+                    return true;
+                }
+            }
+            catch (const std::exception&)
+            {
+                // 回退到 StateOCS2 最近一次写入的 MPC 输入。
+            }
+        }
+
+        if (ctrl_component_.mpc_input_.size() != info_.inputDim)
+        {
+            return false;
+        }
+
+        mpc_input.resize(static_cast<Eigen::Index>(info_.inputDim));
+        for (size_t i = 0; i < info_.inputDim; ++i)
+        {
+            mpc_input(static_cast<Eigen::Index>(i)) = ctrl_component_.mpc_input_[i];
+        }
+        return mpc_input.allFinite();
+    }
+
+    STADynamicsInput ErrorStateKalmanFilter::computeStaDynamicsModel(const double dt)
+    {
+        STADynamicsInput out;
+        const Eigen::Matrix3d R_wb = xHat_.q.normalized().toRotationMatrix();
+        out.omega_body_fallback = angular_vel_local_ - xHat_.bg;
+
+        if (dt <= 0.0 || !std::isfinite(dt))
+        {
+            out.delta_theta_body.setZero();
+            return out;
+        }
+
+        const Eigen::Index actuated_dof = static_cast<Eigen::Index>(info_.actuatedDofNum);
+        const Eigen::Index generalized_dim = static_cast<Eigen::Index>(info_.generalizedCoordinatesNum);
+        if (rbd_state_.size() < 2 * generalized_dim)
+        {
+            out.delta_theta_body = out.omega_body_fallback * dt;
+            return out;
+        }
+
+        vector_t q_pino(generalized_dim);
+        vector_t v_pino(generalized_dim);
+        q_pino.setZero();
+        v_pino.setZero();
+
+        const vector3_t zyx = quatToZyx(xHat_.q.normalized());
+        const Eigen::Vector3d omega_world = R_wb * out.omega_body_fallback;
+
+        q_pino.head<3>() = xHat_.p;
+        q_pino.segment<3>(3) = zyx;
+        q_pino.tail(actuated_dof) = rbd_state_.segment(6, actuated_dof);
+
+        v_pino.head<3>() = xHat_.v;
+        v_pino.segment<3>(3) =
+            getEulerAnglesZyxDerivativesFromGlobalAngularVelocity<scalar_t>(zyx, omega_world);
+        v_pino.tail(actuated_dof) =
+            rbd_state_.segment(6 + generalized_dim, actuated_dof);
+
+        const auto &model = sta_pinocchio_interface_.getModel();
+        auto &data = sta_pinocchio_interface_.getData();
+        updateCentroidalDynamics(sta_pinocchio_interface_, info_, q_pino);
+        const auto &A_centroidal = getCentroidalMomentumMatrix(sta_pinocchio_interface_);
+        if (A_centroidal.rows() != 6 || A_centroidal.cols() < generalized_dim ||
+            !A_centroidal.allFinite())
+        {
+            out.delta_theta_body = out.omega_body_fallback * dt;
+            return out;
+        }
+
+        const vector_t current_centroidal_state =
+            computeStaCentroidalState(q_pino, v_pino, A_centroidal);
+        vector_t mpc_input;
+        if (!computeStaMpcInput(current_centroidal_state, mpc_input))
+        {
+            out.delta_theta_body = out.omega_body_fallback * dt;
+            return out;
+        }
+
+        vector_t joint_accel = vector_t::Zero(actuated_dof);
+        const vector_t mpc_joint_velocities =
+            centroidal_model::getJointVelocities(mpc_input, info_);
+        if (sta_prev_mpc_joint_velocities_.size() != actuated_dof)
+        {
+            sta_prev_mpc_joint_velocities_.setZero(actuated_dof);
+            sta_has_prev_mpc_joint_velocities_ = false;
+        }
+        if (sta_has_prev_mpc_joint_velocities_)
+        {
+            joint_accel = (mpc_joint_velocities - sta_prev_mpc_joint_velocities_) / dt;
+        }
+        sta_prev_mpc_joint_velocities_ = mpc_joint_velocities;
+        sta_has_prev_mpc_joint_velocities_ = true;
+
+        const Eigen::Matrix<double, 6, 6> A_base = A_centroidal.leftCols<6>();
+        const Eigen::Matrix<double, 6, 6> A_base_inv =
+            computeFloatingBaseCentroidalMomentumMatrixInverse(A_base);
+        if (!A_base_inv.allFinite())
+        {
+            out.delta_theta_body = out.omega_body_fallback * dt;
+            return out;
+        }
+
+        const auto A_dot = pinocchio::dccrba(model, data, q_pino, v_pino);
+        Eigen::Matrix<double, 6, 1> centroidal_momentum_rate =
+            static_cast<double>(info_.robotMass) *
+            getNormalizedCentroidalMomentumRate(sta_pinocchio_interface_, info_, mpc_input);
+        centroidal_momentum_rate.noalias() -= A_dot * v_pino;
+        centroidal_momentum_rate.noalias() -=
+            A_centroidal.rightCols(actuated_dof) * joint_accel;
+
+        const Eigen::Matrix<double, 6, 1> qbase_ddot =
+            A_base_inv * centroidal_momentum_rate;
+        if (!qbase_ddot.allFinite())
+        {
+            out.delta_theta_body = out.omega_body_fallback * dt;
+            return out;
+        }
+
+        out.accel_world = qbase_ddot.head<3>();
+        const Eigen::Vector3d angular_acc_world =
+            getGlobalAngularAccelerationFromEulerAnglesZyxDerivatives<scalar_t>(
+                zyx, v_pino.segment<3>(3), qbase_ddot.tail<3>());
+        const Eigen::Vector3d angular_acc_body = R_wb.transpose() * angular_acc_world;
+
+        out.delta_theta_body =
+            out.omega_body_fallback * dt + 0.5 * angular_acc_body * dt * dt;
+        out.valid = true;
+
+        return out;
+    }
+
+    STAGatingInput ErrorStateKalmanFilter::computeStaGatingInput() const
+    {
+        STAGatingInput gating;
+        gating.allow_update = feet_world_initialized_;
+
+        double trust_sum = 0.0;
+        gating.stance_leg_count = 0;
+        for (int i = 0; i < 4; ++i)
+        {
+            const double trust = std::clamp(contact_prob_[i], 0.0, 1.0);
+            if (contact_flag_[i] || trust >= min_contact_trust_)
+            {
+                ++gating.stance_leg_count;
+                trust_sum += trust;
+            }
+        }
+
+        if (gating.stance_leg_count > 0)
+        {
+            gating.contact_trust = trust_sum / static_cast<double>(gating.stance_leg_count);
+        }
+
+        gating.allow_update =
+            gating.allow_update && gating.stance_leg_count >= sta_min_stance_legs_ &&
+            gating.contact_trust >= min_contact_trust_;
+
+        return gating;
+    }
+
+    void ErrorStateKalmanFilter::configureStaObserver()
+    {
+        sta_observer_.setChannelParameters(sta_pos_params_, sta_vel_params_, sta_rot_params_, sta_qd_window_,
+                                           sta_epsilon_, sta_qd_regularization_, sta_qd_max_, sta_dist_lpf_,
+                                           sta_gated_decay_);
     }
 
     void ErrorStateKalmanFilter::eskfUpdate(const MeasVec &y, const MeasJacobian &C, const MeasCov &R)
@@ -845,16 +1067,39 @@ namespace ocs2::legged_robot
         loadData::loadPtreeValue(pt, min_contact_trust_, prefix + "MinContactTrust", verbose);
 
         loadData::loadPtreeValue(pt, use_sta_observer_, prefix + "useSTA", verbose);
-        loadData::loadPtreeValue(pt, sta_bandwidth_, prefix + "sta.bandwidth", verbose);
         loadData::loadPtreeValue(pt, sta_qd_window_, prefix + "sta.qdWindow", verbose);
         loadData::loadPtreeValue(pt, sta_epsilon_, prefix + "sta.epsilon", verbose);
         loadData::loadPtreeValue(pt, sta_qd_regularization_, prefix + "sta.qdRegularization", verbose);
         loadData::loadPtreeValue(pt, sta_qd_max_, prefix + "sta.maxCovariance", verbose);
-        loadData::loadPtreeValue(pt, sta_max_disturbance_, prefix + "sta.maxDisturbance", verbose);
+        loadData::loadPtreeValue(pt, sta_dist_lpf_, prefix + "sta.distLpf", verbose);
+        loadData::loadPtreeValue(pt, sta_gated_decay_, prefix + "sta.gatedDecay", verbose);
+        loadData::loadPtreeValue(pt, sta_min_stance_legs_, prefix + "sta.minStanceLegs", verbose);
 
-        sta_observer_.setBandwidth(sta_bandwidth_);
-        sta_observer_.setParameters(sta_qd_window_, sta_epsilon_, sta_qd_regularization_,
-                                    sta_qd_max_, sta_max_disturbance_);
+        const std::string sta_pos = prefix + "sta.pos.";
+        loadData::loadPtreeValue(pt, sta_pos_params_.bandwidth, sta_pos + "bandwidth", verbose);
+        loadData::loadPtreeValue(pt, sta_pos_params_.error_scale, sta_pos + "errorScale", verbose);
+        loadData::loadPtreeValue(pt, sta_pos_params_.max_disturbance, sta_pos + "maxDisturbance", verbose);
+        loadData::loadPtreeValue(pt, sta_pos_params_.output_gain, sta_pos + "distGain", verbose);
+        loadData::loadPtreeValue(pt, sta_pos_params_.innovation_gate, sta_pos + "innovationGate", verbose);
+        loadData::loadPtreeValue(pt, sta_pos_params_.enable_learning, sta_pos + "enableLearning", verbose);
+
+        const std::string sta_vel = prefix + "sta.vel.";
+        loadData::loadPtreeValue(pt, sta_vel_params_.bandwidth, sta_vel + "bandwidth", verbose);
+        loadData::loadPtreeValue(pt, sta_vel_params_.error_scale, sta_vel + "errorScale", verbose);
+        loadData::loadPtreeValue(pt, sta_vel_params_.max_disturbance, sta_vel + "maxDisturbance", verbose);
+        loadData::loadPtreeValue(pt, sta_vel_params_.output_gain, sta_vel + "distGain", verbose);
+        loadData::loadPtreeValue(pt, sta_vel_params_.innovation_gate, sta_vel + "innovationGate", verbose);
+        loadData::loadPtreeValue(pt, sta_vel_params_.enable_learning, sta_vel + "enableLearning", verbose);
+
+        const std::string sta_rot = prefix + "sta.rot.";
+        loadData::loadPtreeValue(pt, sta_rot_params_.bandwidth, sta_rot + "bandwidth", verbose);
+        loadData::loadPtreeValue(pt, sta_rot_params_.error_scale, sta_rot + "errorScale", verbose);
+        loadData::loadPtreeValue(pt, sta_rot_params_.max_disturbance, sta_rot + "maxDisturbance", verbose);
+        loadData::loadPtreeValue(pt, sta_rot_params_.output_gain, sta_rot + "distGain", verbose);
+        loadData::loadPtreeValue(pt, sta_rot_params_.innovation_gate, sta_rot + "innovationGate", verbose);
+        loadData::loadPtreeValue(pt, sta_rot_params_.enable_learning, sta_rot + "enableLearning", verbose);
+
+        configureStaObserver();
 
         if (use_contact_estimator_ && contact_estimator_)
         {

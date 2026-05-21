@@ -103,6 +103,7 @@ namespace ocs2::legged_robot
 
             error_state_kalman_estimator->loadSettings(task_file_, verbose_);
             error_state_kalman_estimator->setReferenceManager(legged_interface_->getSwitchedModelReferenceManagerPtr());
+            error_state_kalman_estimator->setMpcMrtInterface(mpc_mrt_interface_.get());
 
             estimator_ = std::move(error_state_kalman_estimator);
             RCLCPP_INFO(node_->get_logger(), "Using Error State Kalman Filter Estimator");

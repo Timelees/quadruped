@@ -65,6 +65,7 @@ namespace ocs2::legged_robot
 
         // Whole body control
         ctrl_component_->observation_.input = optimized_input_;
+        ctrl_interfaces_.mpc_input_.assign(optimized_input_.data(), optimized_input_.data() + optimized_input_.size());
 
         wbc_timer_.startTimer();
         vector_t x = wbc_->update(optimized_state_, optimized_input_, ctrl_component_->measured_rbd_state_,

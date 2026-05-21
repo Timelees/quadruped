@@ -408,15 +408,44 @@ ErrorStateKalmanFilter
     
     FootRadius                        0.019       // 足端半径
 
-    useSTA                            true        // 是否启用 STA 扰动观测器
+    useSTA                            true
     sta
     {
-        bandwidth                     5.0         // STA 观测器带宽 L
-        qdWindow                      20          // 在线估计 Qd 的扰动历史窗口
-        epsilon                       1e-6        // STA 归一化项防除零阈值
-        qdRegularization              1e-6        // Qd 对角正则项
-        maxCovariance                 10.0        // Qd 对角限幅
-        maxDisturbance                50.0        // z1 分量限幅
+        qdWindow                      20
+        epsilon                       1e-6
+        qdRegularization              1e-6
+        maxCovariance                 10.0
+        distLpf                       0.88
+        gatedDecay                    0.92
+        minStanceLegs                 2
+
+        pos
+        {
+            bandwidth                 2.0
+            errorScale                0.05
+            maxDisturbance            5.0
+            distGain                  0.35
+            innovationGate            0.5
+            enableLearning            false
+        }
+        vel
+        {
+            bandwidth                 5.0
+            errorScale                0.25
+            maxDisturbance            5.0
+            distGain                  0.1
+            innovationGate            1.0
+            enableLearning            true
+        }
+        rot
+        {
+            bandwidth                 3.0
+            errorScale                0.15
+            maxDisturbance            5.0
+            distGain                  0.15
+            innovationGate            0.3
+            enableLearning            false
+        }
     }
     
 }

@@ -43,6 +43,8 @@ struct CtrlInterfaces
     std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>>
     odom_state_interface_;
 
+    // 最近一次可用 MPC 优化输入，供状态估计器作为当前 policy 评估失败时的回退。
+    std::vector<double> mpc_input_;
 
     control_input_msgs::msg::Inputs control_inputs_;
     int frequency_{};
@@ -64,6 +66,7 @@ struct CtrlInterfaces
         imu_state_interface_.clear();
         foot_force_state_interface_.clear();
         odom_state_interface_.clear();
+        mpc_input_.clear();
     }
 };
 

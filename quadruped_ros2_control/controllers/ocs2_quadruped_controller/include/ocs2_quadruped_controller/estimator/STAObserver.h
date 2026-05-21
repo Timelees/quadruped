@@ -6,7 +6,6 @@
 
 namespace ocs2::legged_robot
 {
-    // 前向声明，避免与 ErrorStateKalmanFilter.h 循环包含
     struct ESKFNominalState;
     struct STAState
     {
@@ -32,11 +31,36 @@ namespace ocs2::legged_robot
     using STAStateVec = Eigen::Matrix<double, STAState::STATE_DIM, 1>;
     using STADisturbanceVec = Eigen::Matrix<double, STADisturbance::DISTURBANCE_DIM, 1>;
     using STAStateMatrix = Eigen::Matrix<double, STAState::STATE_DIM, STAState::STATE_DIM>;
-    using STADisturbanceMatrix = Eigen::Matrix<double, STADisturbance::DISTURBANCE_DIM, STADisturbance::DISTURBANCE_DIM>;
-    using STAGainMatrix = Eigen::Matrix<double, STAState::STATE_DIM, STAState::STATE_DIM>;
-    using STAInputMatrix = Eigen::Matrix<double, STAState::STATE_DIM, STAState::ESKF_STATE_DIM>;
-    using STADisturbanceInputMatrix = Eigen::Matrix<double, STADisturbance::DISTURBANCE_DIM, STAState::STATE_DIM>;
     using STADisturbanceCov = Eigen::Matrix<double, STADisturbance::DISTURBANCE_DIM, STADisturbance::DISTURBANCE_DIM>;
+
+    /** 质心动力学单步传播：描述“模型认为机器人应如何运动” */
+    struct STADynamicsInput
+    {
+        Eigen::Vector3d accel_world{Eigen::Vector3d::Zero()};
+        Eigen::Vector3d delta_theta_body{Eigen::Vector3d::Zero()};
+        Eigen::Vector3d omega_body_fallback{Eigen::Vector3d::Zero()};
+        bool valid{false};
+    };
+
+    /** 决定是否允许 STA 学习扰动（避免初始化/低接触置信阶段积分噪声） */
+    struct STAGatingInput
+    {
+        bool allow_update{false};
+        bool dynamics_valid{false};
+        double contact_trust{0.0};
+        int stance_leg_count{0};
+    };
+
+    /** 分通道 STA 参数：位置 / 速度 / 姿态 独立调参 */
+    struct STAChannelParams
+    {
+        double bandwidth{5.0};
+        double error_scale{1.0};
+        double max_disturbance{10.0};
+        double output_gain{0.35};
+        double innovation_gate{1.0};
+        bool enable_learning{true};
+    };
 
     class STAObserver
     {
@@ -44,70 +68,72 @@ namespace ocs2::legged_robot
         STAObserver() = default;
         ~STAObserver() = default;
 
-        /**
-         * @brief 初始化观测器
-         * @param k1 STA 一阶注入增益
-         * @param k2 STA 二阶扰动增益
-         */
         void init(double k1, double k2);
 
-        /**
-         * @brief 更新观测器状态
-         * @param dt 时间步长
-         * @param state ESKF 后验名义状态
-         * @param omega_body 去偏置后的机体系角速度
-         */
-        void update(double dt, const ESKFNominalState &state, const Eigen::Vector3d &omega_body);
+        void update(double dt, const ESKFNominalState &state, const STADynamicsInput &dynamics,
+                    const STAGatingInput &gating);
 
         void reset(const ESKFNominalState &state);
 
-        void setBandwidth(double bandwidth);
+        void setChannelParameters(const STAChannelParams &pos, const STAChannelParams &vel,
+                                  const STAChannelParams &rot, int covariance_window, double epsilon,
+                                  double covariance_regularization, double max_covariance,
+                                  double disturbance_lpf, double gated_decay);
 
-        void setParameters(int covariance_window, double epsilon, double covariance_regularization,
-                           double max_covariance, double max_disturbance);
-
-        [[nodiscard]] const STADisturbanceVec &getDisturbance() const { return z1_; }
+        [[nodiscard]] const STADisturbanceVec &getDisturbance() const { return z1_filtered_; }
 
         [[nodiscard]] STADisturbanceCov getDisturbanceCovariance() const;
 
         [[nodiscard]] STADisturbanceCov computeDisturbanceCovariance(int window_size) const;
 
     private:
-        // 状态和扰动定义
-        STAStateVec z_;      // 状态z_k
-        STAStateVec z_prev_; // 状态z_{k-1}
+        STAStateVec z_pred_;
+        STAStateVec z_;
+        STAStateVec z_prev_;
 
-        STADisturbanceVec z1_;      // 扰动z1_k
-        STADisturbanceVec z1_prev_; // 扰动z1_{k-1}
+        STADisturbanceVec z1_;
+        STADisturbanceVec z1_prev_;
+        STADisturbanceVec z1_filtered_;
 
-        // 历史扰动记录
+        Eigen::Quaterniond z_q_{Eigen::Quaterniond::Identity()};
+        Eigen::Quaterniond z_q_prev_{Eigen::Quaterniond::Identity()};
+        Eigen::Quaterniond z_q_pred_{Eigen::Quaterniond::Identity()};
+
+        STAChannelParams channel_pos_;
+        STAChannelParams channel_vel_;
+        STAChannelParams channel_rot_;
+
         std::vector<STADisturbanceVec> disturbance_history_;
         std::size_t max_history_size_ = 20;
         int covariance_window_ = 20;
         double epsilon_ = 1e-6;
         double covariance_regularization_ = 1e-6;
         double max_covariance_ = 10.0;
-        double max_disturbance_ = 50.0;
+        double disturbance_lpf_ = 0.85;
+        double gated_decay_ = 0.92;
         bool initialized_ = false;
 
-        // STA增益矩阵（方阵）
-        STAGainMatrix K1_;
-        STAGainMatrix K2_;
+        void syncVectorFromNominalState();
 
-        // 状态转移矩阵F
-        STAStateMatrix F_;
+        [[nodiscard]] static Eigen::Quaterniond normalizeQuaternion(const Eigen::Quaterniond &q);
 
-        // 输出矩阵 H (选择矩阵)
-        STAStateMatrix H_;
+        [[nodiscard]] static Eigen::Vector3d rotationError(
+            const Eigen::Quaterniond &q_meas, const Eigen::Quaterniond &q_pred);
 
-        // 扰动输入矩阵B_d
-        STADisturbanceInputMatrix Bd_;
+        void predictNominalState(double dt, const STADynamicsInput &dynamics);
 
-        // 扰动协方差矩阵
-        STADisturbanceCov Qd_;
+        /** 式 (21) 线性子块：z = z_pred + K1·e/||e||^{1/2}·dt + z1·dt，z1 += K2·e/||e||·dt */
+        void updateStaLinearChannel(int state_idx, int dist_idx, const Eigen::Vector3d &z_pred_block,
+                                    const Eigen::Vector3d &e_block, const STAChannelParams &params,
+                                    double dt, const STAGatingInput &gating);
 
-        void setGains(const Eigen::MatrixXd &L);
+        /** 式 (21) 姿态子块（SO(3)）：乘法形式注入 K1 与 z1 */
+        void updateStaRotationChannel(const Eigen::Vector3d &e_rot, const STAChannelParams &params,
+                                        double dt, const STAGatingInput &gating);
 
-        [[nodiscard]] static STAStateVec stateToVector(const ESKFNominalState &state);
+        void filterDisturbanceOutput();
+
+        [[nodiscard]] static double computeK1FromBandwidth(double bandwidth);
+        [[nodiscard]] static double computeK2FromBandwidth(double bandwidth);
     };
 }
