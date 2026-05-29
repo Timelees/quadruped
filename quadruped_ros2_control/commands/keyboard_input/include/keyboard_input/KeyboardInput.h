@@ -35,14 +35,17 @@ private:
     void check_command(char key);
     void check_value(char key);
 
+    static void flush_input_buffer();
     static bool kbhit();
 
     control_input_msgs::msg::Inputs inputs_;
     rclcpp::Publisher<control_input_msgs::msg::Inputs>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
 
-    bool just_published_ = false;
-    int reset_count_ = 0;
+    int command_pulse_remaining_ = 0;
+
+    static constexpr int kPublishRateHz = 50;
+    static constexpr int kCommandPulseCycles = 5;
 
     float sensitivity_left_ = 0.05;
     float sensitivity_right_ = 0.05;

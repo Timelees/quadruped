@@ -85,13 +85,15 @@ namespace ocs2::legged_robot
             yaw_target = currentPose(3) + cmdGoal(3) * time_to_target_;
             yaw_hold_value_ = yaw_target;
             yaw_hold_initialized_ = true;
+            had_yaw_rate_command_ = true;
         }
         else
         {
-            if (!yaw_hold_initialized_)
+            if (had_yaw_rate_command_ || !yaw_hold_initialized_)
             {
                 yaw_hold_value_ = currentPose(3);
                 yaw_hold_initialized_ = true;
+                had_yaw_rate_command_ = false;
             }
             yaw_target = currentPose(3) +
                 angles::shortest_angular_distance(currentPose(3), yaw_hold_value_);

@@ -78,6 +78,17 @@ namespace ocs2::legged_robot
         feet_array_t<std::vector<bool>> extractContactFlags(const std::vector<size_t>& phaseIDsStock) const;
 
     private:
+        class FootholdScorer
+        {
+        public:
+            explicit FootholdScorer(const convex_plane_decomposition::PlanarTerrain* planarTerrainPtr);
+
+            double computePenalty(const vector3_t& projectedPointInWorld) const;
+
+        private:
+            const convex_plane_decomposition::PlanarTerrain* planarTerrainPtr_;
+        };
+
         struct LockedFootholdRecord
         {
             scalar_t standMiddleTime = 0.0;
@@ -128,6 +139,7 @@ namespace ocs2::legged_robot
 
         convex_plane_decomposition::PlanarTerrain planarTerrain_;
         std::shared_ptr<convex_plane_decomposition::PlanarTerrain> planarTerrainPtr_;
+        std::unique_ptr<FootholdScorer> footholdScorer_;
         std::unique_ptr<EndEffectorKinematics<scalar_t>> endEffectorKinematicsPtr_;
 
         std::unique_ptr<quadruped::logs::LogSave> logger_;

@@ -67,6 +67,7 @@ namespace ocs2::legged_robot
 
         // When yaw rate command is ~0, hold a fixed world yaw so MPC regulates heading (avoids passive drift in crab walk).
         bool yaw_hold_initialized_{false};
+        bool had_yaw_rate_command_{false};
         scalar_t yaw_hold_value_{0};
         static constexpr scalar_t kYawRateDeadzone = 0.02; // [rad/s], below = treat as no yaw command
     };

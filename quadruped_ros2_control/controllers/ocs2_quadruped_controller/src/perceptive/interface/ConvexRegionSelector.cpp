@@ -551,6 +551,63 @@ namespace ocs2::legged_robot
         }
     } // namespace
 
+    ConvexRegionSelector::FootholdScorer::FootholdScorer(
+        const convex_plane_decomposition::PlanarTerrain* planarTerrainPtr)
+        : planarTerrainPtr_(planarTerrainPtr)
+    {
+    }
+
+    double ConvexRegionSelector::FootholdScorer::computePenalty(
+        const vector3_t& projectedPointInWorld) const
+    {
+        constexpr double minEdgeDistance = 0.03;
+        constexpr double edgePenaltyWeight = 2.5;
+
+        if (planarTerrainPtr_ == nullptr)
+        {
+            return 0.0;
+        }
+
+        double bestDistance = std::numeric_limits<double>::infinity();
+        for (const auto& region : planarTerrainPtr_->planarRegions)
+        {
+            const Eigen::Vector3d pointInTerrain = region.transformPlaneToWorld.inverse() * projectedPointInWorld;
+            const convex_plane_decomposition::CgalPoint2d point2d(pointInTerrain.x(), pointInTerrain.y());
+
+            bool insideRegion = false;
+            double regionDistance = std::numeric_limits<double>::infinity();
+            for (const auto& inset : region.boundaryWithInset.insets)
+            {
+                if (convex_plane_decomposition::isInside(point2d, inset))
+                {
+                    insideRegion = true;
+                    regionDistance = std::min(
+                        regionDistance,
+                        convex_plane_decomposition::distance(point2d, inset));
+                }
+            }
+
+            if (!insideRegion && convex_plane_decomposition::isInside(point2d, region.boundaryWithInset.boundary))
+            {
+                insideRegion = true;
+                regionDistance = convex_plane_decomposition::distance(point2d, region.boundaryWithInset.boundary);
+            }
+
+            if (insideRegion)
+            {
+                bestDistance = std::min(bestDistance, regionDistance);
+            }
+        }
+
+        if (!std::isfinite(bestDistance))
+        {
+            return 0.0;
+        }
+
+        const double edgeViolation = std::max(minEdgeDistance - bestDistance, 0.0);
+        return edgePenaltyWeight * edgeViolation * edgeViolation;
+    }
+
     ConvexRegionSelector::ConvexRegionSelector(CentroidalModelInfo info,
                                                std::shared_ptr<convex_plane_decomposition::PlanarTerrain>
                                                planarTerrainPtr,
@@ -559,6 +616,7 @@ namespace ocs2::legged_robot
         : info_(std::move(info)),
           numVertices_(numVertices),
           planarTerrainPtr_(std::move(planarTerrainPtr)),
+          footholdScorer_(std::make_unique<FootholdScorer>(&planarTerrain_)),
           endEffectorKinematicsPtr_(endEffectorKinematics.clone())
     {
         logger_ = std::make_unique<quadruped::logs::LogSave>();
@@ -670,10 +728,10 @@ namespace ocs2::legged_robot
 
                         // 边缘距离惩罚函数，鼓励落足点远离边界，提升安全性
                         auto penaltyFunction = [this](const vector3_t& projectedPointInWorld) -> double {
-                            // if (footholdScorer_ != nullptr)
-                            // {
-                            //     return footholdScorer_->computePenalty(projectedPointInWorld);
-                            // }
+                            if (footholdScorer_ != nullptr)
+                            {
+                                return footholdScorer_->computePenalty(projectedPointInWorld);
+                            }
                             return 0.0;
                         };
                         auto safeProjection = getBestPlanarRegionAtPositionInWorld(

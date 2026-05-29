@@ -109,9 +109,9 @@ namespace ocs2::legged_robot
                 footName + "_footPlacement",
                 getFootPlacementConstraint(i, taskFile, "footPlacement.", verbose));
             // CBF约束
-            // problem_ptr_->softConstraintPtr->add(
-            //     footName + "_footPlacementCbf",
-            //     getFootPlacementCbfConstraint(i, taskFile, "footPlacementCbf.", verbose));
+            problem_ptr_->softConstraintPtr->add(
+                footName + "_footPlacementCbf",
+                getFootPlacementCbfConstraint(i, taskFile, "footPlacementCbf.", verbose));
 
             std::unique_ptr<EndEffectorKinematics<scalar_t>> eeKinematicsPtr = getEeKinematicsPtr({footName}, footName);
             

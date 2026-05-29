@@ -4,47 +4,81 @@
 
 #include <keyboard_input/KeyboardInput.h>
 
+#include <chrono>
+#include <unistd.h>
+
 KeyboardInput::KeyboardInput() : Node("keyboard_input_node") {
     publisher_ = create_publisher<control_input_msgs::msg::Inputs>("control_input", 10);
-    timer_ = create_wall_timer(std::chrono::microseconds(100), std::bind(&KeyboardInput::timer_callback, this));
+    const auto publish_period = std::chrono::milliseconds(1000 / kPublishRateHz);
+    timer_ = create_wall_timer(publish_period, std::bind(&KeyboardInput::timer_callback, this));
     inputs_ = control_input_msgs::msg::Inputs();
 
     tcgetattr(STDIN_FILENO, &old_tio_);
     new_tio_ = old_tio_;
-    new_tio_.c_lflag &= (~ICANON & ~ECHO);
+    new_tio_.c_lflag &= static_cast<tcflag_t>(~ICANON & ~ECHO);
+    new_tio_.c_cc[VMIN] = 0;
+    new_tio_.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSANOW, &new_tio_);
     RCLCPP_INFO(get_logger(), "Keyboard input node started.");
     RCLCPP_INFO(get_logger(), "Press 1-0 to switch between different modes");
     RCLCPP_INFO(get_logger(), "Use W/S/A/D and I/K/J/L to move the robot.");
+    RCLCPP_INFO(get_logger(), "Press Space to stop immediately.");
     RCLCPP_INFO(get_logger(), "Please input keys, press Ctrl+C to quit.");
 }
 
 void KeyboardInput::timer_callback() {
-    if (kbhit()) {
-        char key = getchar();
-        check_command(key);
-        if (inputs_.command == 0) check_value(key);
-        else {
-            inputs_.lx = 0;
-            inputs_.ly = 0;
-            inputs_.rx = 0;
-            inputs_.ry = 0;
-            reset_count_ = 100;
+    bool stop_requested = false;
+    char keys[256];
+
+    while (true) {
+        const ssize_t bytes_read = read(STDIN_FILENO, keys, sizeof(keys));
+        if (bytes_read <= 0) {
+            break;
         }
-        publisher_->publish(inputs_);
-        just_published_ = true;
-    } else {
-        if (just_published_) {
-            reset_count_ -= 1;
-            if (reset_count_ == 0) {
-                just_published_ = false;
-                if (inputs_.command != 0) {
-                    inputs_.command = 0;
-                    publisher_->publish(inputs_);
-                }
+
+        for (ssize_t i = 0; i < bytes_read; ++i) {
+            const char key = keys[i];
+            if (key == ' ') {
+                stop_requested = true;
+                break;
+            }
+
+            check_command(key);
+            if (inputs_.command == 0) {
+                check_value(key);
+            } else {
+                inputs_.lx = 0.0f;
+                inputs_.ly = 0.0f;
+                inputs_.rx = 0.0f;
+                inputs_.ry = 0.0f;
+                command_pulse_remaining_ = kCommandPulseCycles;
             }
         }
+
+        if (stop_requested || bytes_read < static_cast<ssize_t>(sizeof(keys))) {
+            break;
+        }
     }
+
+    if (stop_requested) {
+        // Drop queued auto-repeat keys so a stop is not followed by stale rotation commands.
+        flush_input_buffer();
+        inputs_.lx = 0.0f;
+        inputs_.ly = 0.0f;
+        inputs_.rx = 0.0f;
+        inputs_.ry = 0.0f;
+        inputs_.command = 0;
+        command_pulse_remaining_ = 0;
+    }
+
+    if (command_pulse_remaining_ > 0) {
+        command_pulse_remaining_--;
+        if (command_pulse_remaining_ == 0) {
+            inputs_.command = 0;
+        }
+    }
+
+    publisher_->publish(inputs_);
 }
 
 void KeyboardInput::check_command(const char key) {
@@ -78,13 +112,6 @@ void KeyboardInput::check_command(const char key) {
             break;
         case '0':
             inputs_.command = 10;
-        break;
-        case ' ':
-            inputs_.lx = 0;
-            inputs_.ly = 0;
-            inputs_.rx = 0;
-            inputs_.ry = 0;
-            inputs_.command = 0;
             break;
         default:
             inputs_.command = 0;
@@ -110,7 +137,6 @@ void KeyboardInput::check_value(char key) {
         case 'A':
             inputs_.lx = max<float>(inputs_.lx - sensitivity_left_, -1.0);
             break;
-
         case 'i':
         case 'I':
             inputs_.ry = min<float>(inputs_.ry + sensitivity_right_, 1.0);
@@ -132,12 +158,16 @@ void KeyboardInput::check_value(char key) {
     }
 }
 
+void KeyboardInput::flush_input_buffer() {
+    tcflush(STDIN_FILENO, TCIFLUSH);
+}
+
 bool KeyboardInput::kbhit() {
     timeval tv = {0L, 0L};
     fd_set fds;
     FD_ZERO(&fds);
     FD_SET(STDIN_FILENO, &fds);
-    return select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
+    return select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) > 0;
 }
 
 
