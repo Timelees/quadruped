@@ -208,6 +208,7 @@ namespace ocs2::legged_robot
         // STA Observer parameters
         bool use_sta_observer_ = true;
         int sta_qd_window_ = 20;
+        bool sta_use_qd_ = false;
         double sta_epsilon_ = 1e-6;
         double sta_qd_regularization_ = 1e-6;
         double sta_qd_max_ = 10.0;

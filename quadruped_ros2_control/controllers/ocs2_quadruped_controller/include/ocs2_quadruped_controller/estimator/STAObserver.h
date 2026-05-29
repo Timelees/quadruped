@@ -93,6 +93,7 @@ namespace ocs2::legged_robot
 
         STADisturbanceVec z1_;
         STADisturbanceVec z1_prev_;
+        STADisturbanceVec z1_smoothed_;
         STADisturbanceVec z1_filtered_;
 
         Eigen::Quaterniond z_q_{Eigen::Quaterniond::Identity()};

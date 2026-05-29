@@ -118,13 +118,13 @@ namespace ocs2::legged_robot
         }
         // 订阅外部的定位话题，通过 RealtimeBuffer 异步接收数据
         // 当前使用仿真真值，后续替换视觉里程计的数据
-        // localization_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
-        //     "Ground_Truth", 10,
-        //     [this](const nav_msgs::msg::Odometry::SharedPtr msg)
-        //     {
-        //         localization_buffer_.writeFromNonRT(*msg);
-        //         topicUpdated_ = true;
-        //     });
+        localization_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
+            "Ground_Truth", 10,
+            [this](const nav_msgs::msg::Odometry::SharedPtr msg)
+            {
+                localization_buffer_.writeFromNonRT(*msg);
+                topicUpdated_ = true;
+            });
         // 初始化接触估计器
         if (use_contact_estimator_)
         {

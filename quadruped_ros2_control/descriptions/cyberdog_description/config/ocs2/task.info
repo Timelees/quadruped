@@ -412,6 +412,7 @@ ErrorStateKalmanFilter
     sta
     {
         qdWindow                      20
+        useDisturbanceCovariance      false
         epsilon                       1e-6
         qdRegularization              1e-6
         maxCovariance                 10.0
@@ -426,7 +427,7 @@ ErrorStateKalmanFilter
             maxDisturbance            5.0
             distGain                  0.35
             innovationGate            0.5
-            enableLearning            false
+            enableLearning            true
         }
         vel
         {
@@ -444,7 +445,7 @@ ErrorStateKalmanFilter
             maxDisturbance            5.0
             distGain                  0.15
             innovationGate            0.3
-            enableLearning            false
+            enableLearning            true
         }
     }
     

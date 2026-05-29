@@ -459,14 +459,42 @@ namespace ocs2::legged_robot
 
         // 协方差传播: P_k = A * P_{k-1} * A^T + B * Q * B^T
         P = A * P * A.transpose() + B * Q * B.transpose();
-        if (use_sta_observer_)
+        if (use_sta_observer_ && sta_use_qd_)
         {
             Eigen::Matrix<double, ESKFNominalState::STATE_DIM, STADisturbance::DISTURBANCE_DIM> Bd;
             Bd.setZero();
-            Bd.block<3, 3>(ESKFNominalState::POS_IDX, STADisturbance::POS_IDX) = Eigen::Matrix3d::Identity() * dt;
-            Bd.block<3, 3>(ESKFNominalState::VEL_IDX, STADisturbance::VEL_IDX) = Eigen::Matrix3d::Identity() * dt;
-            Bd.block<3, 3>(ESKFNominalState::ROT_IDX, STADisturbance::ROT_IDX) = Eigen::Matrix3d::Identity() * dt;
-            P += Bd * sta_observer_.getDisturbanceCovariance() * Bd.transpose();
+            STADisturbanceCov Qd = sta_observer_.getDisturbanceCovariance();
+            const auto disableStaCovBlock = [&](const int idx)
+            {
+                Qd.block<3, STADisturbance::DISTURBANCE_DIM>(idx, 0).setZero();
+                Qd.block<STADisturbance::DISTURBANCE_DIM, 3>(0, idx).setZero();
+            };
+
+            if (sta_pos_params_.enable_learning)
+            {
+                Bd.block<3, 3>(ESKFNominalState::POS_IDX, STADisturbance::POS_IDX) = Eigen::Matrix3d::Identity() * dt;
+            }
+            else
+            {
+                disableStaCovBlock(STADisturbance::POS_IDX);
+            }
+            if (sta_vel_params_.enable_learning)
+            {
+                Bd.block<3, 3>(ESKFNominalState::VEL_IDX, STADisturbance::VEL_IDX) = Eigen::Matrix3d::Identity() * dt;
+            }
+            else
+            {
+                disableStaCovBlock(STADisturbance::VEL_IDX);
+            }
+            if (sta_rot_params_.enable_learning)
+            {
+                Bd.block<3, 3>(ESKFNominalState::ROT_IDX, STADisturbance::ROT_IDX) = Eigen::Matrix3d::Identity() * dt;
+            }
+            else
+            {
+                disableStaCovBlock(STADisturbance::ROT_IDX);
+            }
+            P += Bd * Qd * Bd.transpose();
         }
 
         // 偏置可观测性较弱，但不要把 P 的 ba/bg 行列整体清零——那等价于
@@ -623,9 +651,58 @@ namespace ocs2::legged_robot
         }
 
         const auto A_dot = pinocchio::dccrba(model, data, q_pino, v_pino);
-        Eigen::Matrix<double, 6, 1> centroidal_momentum_rate =
-            static_cast<double>(info_.robotMass) *
-            getNormalizedCentroidalMomentumRate(sta_pinocchio_interface_, info_, mpc_input);
+        Eigen::Matrix<double, 6, 1> centroidal_momentum_rate;
+        centroidal_momentum_rate << static_cast<double>(info_.robotMass) *
+                                        Eigen::Vector3d(0.0, 0.0, -9.81),
+            Eigen::Vector3d::Zero();
+
+        const bool can_use_measured_contact_force =
+            use_contact_estimator_ && contact_estimator_ != nullptr &&
+            info_.numThreeDofContacts <= NUM_LEGS;
+        const auto measured_forces =
+            can_use_measured_contact_force ? contact_estimator_->getFootForceVectors()
+                                           : std::array<Eigen::Vector3d, NUM_LEGS>{};
+
+        for (size_t i = 0; i < info_.numThreeDofContacts; ++i)
+        {
+            Eigen::Vector3d force_world;
+            bool use_measured_force = false;
+            if (can_use_measured_contact_force)
+            {
+                const double trust = std::clamp(contact_prob_[i], 0.0, 1.0);
+                if (measured_forces[i].allFinite() &&
+                    (contact_flag_[i] || trust >= min_contact_trust_))
+                {
+                    const double applied_trust =
+                        contact_flag_[i] ? std::max(trust, min_contact_trust_) : trust;
+                    force_world = measured_forces[i] * applied_trust;
+                    use_measured_force = true;
+                }
+            }
+            if (!use_measured_force)
+            {
+                force_world = centroidal_model::getContactForces(mpc_input, i, info_);
+            }
+
+            const Eigen::Vector3d position_com_to_contact =
+                data.oMf[info_.endEffectorFrameIndices[i]].translation() - data.com[0];
+            centroidal_momentum_rate.template head<3>() += force_world;
+            centroidal_momentum_rate.template tail<3>().noalias() +=
+                position_com_to_contact.cross(force_world);
+        }
+
+        for (size_t i = info_.numThreeDofContacts;
+             i < info_.numThreeDofContacts + info_.numSixDofContacts; ++i)
+        {
+            const auto force_world = centroidal_model::getContactForces(mpc_input, i, info_);
+            const auto torque_world = centroidal_model::getContactTorques(mpc_input, i, info_);
+            const Eigen::Vector3d position_com_to_contact =
+                data.oMf[info_.endEffectorFrameIndices[i]].translation() - data.com[0];
+            centroidal_momentum_rate.template head<3>() += force_world;
+            centroidal_momentum_rate.template tail<3>().noalias() +=
+                position_com_to_contact.cross(force_world) + torque_world;
+        }
+
         centroidal_momentum_rate.noalias() -= A_dot * v_pino;
         centroidal_momentum_rate.noalias() -=
             A_centroidal.rightCols(actuated_dof) * joint_accel;
@@ -1068,6 +1145,7 @@ namespace ocs2::legged_robot
 
         loadData::loadPtreeValue(pt, use_sta_observer_, prefix + "useSTA", verbose);
         loadData::loadPtreeValue(pt, sta_qd_window_, prefix + "sta.qdWindow", verbose);
+        loadData::loadPtreeValue(pt, sta_use_qd_, prefix + "sta.useDisturbanceCovariance", verbose);
         loadData::loadPtreeValue(pt, sta_epsilon_, prefix + "sta.epsilon", verbose);
         loadData::loadPtreeValue(pt, sta_qd_regularization_, prefix + "sta.qdRegularization", verbose);
         loadData::loadPtreeValue(pt, sta_qd_max_, prefix + "sta.maxCovariance", verbose);

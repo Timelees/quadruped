@@ -3,35 +3,35 @@ Data directory: /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/l
 
 Summary (RMSE):
   Metric    Value      Unit
-  ATEatt    0.000639   rad
-  ATEpos    0.255190   m
-  RPEatt    0.000925   rad
-  RPEpos    0.207173   m
+  ATEatt    0.002529   rad
+  ATEpos    0.096831   m
+  RPEatt    0.002924   rad
+  RPEpos    0.066021   m
 
 Detailed statistics:
 ATEatt:
-  mean   : 0.000563 rad
-  median : 0.000487 rad
-  std    : 0.000301 rad
-  max    : 0.001991 rad
-  count  : 178
+  mean   : 0.000982 rad
+  median : 0.000402 rad
+  std    : 0.002330 rad
+  max    : 0.024011 rad
+  count  : 605
 
 ATEpos:
-  mean   : 0.203806 m
-  median : 0.175448 m
-  std    : 0.153575 m
-  max    : 0.435014 m
-  count  : 178
+  mean   : 0.073143 m
+  median : 0.043265 m
+  std    : 0.063454 m
+  max    : 0.434914 m
+  count  : 605
 
 RPEatt 1m:
-  mean   : 0.000848 rad
-  median : 0.000817 rad
-  std    : 0.000369 rad
-  max    : 0.002672 rad
-  count  : 98
+  mean   : 0.001509 rad
+  median : 0.000638 rad
+  std    : 0.002505 rad
+  max    : 0.013651 rad
+  count  : 170
 RPEpos 1m:
-  mean   : 0.206820 m
-  median : 0.207864 m
-  std    : 0.012080 m
-  max    : 0.227292 m
-  count  : 98
+  mean   : 0.037522 m
+  median : 0.018824 m
+  std    : 0.054322 m
+  max    : 0.287603 m
+  count  : 170

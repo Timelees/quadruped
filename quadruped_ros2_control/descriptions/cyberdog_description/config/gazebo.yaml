@@ -109,10 +109,10 @@ ocs2_quadruped_controller:
       - RR_foot_force
 
     # 状态估计器类型: error_state_kalman, linear_kalman, ground_truth
-    estimator_type: "error_state_kalman"
+    estimator_type: "linear_kalman"
 
     # 是否启动感知 true: 感知运动  false: 盲走
-    enable_perceptive: false
+    enable_perceptive: true
 
     # 仿真/实机模式 true: 仿真  false: 实机
     sim_mode: true

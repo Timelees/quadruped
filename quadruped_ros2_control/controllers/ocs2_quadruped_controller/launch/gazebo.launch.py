@@ -95,35 +95,35 @@ def launch_setup(context, *args, **kwargs):
         arguments=["ocs2_quadruped_controller", "--controller-manager", "/controller_manager"]
     )
 
-    # ------------------------------------------------------------
-    # 自动轨迹生成节点——用于在仿真中自动生成轨迹，用于测试
-    traject_build = Node(
-        package='test',
-        executable='traject_build',
-        name='traject_build',
-        output='screen',
-        parameters=[{
-            'motion_sequence': context.launch_configurations['traject_motion_sequence'],
-            'cmd2_to_cmd3_delay': float(context.launch_configurations['traject_cmd2_to_cmd3_delay']),
-            'cmd3_to_motion_delay': float(context.launch_configurations['traject_cmd3_to_motion_delay']),
-            'startup_delay': float(context.launch_configurations['traject_startup_delay']),
-            'post_motion_delay': float(context.launch_configurations['traject_post_motion_delay']),
-        }],
-    )
-    shutdown_launch_on_traject_exit = Shutdown(
-        reason='traject_build finished, shutting down launch'
-    )
-    force_stop_simulation = ExecuteProcess(
-        cmd=['bash', '-lc', gazebo_cleanup_cmd],
-        output='screen',
-        on_exit=[shutdown_launch_on_traject_exit],
-    )
-    traject_build_timer = TimerAction(
-        period=float(context.launch_configurations['traject_start_delay']),
-        actions=[traject_build],
-        condition=IfCondition(LaunchConfiguration('auto_traject_build')),
-    )
-    # ------------------------------------------------------
+    # # ------------------------------------------------------------
+    # # 自动轨迹生成节点——用于在仿真中自动生成轨迹，用于测试
+    # traject_build = Node(
+    #     package='test',
+    #     executable='traject_build',
+    #     name='traject_build',
+    #     output='screen',
+    #     parameters=[{
+    #         'motion_sequence': context.launch_configurations['traject_motion_sequence'],
+    #         'cmd2_to_cmd3_delay': float(context.launch_configurations['traject_cmd2_to_cmd3_delay']),
+    #         'cmd3_to_motion_delay': float(context.launch_configurations['traject_cmd3_to_motion_delay']),
+    #         'startup_delay': float(context.launch_configurations['traject_startup_delay']),
+    #         'post_motion_delay': float(context.launch_configurations['traject_post_motion_delay']),
+    #     }],
+    # )
+    # shutdown_launch_on_traject_exit = Shutdown(
+    #     reason='traject_build finished, shutting down launch'
+    # )
+    # force_stop_simulation = ExecuteProcess(
+    #     cmd=['bash', '-lc', gazebo_cleanup_cmd],
+    #     output='screen',
+    #     on_exit=[shutdown_launch_on_traject_exit],
+    # )
+    # traject_build_timer = TimerAction(
+    #     period=float(context.launch_configurations['traject_start_delay']),
+    #     actions=[traject_build],
+    #     condition=IfCondition(LaunchConfiguration('auto_traject_build')),
+    # )
+    # # ------------------------------------------------------
 
 
     elevation_launch_mapping_launch = IncludeLaunchDescription(
@@ -183,37 +183,37 @@ def launch_setup(context, *args, **kwargs):
             )
         ),
 
-        # ----------------------------------------------------------
-        RegisterEventHandler(                   # 自动轨迹生成节点——用于在仿真中自动生成轨迹，用于测试
-            event_handler=OnProcessExit(
-                target_action=ocs2_controller,
-                on_exit=[traject_build_timer],
-            )
-        ),
-        RegisterEventHandler(
-            event_handler=OnProcessExit(
-                target_action=traject_build,
-                on_exit=[
-                    LogInfo(msg='traject_build finished, stopping simulation and shutting down launch.'),
-                    force_stop_simulation,
-                ],
-            ),
-            condition=IfCondition(LaunchConfiguration('auto_traject_build')),
-        ),
-        RegisterEventHandler(
-            event_handler=OnShutdown(
-                on_shutdown=[
-                    LogInfo(msg='Launch shutdown requested, ensuring Gazebo and RViz processes are terminated.'),
-                    ExecuteProcess(
-                        cmd=['bash', '-lc', gazebo_cleanup_cmd],
-                        output='screen',
-                    ),
-                ]
-            )
-        ),
-        # ----------------------------------------------------------
+        # # ----------------------------------------------------------
+        # RegisterEventHandler(                   # 自动轨迹生成节点——用于在仿真中自动生成轨迹，用于测试
+        #     event_handler=OnProcessExit(
+        #         target_action=ocs2_controller,
+        #         on_exit=[traject_build_timer],
+        #     )
+        # ),
+        # RegisterEventHandler(
+        #     event_handler=OnProcessExit(
+        #         target_action=traject_build,
+        #         on_exit=[
+        #             LogInfo(msg='traject_build finished, stopping simulation and shutting down launch.'),
+        #             force_stop_simulation,
+        #         ],
+        #     ),
+        #     condition=IfCondition(LaunchConfiguration('auto_traject_build')),
+        # ),
+        # RegisterEventHandler(
+        #     event_handler=OnShutdown(
+        #         on_shutdown=[
+        #             LogInfo(msg='Launch shutdown requested, ensuring Gazebo and RViz processes are terminated.'),
+        #             ExecuteProcess(
+        #                 cmd=['bash', '-lc', gazebo_cleanup_cmd],
+        #                 output='screen',
+        #             ),
+        #         ]
+        #     )
+        # ),
+        # # ----------------------------------------------------------
 
-        # elevation_launch_mapping_launch,
+        elevation_launch_mapping_launch,
 
         world_to_map_tf_publisher,
         map_to_odom_tf_publisher,
@@ -223,7 +223,7 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
     world = DeclareLaunchArgument(
         'world',
-        default_value='default',       # default,stair10cm, stair15cm, stair20cm, ramp15deg, ramp25deg, stepping_stones， stepping_stones_terrain
+        default_value='stair10cm',       # default,stair10cm, stair15cm, stair20cm, ramp15deg, ramp25deg, stepping_stones， stepping_stones_terrain
         description='The world to load'
     )
 
@@ -267,50 +267,50 @@ def generate_launch_description():
     )
 
 
-    # ----------------------------------------------------------
-    auto_traject_build = DeclareLaunchArgument(
-        'auto_traject_build',
-        default_value='true',
-        description='Automatically run traject_build after the OCS2 controller is loaded'
-    )
+    # # ----------------------------------------------------------
+    # auto_traject_build = DeclareLaunchArgument(
+    #     'auto_traject_build',
+    #     default_value='true',
+    #     description='Automatically run traject_build after the OCS2 controller is loaded'
+    # )
 
-    # 轨迹对应参数：
-    # 前进2.5 m：  'w:7.15'
-    # 前进 2.5 m 后左转 75° 后前进2.5m: 'w:7.15;j:0.25;w:7.15'
-    # 前进 2.5 m 后右转 75° 后前进2.5m： 'w:7.15;l:0.25;w:7.15'
-    # 半径 3.5 m 完整圆: 'w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;',
-    # 原地旋转30s: 'j:30.0'  
-    traject_motion_sequence = DeclareLaunchArgument(
-        'traject_motion_sequence',
-        default_value='w:7.15',
-        description='Motion sequence for traject_build'
-    )
-    traject_cmd2_to_cmd3_delay = DeclareLaunchArgument(
-        'traject_cmd2_to_cmd3_delay',
-        default_value='2.0',
-        description='Delay between command 2 and command 3 in traject_build'
-    )
-    traject_cmd3_to_motion_delay = DeclareLaunchArgument(
-        'traject_cmd3_to_motion_delay',
-        default_value='2.0',
-        description='Delay between command 3 and motion sequence in traject_build'
-    )
-    traject_startup_delay = DeclareLaunchArgument(
-        'traject_startup_delay',
-        default_value='2.0',
-        description='Initial wait inside traject_build before sending command 2'
-    )
-    traject_start_delay = DeclareLaunchArgument(
-        'traject_start_delay',
-        default_value='1.0',
-        description='Delay after OCS2 controller load before starting traject_build'
-    )
-    traject_post_motion_delay = DeclareLaunchArgument(
-        'traject_post_motion_delay',
-        default_value='1.0',
-        description='Delay after motion before traject_build exits and launch shuts down'
-    )
-    # ----------------------------------------------------------
+    # # 轨迹对应参数：
+    # # 前进2.5 m：  'w:7.15'
+    # # 前进 2.5 m 后左转 75° 后前进2.5m: 'w:7.15;j:0.25;w:7.15'
+    # # 前进 2.5 m 后右转 75° 后前进2.5m： 'w:7.15;l:0.25;w:7.15'
+    # # 半径 3.5 m 完整圆: 'w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;w:0.75;l:0.141;',
+    # # 原地旋转30s: 'j:30.0'  
+    # traject_motion_sequence = DeclareLaunchArgument(
+    #     'traject_motion_sequence',
+    #     default_value='j:30.0',
+    #     description='Motion sequence for traject_build'
+    # )
+    # traject_cmd2_to_cmd3_delay = DeclareLaunchArgument(
+    #     'traject_cmd2_to_cmd3_delay',
+    #     default_value='2.0',
+    #     description='Delay between command 2 and command 3 in traject_build'
+    # )
+    # traject_cmd3_to_motion_delay = DeclareLaunchArgument(
+    #     'traject_cmd3_to_motion_delay',
+    #     default_value='2.0',
+    #     description='Delay between command 3 and motion sequence in traject_build'
+    # )
+    # traject_startup_delay = DeclareLaunchArgument(
+    #     'traject_startup_delay',
+    #     default_value='2.0',
+    #     description='Initial wait inside traject_build before sending command 2'
+    # )
+    # traject_start_delay = DeclareLaunchArgument(
+    #     'traject_start_delay',
+    #     default_value='1.0',
+    #     description='Delay after OCS2 controller load before starting traject_build'
+    # )
+    # traject_post_motion_delay = DeclareLaunchArgument(
+    #     'traject_post_motion_delay',
+    #     default_value='1.0',
+    #     description='Delay after motion before traject_build exits and launch shuts down'
+    # )
+    # # ----------------------------------------------------------
 
     # ros和gazebo之间的桥接通信
     gz_bridge_node = Node(
@@ -342,13 +342,13 @@ def generate_launch_description():
         pitch,
 
 
-        auto_traject_build,
-        traject_motion_sequence,
-        traject_cmd2_to_cmd3_delay,
-        traject_cmd3_to_motion_delay,
-        traject_startup_delay,
-        traject_start_delay,
-        traject_post_motion_delay,
+        # auto_traject_build,
+        # traject_motion_sequence,
+        # traject_cmd2_to_cmd3_delay,
+        # traject_cmd3_to_motion_delay,
+        # traject_startup_delay,
+        # traject_start_delay,
+        # traject_post_motion_delay,
 
         
         gz_bridge_node,

@@ -29,7 +29,8 @@ namespace ocs2::legged_robot
     Eigen::Vector3d STAObserver::rotationError(const Eigen::Quaterniond &q_meas,
                                                const Eigen::Quaterniond &q_pred)
     {
-        const Eigen::Quaterniond q_err = normalizeQuaternion(q_meas * q_pred.inverse());
+        // 右不变误差：与后续 z_q * Exp(delta) 的右乘注入保持一致。
+        const Eigen::Quaterniond q_err = normalizeQuaternion(q_pred.inverse() * q_meas);
         return Sophus::SO3d(q_err).log();
     }
 
@@ -46,6 +47,7 @@ namespace ocs2::legged_robot
         (void)k2;
         z_ = STAStateVec::Zero();
         z1_ = STADisturbanceVec::Zero();
+        z1_smoothed_ = STADisturbanceVec::Zero();
         z1_filtered_ = STADisturbanceVec::Zero();
 
         z_q_.setIdentity();
@@ -54,7 +56,7 @@ namespace ocs2::legged_robot
 
         disturbance_history_.reserve(max_history_size_);
         disturbance_history_.clear();
-        disturbance_history_.push_back(z1_);
+        disturbance_history_.push_back(z1_filtered_);
         z_prev_ = z_;
         z1_prev_ = z1_;
         initialized_ = false;
@@ -122,9 +124,10 @@ namespace ocs2::legged_robot
 
         z1_.setZero();
         z1_prev_.setZero();
+        z1_smoothed_.setZero();
         z1_filtered_.setZero();
         disturbance_history_.clear();
-        disturbance_history_.push_back(z1_);
+        disturbance_history_.push_back(z1_filtered_);
         initialized_ = true;
     }
 
@@ -147,7 +150,7 @@ namespace ocs2::legged_robot
 
         if (!gate_open)
         {
-            // 门控关闭：保留 z1 前馈，停止 K1/K2 滑模学习
+            // 门控关闭：保留 z1 前馈，停止 K1/K2 滑模学习。
             z_block = z_pred_block + z1_prev_block * dt;
             z1_block = gated_decay_ * z1_prev_block;
         }
@@ -185,11 +188,12 @@ namespace ocs2::legged_robot
         const bool gate_open = gating.allow_update && gating.dynamics_valid && params.enable_learning &&
                                innov_norm <= params.innovation_gate;
         const double trust = std::clamp(gating.contact_trust, 0.0, 1.0);
+        const Eigen::Quaterniond z_q_ff = normalizeQuaternion(
+            z_q_pred_ * Sophus::SO3d::exp(z1_prev_rot * dt).unit_quaternion());
 
         if (!gate_open)
         {
-            z_q_ = normalizeQuaternion(
-                z_q_pred_ * Sophus::SO3d::exp(z1_prev_rot * dt).unit_quaternion());
+            z_q_ = z_q_ff;
             z1_rot = gated_decay_ * z1_prev_rot;
         }
         else
@@ -200,9 +204,7 @@ namespace ocs2::legged_robot
             const double k2 = computeK2FromBandwidth(params.bandwidth);
 
             const Eigen::Vector3d twist = k1 * (e_rot / sqrt_norm) * dt * trust;
-            z_q_ = normalizeQuaternion(
-                z_q_pred_ * Sophus::SO3d::exp(twist).unit_quaternion() *
-                Sophus::SO3d::exp(z1_prev_rot * dt).unit_quaternion());
+            z_q_ = normalizeQuaternion(z_q_ff * Sophus::SO3d::exp(twist).unit_quaternion());
             z1_rot = z1_prev_rot + k2 * (e_rot / norm) * dt * trust;
         }
 
@@ -235,10 +237,19 @@ namespace ocs2::legged_robot
 
         predictNominalState(dt, dynamics);
 
-        // e = H x_hat - F z_{k-1}：测量相对名义动力学预测的创新
-        const Eigen::Vector3d e_pos = p_meas - z_pred_.segment<3>(STAState::POS_IDX);
-        const Eigen::Vector3d e_vel = v_meas - z_pred_.segment<3>(STAState::VEL_IDX);
-        const Eigen::Vector3d e_rot = rotationError(q_meas, z_q_pred_);
+        // 残差对齐到“动力学预测 + 上一时刻扰动前馈”后的 observer 预测状态，
+        // 避免已由 z1_prev 解释的扰动在下一步被重复学习。
+        const Eigen::Vector3d z_pos_ff =
+            z_pred_.segment<3>(STAState::POS_IDX) + z1_prev_.segment<3>(STADisturbance::POS_IDX) * dt;
+        const Eigen::Vector3d z_vel_ff =
+            z_pred_.segment<3>(STAState::VEL_IDX) + z1_prev_.segment<3>(STADisturbance::VEL_IDX) * dt;
+        const Eigen::Quaterniond z_q_ff = normalizeQuaternion(
+            z_q_pred_ *
+            Sophus::SO3d::exp(z1_prev_.segment<3>(STADisturbance::ROT_IDX) * dt).unit_quaternion());
+
+        const Eigen::Vector3d e_pos = p_meas - z_pos_ff;
+        const Eigen::Vector3d e_vel = v_meas - z_vel_ff;
+        const Eigen::Vector3d e_rot = rotationError(q_meas, z_q_ff);
 
         // 式 (21) 双层 Super-Twisting：z 由 K1 项 + z1 前馈更新，z1 由 K2 积分
 
@@ -255,7 +266,7 @@ namespace ocs2::legged_robot
         syncVectorFromNominalState();
         z1_prev_ = z1_;
 
-        disturbance_history_.push_back(z1_);
+        disturbance_history_.push_back(z1_filtered_);
         if (disturbance_history_.size() > max_history_size_)
         {
             disturbance_history_.erase(disturbance_history_.begin());
@@ -267,9 +278,9 @@ namespace ocs2::legged_robot
         const double alpha = std::clamp(disturbance_lpf_, 0.0, 0.99);
         const auto blend = [&](const int idx, const double gain)
         {
-            z1_filtered_.segment<3>(idx) =
-                alpha * z1_filtered_.segment<3>(idx) + (1.0 - alpha) * z1_.segment<3>(idx);
-            z1_filtered_.segment<3>(idx) *= gain;
+            z1_smoothed_.segment<3>(idx) =
+                alpha * z1_smoothed_.segment<3>(idx) + (1.0 - alpha) * z1_.segment<3>(idx);
+            z1_filtered_.segment<3>(idx) = z1_smoothed_.segment<3>(idx) * gain;
         };
 
         blend(STADisturbance::POS_IDX, channel_pos_.output_gain);
