@@ -183,38 +183,6 @@ namespace ocs2::legged_robot
         updateSwingTrajectoryPlanner(initTime, initState, modeSchedule);
     }
 
-    void PerceptiveLeggedReferenceManager::setEdgeSpheres(std::shared_ptr<EdgeSphereArray> edgeSpheresPtr) {
-        edgeSpheresPtr_ = edgeSpheresPtr;
-
-        if (!edgeSpheresPtr_)
-        {
-            footholdScorer_.reset();
-            convexRegionSelectorPtr_->setFootholdScorer(nullptr);
-            return;
-        }
-
-        EdgeAwareFootholdScorer::Config scorerConfig;
-        scorerConfig.safeMargin = 0.08;
-        scorerConfig.penaltyWeight = 3.0;
-        scorerConfig.sphereRadiusInflation = 0.01;
-        scorerConfig.smoothingDistance = 0.02;
-        scorerConfig.maxPenalty = 0.08;
-        scorerConfig.verticalWeightScale = 0.06;
-        scorerConfig.maxConsideredSpheres = 4;
-        scorerConfig.useXYDistanceOnly = true;
-
-        if (footholdScorer_ == nullptr)
-        {
-            footholdScorer_ = std::make_unique<EdgeAwareFootholdScorer>(scorerConfig, edgeSpheresPtr_);
-        }
-        else
-        {
-            footholdScorer_->updateEdgeSpheres(edgeSpheresPtr_);
-        }
-
-        convexRegionSelectorPtr_->setFootholdScorer(footholdScorer_.get());
-    }
-
     void PerceptiveLeggedReferenceManager::updateSwingTrajectoryPlanner(scalar_t initTime, const vector_t& initState,
                                                                         ModeSchedule& modeSchedule)
     {

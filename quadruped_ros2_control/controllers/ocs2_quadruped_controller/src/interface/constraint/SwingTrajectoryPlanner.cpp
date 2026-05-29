@@ -32,6 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "ocs2_quadruped_controller/interface/constraint/SwingTrajectoryPlanner.h"
 
+#include <cmath>
 #include <iostream>
 #include <ocs2_core/misc/LoadData.h>
 #include <ocs2_core/misc/Lookup.h>
@@ -39,20 +40,81 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <ocs2_legged_robot/gait/MotionPhaseDefinition.h>
 
 namespace ocs2::legged_robot {
-    SwingTrajectoryPlanner::SwingTrajectoryPlanner(Config config, size_t numFeet) : config_(std::move(config)),
+    namespace {
+        constexpr int kHeightSplineDegree = 5;
+        constexpr int kSwingHeightControlPoints = 7;
+        constexpr int kStanceHeightControlPoints = 6;
+
+        BSpline createHeightBSpline(const Eigen::VectorXd& zControlPoints, scalar_t startTime, scalar_t finalTime) {
+            BSpline spline(kHeightSplineDegree);
+            const Eigen::VectorXd zero = Eigen::VectorXd::Zero(zControlPoints.size());
+            spline.setControlPoints(zero, zero, zControlPoints);
+            spline.setKnots(spline.generateKnots(static_cast<int>(zControlPoints.size()), startTime, finalTime, 0));
+            return spline;
+        }
+
+        BSpline createSwingHeightBSpline(scalar_t swingStartTime, scalar_t swingFinalTime,
+                                         scalar_t liftOffHeight, scalar_t liftOffVelocity,
+                                         scalar_t midHeight,
+                                         scalar_t touchDownHeight, scalar_t touchDownVelocity) {
+            const scalar_t midTime = 0.5 * (swingStartTime + swingFinalTime);
+            const scalar_t degree = static_cast<scalar_t>(kHeightSplineDegree);
+            const scalar_t halfDuration = midTime - swingStartTime;
+            const scalar_t fullDuration = swingFinalTime - swingStartTime;
+            const scalar_t liftOffAcceleration = 0.0;
+            const scalar_t touchDownAcceleration = 0.0;
+
+            Eigen::VectorXd zControlPoints(kSwingHeightControlPoints);
+            zControlPoints[0] = liftOffHeight;
+            zControlPoints[1] = zControlPoints[0] + liftOffVelocity * halfDuration / degree;
+            zControlPoints[2] = zControlPoints[1] +
+                                fullDuration * (liftOffVelocity + liftOffAcceleration * halfDuration / 4.0) / degree;
+            zControlPoints[3] = midHeight;
+            zControlPoints[6] = touchDownHeight;
+            zControlPoints[5] = zControlPoints[6] - touchDownVelocity * halfDuration / degree;
+            zControlPoints[4] = zControlPoints[5] -
+                                fullDuration * (touchDownVelocity - touchDownAcceleration * halfDuration / 4.0) / degree;
+
+            BSpline spline = createHeightBSpline(zControlPoints, swingStartTime, swingFinalTime);
+
+            Eigen::VectorXd midTimeVector(1);
+            midTimeVector[0] = midTime;
+            const Eigen::MatrixXd midBasis = spline.generateSplineBasis(midTimeVector);
+            const int midControlPointIndex = kSwingHeightControlPoints / 2;
+            const scalar_t middleBasisWeight = midBasis(0, midControlPointIndex);
+            if (std::abs(middleBasisWeight) > 1e-12) {
+                scalar_t constrainedMidHeight = midHeight;
+                for (Eigen::Index i = 0; i < zControlPoints.size(); ++i) {
+                    if (i != midControlPointIndex) {
+                        constrainedMidHeight -= midBasis(0, i) * zControlPoints[i];
+                    }
+                }
+                zControlPoints[midControlPointIndex] = constrainedMidHeight / middleBasisWeight;
+                spline = createHeightBSpline(zControlPoints, swingStartTime, swingFinalTime);
+            }
+
+            return spline;
+        }
+
+        BSpline createStanceHeightBSpline(scalar_t height) {
+            return createHeightBSpline(Eigen::VectorXd::Constant(kStanceHeightControlPoints, height), 0.0, 1.0);
+        }
+    } // namespace
+
+    SwingTrajectoryPlanner::SwingTrajectoryPlanner(Config config, size_t numFeet) : config_(config),
         numFeet_(numFeet) {
     }
 
 
     scalar_t SwingTrajectoryPlanner::getZvelocityConstraint(size_t leg, scalar_t time) const {
         const auto index = lookup::findIndexInTimeArray(feetHeightTrajectoriesEvents_[leg], time);
-        return feetHeightTrajectories_[leg][index].velocity(time);
+        return feetHeightTrajectories_[leg][index].getVelocity(time).z();
     }
 
 
     scalar_t SwingTrajectoryPlanner::getZpositionConstraint(size_t leg, scalar_t time) const {
         const auto index = lookup::findIndexInTimeArray(feetHeightTrajectoriesEvents_[leg], time);
-        return feetHeightTrajectories_[leg][index].position(time);
+        return feetHeightTrajectories_[leg][index].getPosition(time).z();
     }
 
 
@@ -113,20 +175,15 @@ namespace ocs2::legged_robot {
                     const scalar_t scaling = swingTrajectoryScaling(swingStartTime, swingFinalTime,
                                                                     config_.swingTimeScale);
 
-                    const CubicSpline::Node liftOff{
-                        swingStartTime, liftOffHeightSequence[j][p], scaling * config_.liftOffVelocity
-                    };
-                    const CubicSpline::Node touchDown{
-                        swingFinalTime, touchDownHeightSequence[j][p], scaling * config_.touchDownVelocity
-                    };
                     const scalar_t midHeight = maxHeightSequence[j][p] + scaling * config_.swingHeight;
-                    feetHeightTrajectories_[j].emplace_back(liftOff, midHeight, touchDown);
+                    feetHeightTrajectories_[j].push_back(createSwingHeightBSpline(
+                        swingStartTime, swingFinalTime,
+                        liftOffHeightSequence[j][p], scaling * config_.liftOffVelocity,
+                        midHeight,
+                        touchDownHeightSequence[j][p], scaling * config_.touchDownVelocity));
                 } else {
                     // for a stance leg
-                    // Note: setting the time here arbitrarily to 0.0 -> 1.0 makes the assert in CubicSpline fail
-                    const CubicSpline::Node liftOff{0.0, liftOffHeightSequence[j][p], 0.0};
-                    const CubicSpline::Node touchDown{1.0, liftOffHeightSequence[j][p], 0.0};
-                    feetHeightTrajectories_[j].emplace_back(liftOff, liftOffHeightSequence[j][p], touchDown);
+                    feetHeightTrajectories_[j].push_back(createStanceHeightBSpline(liftOffHeightSequence[j][p]));
                 }
             }
             feetHeightTrajectoriesEvents_[j] = eventTimes;

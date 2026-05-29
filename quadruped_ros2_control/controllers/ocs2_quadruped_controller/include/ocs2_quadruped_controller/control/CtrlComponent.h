@@ -14,7 +14,6 @@
 #include <ocs2_mpc/MPC_MRT_Interface.h>
 #include <ocs2_legged_robot_ros/visualization/LeggedRobotVisualizer.h>
 #include <ocs2_quadruped_controller/perceptive/visualize/FootPlacementVisualization.h>
-#include <ocs2_quadruped_controller/perceptive/visualize/EdgeVisualization.h>
 #include <ocs2_quadruped_controller/perceptive/visualize/SphereVisualization.h>
 
 #include "TargetManager.h"
@@ -29,8 +28,6 @@ namespace ocs2
 
 namespace ocs2::legged_robot
 {
-
-    class PlanarEdgeReceiver;
 
     class CtrlComponent
     {
@@ -74,9 +71,7 @@ namespace ocs2::legged_robot
         std::unique_ptr<TargetManager> target_manager_;
 
         std::unique_ptr<FootPlacementVisualization> footPlacementVisualizationPtr_;
-        std::unique_ptr<EdgeVisualization> edgeVisualizationPtr_;
         std::unique_ptr<SphereVisualization> sphereVisualizationPtr_;
-        std::shared_ptr<PlanarEdgeReceiver> planarEdgeReceiver_;
 
         std::vector<std::string> joint_names_;
         std::vector<std::string> feet_names_;

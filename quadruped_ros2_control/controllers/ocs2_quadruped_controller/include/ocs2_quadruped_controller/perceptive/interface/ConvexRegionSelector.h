@@ -20,7 +20,6 @@
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematics.h>
 
 #include "log_save.h"
-#include "ocs2_quadruped_controller/perceptive/constraint/EdgeAwareFootholdScorer.h"
 
 namespace ocs2::legged_robot
 {
@@ -55,8 +54,6 @@ namespace ocs2::legged_robot
                              std::shared_ptr<convex_plane_decomposition::PlanarTerrain> planarTerrainPtr,
                              const EndEffectorKinematics<scalar_t>& endEffectorKinematics,
                              size_t numVertices);
-
-        void setFootholdScorer(EdgeAwareFootholdScorer* scorer) { footholdScorer_ = scorer; }
 
         void update(const ModeSchedule& modeSchedule, scalar_t initTime, const vector_t& initState,
                     TargetTrajectories& targetTrajectories);
@@ -132,7 +129,6 @@ namespace ocs2::legged_robot
         convex_plane_decomposition::PlanarTerrain planarTerrain_;
         std::shared_ptr<convex_plane_decomposition::PlanarTerrain> planarTerrainPtr_;
         std::unique_ptr<EndEffectorKinematics<scalar_t>> endEffectorKinematicsPtr_;
-        EdgeAwareFootholdScorer* footholdScorer_ = nullptr;
 
         std::unique_ptr<quadruped::logs::LogSave> logger_;
         bool debugLoggingEnabled_ = true;

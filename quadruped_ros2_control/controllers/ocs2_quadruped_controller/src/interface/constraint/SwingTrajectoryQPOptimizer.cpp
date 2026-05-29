@@ -92,23 +92,6 @@ Eigen::VectorXd buildPropagatedLiftProfile(const Eigen::VectorXd &requiredLift,
     return propagatedLift;
 }
 
-double squaredDistanceToSegment2d(const Eigen::Vector2d &point,
-                                  const Eigen::Vector2d &segmentStart,
-                                  const Eigen::Vector2d &segmentEnd)
-{
-    const Eigen::Vector2d segment = segmentEnd - segmentStart;
-    const double segmentNormSquared = segment.squaredNorm();
-    if (segmentNormSquared <= 1e-12)
-    {
-        return (point - segmentStart).squaredNorm();
-    }
-
-    const double rawAlpha = (point - segmentStart).dot(segment) / segmentNormSquared;
-    const double alpha = std::min(1.0, std::max(0.0, rawAlpha));
-    const Eigen::Vector2d closestPoint = segmentStart + alpha * segment;
-    return (point - closestPoint).squaredNorm();
-}
-
 double computeAdaptiveControlPointZMax(const Eigen::MatrixXd &basisMat,
                                        const Eigen::VectorXd &referenceControlZ,
                                        const Eigen::VectorXd &requiredCurveZ,
@@ -369,68 +352,6 @@ namespace ocs2::legged_robot
         return liftOff + alpha * (touchDown - liftOff);
     }
 
-    // ============================================================================
-    // EdgeSphere 筛选
-    // ============================================================================
-
-    std::vector<const EdgeSphere *> SwingTrajectoryQpOptimizer::filterNearbySpheres(
-        const Eigen::Vector3d &liftOffPos3d,
-        const Eigen::Vector3d &touchDownPos3d) const
-    {
-
-        std::vector<const EdgeSphere *> result;
-        if (!edgeSpheresPtr_ || edgeSpheresPtr_->empty())
-        {
-            return result;
-        }
-
-        const Eigen::Vector2d liftOffXY = liftOffPos3d.head<2>();
-        const Eigen::Vector2d touchDownXY = touchDownPos3d.head<2>();
-        const double corridorMargin = std::max(0.0, config_.sphereActivationDist) +
-                                      std::max(0.0, config_.sphereSafetyMargin);
-
-        struct NearbySphereCandidate
-        {
-            const EdgeSphere *sphere = nullptr;
-            double distanceSquared = 0.0;
-        };
-
-        std::vector<NearbySphereCandidate> candidates;
-        candidates.reserve(edgeSpheresPtr_->size());
-
-        for (const auto &sphere : *edgeSpheresPtr_)
-        {
-            const double inflatedRadius = std::max<double>(sphere.radius + corridorMargin, 1e-6);
-            const double distanceSquared = squaredDistanceToSegment2d(sphere.center.head<2>(), liftOffXY, touchDownXY);
-            if (distanceSquared <= inflatedRadius * inflatedRadius)
-            {
-                candidates.push_back({&sphere, distanceSquared});
-            }
-        }
-
-        if (candidates.empty())
-        {
-            return result;
-        }
-
-        std::sort(candidates.begin(), candidates.end(), [](const NearbySphereCandidate &lhs, const NearbySphereCandidate &rhs) {
-            return lhs.distanceSquared < rhs.distanceSquared;
-        });
-
-        if (config_.maxSpheresPerQp > 0 && candidates.size() > static_cast<size_t>(config_.maxSpheresPerQp))
-        {
-            candidates.resize(static_cast<size_t>(config_.maxSpheresPerQp));
-        }
-
-        result.reserve(candidates.size());
-        for (const auto &candidate : candidates)
-        {
-            result.push_back(candidate.sphere);
-        }
-
-        return result;
-    }
-
     // QP 求解
     bool SwingTrajectoryQpOptimizer::solveQp(const std::vector<int> &activeSet, Eigen::VectorXd &solution,
                                              const Eigen::MatrixXd &H_eigen,
@@ -618,42 +539,6 @@ namespace ocs2::legged_robot
         return terrainHeights;
     }
 
-    Eigen::VectorXd SwingTrajectoryQpOptimizer::computeSphereHeightProfile(const Eigen::VectorXd &sampleX,
-                                                                        const Eigen::VectorXd &sampleY,
-                                                                        const std::vector<const EdgeSphere *> &nearbySpheres) const
-    {
-        Eigen::VectorXd sphereHeights = Eigen::VectorXd::Constant(
-            sampleX.size(), -std::numeric_limits<double>::infinity());
-
-        if (nearbySpheres.empty())
-        {
-            return sphereHeights;
-        }
-
-        for (auto spherePtr : nearbySpheres)
-        {
-            const EdgeSphere &sphere = *spherePtr;
-            const double safeRadius = std::max<double>(sphere.radius + config_.sphereSafetyMargin, 1e-6);
-
-            for (int i = 0; i < sampleX.size(); ++i)
-            {
-                const double dx = sampleX[i] - sphere.center.x();
-                const double dy = sampleY[i] - sphere.center.y();
-                const double radialTerm = safeRadius * safeRadius - dx * dx - dy * dy;
-                if (radialTerm > 0.0)
-                {
-                    double candidateHeight = sphere.center.z() + std::sqrt(radialTerm);
-                    if (candidateHeight > sphereHeights[i])
-                    {
-                        sphereHeights[i] = candidateHeight;
-                    }
-                }
-            }
-        }
-
-        return sphereHeights;
-    }
-
     Eigen::VectorXd SwingTrajectoryQpOptimizer::projectReferenceToBounds(const Eigen::VectorXd &refZ, const int nV,
                                                                           const Eigen::VectorXd &lb_eigen, const Eigen::VectorXd &ub_eigen) const
     {
@@ -671,13 +556,12 @@ namespace ocs2::legged_robot
                                                          const Eigen::VectorXd &refCurveZ,
                                                          const Eigen::VectorXd &sampleX,
                                                          const Eigen::VectorXd &terrainHeights,
-                                                         const Eigen::VectorXd &sphereHeights,
                                                          Eigen::VectorXd &xOpt) const
     {
         const int nV = basisMat.cols();         // 优化变量数量（控制点数量）
         const int numSamples = basisMat.rows(); // 采样点数量
         if (refControlZ.size() != nV || refCurveZ.size() != numSamples || sampleX.size() != numSamples ||
-            terrainHeights.size() != numSamples || sphereHeights.size() != numSamples)
+            terrainHeights.size() != numSamples)
         {
             std::cerr << "Invalid dimensions for optimizeControlPointsZ." << std::endl;
             return false;
@@ -689,13 +573,6 @@ namespace ocs2::legged_robot
         const Eigen::VectorXd baselineCurveZ = basisMat * refControlZ;
 
         Eigen::VectorXd requiredCurveZ = terrainHeights.array() + config_.groundClearance;
-        for (int i = 0; i < sphereHeights.size(); ++i)
-        {
-            if (std::isfinite(sphereHeights[i]))
-            {
-                requiredCurveZ[i] = std::max(requiredCurveZ[i], sphereHeights[i]);
-            }
-        }
 
         const Eigen::VectorXd requiredLiftCurve = (requiredCurveZ - baselineCurveZ).cwiseMax(0.0);
         const Eigen::VectorXd propagatedLiftCurve = buildPropagatedLiftProfile(
@@ -765,13 +642,6 @@ namespace ocs2::legged_robot
         const Eigen::VectorXd g_eigen = -2.0 * objectiveVector;
 
         double requiredUpperBound = terrainHeights.maxCoeff() + config_.groundClearance;
-        for (int i = 0; i < sphereHeights.size(); ++i)
-        {
-            if (std::isfinite(sphereHeights[i]))
-            {
-                requiredUpperBound = std::max<double>(requiredUpperBound, sphereHeights[i]);
-            }
-        }
         requiredUpperBound = std::max<double>(requiredUpperBound, refControlZ.maxCoeff());
         constexpr double kControlPointZPadding = 0.03;
         const double adaptiveControlPointZMax = computeAdaptiveControlPointZMax(
@@ -803,19 +673,6 @@ namespace ocs2::legged_robot
                 candidates.push_back(CandidateConstraint{
                     basisMat.row(j), lowerBound, j, 0,
                     std::max(0.0, targetCurveZ[j] - refCurveZ[j])});
-            }
-        }
-        for (int j = firstConstrainedSample; j < lastConstrainedSample; ++j)
-        {
-            if (std::isfinite(sphereHeights[j]))
-            {
-                const double lowerBound = sphereHeights[j];
-                if (lowerBound > kConstraintViolationTolerance)
-                {
-                    candidates.push_back(CandidateConstraint{
-                        basisMat.row(j), lowerBound, j, 1,
-                        std::max(0.0, targetCurveZ[j] - refCurveZ[j])});
-                }
             }
         }
 
@@ -861,7 +718,6 @@ namespace ocs2::legged_robot
                 const auto &candidate = candidates[static_cast<size_t>(worstConstraint)];
                 std::cerr << "QP infeasible before solve. Worst constraint=" << worstConstraint
                           << ", sampleIndex=" << candidate.sampleIndex
-                          << ", type=" << (candidate.type == 0 ? "terrain" : "sphere")
                           << ", lowerBound=" << worstLowerBound
                           << ", upperAchievable=" << worstUpperAchievable
                           << ", violation=" << worstViolation << std::endl;
@@ -901,9 +757,7 @@ namespace ocs2::legged_robot
         for (const auto &candidate : candidates)
         {
             const double score = candidate.lowerBound;
-            if (score > hotspotScore + kConstraintViolationTolerance ||
-                (std::abs(score - hotspotScore) <= kConstraintViolationTolerance &&
-                 candidate.type == 1))
+            if (score > hotspotScore + kConstraintViolationTolerance)
             {
                 hotspotScore = score;
                 hotspotSampleIndex = candidate.sampleIndex;
@@ -939,10 +793,6 @@ namespace ocs2::legged_robot
                 {
                     return leftDistance < rightDistance;
                 }
-                if (left.type != right.type)
-                {
-                    return left.type > right.type;
-                }
                 return left.referenceDeficit > right.referenceDeficit;
             });
 
@@ -959,7 +809,6 @@ namespace ocs2::legged_robot
             double bestViolation = 0.0;
             double bestReferenceDeficit = -1.0;
             int bestDistance = std::numeric_limits<int>::max();
-            int bestType = -1;
 
             for (size_t i = 0; i < candidates.size(); ++i)
             {
@@ -988,18 +837,15 @@ namespace ocs2::legged_robot
                 const bool betterDeficit = candidate.referenceDeficit > bestReferenceDeficit + kConstraintViolationTolerance;
                 const bool equalDeficit = std::abs(candidate.referenceDeficit - bestReferenceDeficit) <= kConstraintViolationTolerance;
                 const bool betterDistance = distanceToHotspot < bestDistance;
-                const bool betterType = candidate.type > bestType;
 
                 if (betterViolation ||
                     (equalViolation && (betterDeficit ||
-                                        (equalDeficit && (betterDistance ||
-                                                          (!betterDistance && distanceToHotspot == bestDistance && betterType))))))
+                                        (equalDeficit && betterDistance))))
                 {
                     bestIndex = static_cast<int>(i);
                     bestViolation = violation;
                     bestReferenceDeficit = candidate.referenceDeficit;
                     bestDistance = distanceToHotspot;
-                    bestType = candidate.type;
                 }
             }
 
@@ -1043,24 +889,15 @@ namespace ocs2::legged_robot
                     const Eigen::VectorXd trackingError = optimizedCurveZ - refCurveZ;
 
                     double minTerrainMargin = std::numeric_limits<double>::infinity();
-                    double minSphereMargin = std::numeric_limits<double>::infinity();
                     double maxTerrainViolation = 0.0;
-                    double maxSphereViolation = 0.0;
                     int nearTerrainActiveCount = 0;
-                    int nearSphereActiveCount = 0;
 
                     double minTerrainMarginInside = std::numeric_limits<double>::infinity();
                     double minTerrainMarginOutside = std::numeric_limits<double>::infinity();
-                    double minSphereMarginInside = std::numeric_limits<double>::infinity();
-                    double minSphereMarginOutside = std::numeric_limits<double>::infinity();
                     double maxTerrainViolationInside = 0.0;
                     double maxTerrainViolationOutside = 0.0;
-                    double maxSphereViolationInside = 0.0;
-                    double maxSphereViolationOutside = 0.0;
                     int worstTerrainInsideIndex = -1;
                     int worstTerrainOutsideIndex = -1;
-                    int worstSphereInsideIndex = -1;
-                    int worstSphereOutsideIndex = -1;
 
                     for (int j = 0; j < numSamples; ++j)
                     {
@@ -1095,42 +932,6 @@ namespace ocs2::legged_robot
                             {
                                 maxTerrainViolationOutside = -terrainMargin;
                                 worstTerrainOutsideIndex = j;
-                            }
-                        }
-
-                        if (std::isfinite(sphereHeights[j]))
-                        {
-                            const double sphereMargin = optimizedCurveZ[j] - sphereHeights[j];
-                            minSphereMargin = std::min(minSphereMargin, sphereMargin);
-                            maxSphereViolation = std::max(maxSphereViolation, -sphereMargin);
-                            if (std::abs(sphereMargin) < 1e-4)
-                            {
-                                ++nearSphereActiveCount;
-                            }
-
-                            if (insideConstraintWindow)
-                            {
-                                if (sphereMargin < minSphereMarginInside)
-                                {
-                                    minSphereMarginInside = sphereMargin;
-                                }
-                                if (-sphereMargin > maxSphereViolationInside)
-                                {
-                                    maxSphereViolationInside = -sphereMargin;
-                                    worstSphereInsideIndex = j;
-                                }
-                            }
-                            else
-                            {
-                                if (sphereMargin < minSphereMarginOutside)
-                                {
-                                    minSphereMarginOutside = sphereMargin;
-                                }
-                                if (-sphereMargin > maxSphereViolationOutside)
-                                {
-                                    maxSphereViolationOutside = -sphereMargin;
-                                    worstSphereOutsideIndex = j;
-                                }
                             }
                         }
                     }
@@ -1170,16 +971,14 @@ namespace ocs2::legged_robot
         return false;
     }
 
-    // 优化摆动足轨迹，确保满足地形和球障碍约束，同时尽量跟踪参考轨迹。返回优化后的轨迹样本序列。
+    // 优化摆动足轨迹，确保满足地形约束，同时尽量跟踪参考轨迹。返回优化后的轨迹样本序列。
     SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::optimizeSwingTrajectory(
         const BSpline &refSpline,
         scalar_t swingStartTime,
         scalar_t swingFinalTime,
         const Eigen::Vector3d &liftOffPos3d,
-        const Eigen::Vector3d &touchDownPos3d,
-        const std::vector<const EdgeSphere *> &nearbySpheres) const
+        const Eigen::Vector3d &touchDownPos3d) const
     {
-
         std::vector<Eigen::Vector3d> controlPoints; // B样条控制点
         sampleReferenceTrajectoryToControlPoints(refSpline, swingStartTime, swingFinalTime, liftOffPos3d, touchDownPos3d, controlPoints);
 
@@ -1207,10 +1006,9 @@ namespace ocs2::legged_robot
             refCurveZ[i] = refSpline.getPosition(sampleParams[i]).z();
         }
         const Eigen::VectorXd terrainHeights = computeTerrainHeightProfile(sampleX, sampleY);
-        const Eigen::VectorXd sphereHeights = computeSphereHeightProfile(sampleX, sampleY, nearbySpheres);
 
         Eigen::VectorXd optimizedControlZ; // 优化后的控制点高度
-        const bool qpSolved = optimizeControlPointsZ(basisMat, z, refCurveZ, sampleX, terrainHeights, sphereHeights, optimizedControlZ);
+        const bool qpSolved = optimizeControlPointsZ(basisMat, z, refCurveZ, sampleX, terrainHeights, optimizedControlZ);
 
         OptimizedTrajectory result;
         result.startTime = swingStartTime;
@@ -1238,12 +1036,6 @@ namespace ocs2::legged_robot
         {
             const double terrainLowerBound = terrainHeights[i] + config_.groundClearance;
             if (optimizedCurveZ[i] + kConstraintViolationTolerance < terrainLowerBound)
-            {
-                result.collisionFree = false;
-                break;
-            }
-
-            if (std::isfinite(sphereHeights[i]) && optimizedCurveZ[i] + kConstraintViolationTolerance < sphereHeights[i])
             {
                 result.collisionFree = false;
                 break;

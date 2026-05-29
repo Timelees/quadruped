@@ -84,9 +84,6 @@ add_library(${PROJECT_NAME} SHARED
         src/control/CtrlComponent.cpp
 
         src/perceptive/constraint/FootCollisionConstraint.cpp
-        src/perceptive/constraint/EdgeSphereConstraint.cpp
-        src/perceptive/constraint/SwingTrajectoryCollisionConstraint.cpp
-        src/perceptive/constraint/EdgeAwareFootholdScorer.cpp
         src/perceptive/constraint/FootPlacementCBFConstraint.cpp
         src/perceptive/constraint/FootPlacementConstraint.cpp
         src/perceptive/constraint/SphereSdfConstraint.cpp
@@ -95,10 +92,8 @@ add_library(${PROJECT_NAME} SHARED
         src/perceptive/interface/PerceptiveLeggedInterface.cpp
         src/perceptive/interface/PerceptiveLeggedPrecomputation.cpp
         src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp
-        src/perceptive/visualize/EdgeVisualization.cpp
         src/perceptive/visualize/FootPlacementVisualization.cpp
         src/perceptive/visualize/SphereVisualization.cpp
-        src/perceptive/synchronize/PlanarEdgeReceiver.cpp
         src/perceptive/synchronize/PlanarTerrainReceiver.cpp
         # include logs implementation so LogSave symbols are available at link time
         ../../logs/src/log_save.cpp

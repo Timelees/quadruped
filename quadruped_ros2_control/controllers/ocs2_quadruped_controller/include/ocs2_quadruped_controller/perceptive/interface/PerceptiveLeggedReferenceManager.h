@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "ocs2_quadruped_controller/perceptive/interface/ConvexRegionSelector.h"
-#include "ocs2_quadruped_controller/perceptive/constraint/EdgeAwareFootholdScorer.h"
 
 #include <ocs2_quadruped_controller/interface/SwitchedModelReferenceManager.h>
 
@@ -41,8 +40,6 @@ namespace ocs2::legged_robot
                                              FootPlacementRelaxationConfig());
 
         const std::shared_ptr<ConvexRegionSelector>& getConvexRegionSelectorPtr() const { return convexRegionSelectorPtr_; }
-
-        void setEdgeSpheres(std::shared_ptr<EdgeSphereArray> edgeSpheresPtr);
 
         contact_flag_t getFootPlacementFlags(scalar_t time) const;
 
@@ -86,8 +83,5 @@ namespace ocs2::legged_robot
 
         scalar_t comHeight_;
         FootPlacementRelaxationConfig footPlacementRelaxationConfig_;
-
-        std::unique_ptr<EdgeAwareFootholdScorer> footholdScorer_;
-        std::shared_ptr<EdgeSphereArray> edgeSpheresPtr_;
     };
 } // namespace legged

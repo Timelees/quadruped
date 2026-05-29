@@ -104,8 +104,8 @@ ocs2_quadruped_controller:
     foot_force_name: "foot_force"
     foot_force_interfaces:
       - FL_foot_force
-      - RL_foot_force
       - FR_foot_force
+      - RL_foot_force
       - RR_foot_force
 
     # 状态估计器类型: error_state_kalman, linear_kalman, ground_truth
@@ -134,5 +134,4 @@ ocs2_quadruped_controller:
       - angular_velocity.x
       - angular_velocity.y
       - angular_velocity.z
-
 

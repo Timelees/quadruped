@@ -40,7 +40,6 @@ namespace ocs2::legged_robot
         constexpr scalar_t kLockSoftRadius = 0.08;
         constexpr scalar_t kLockDeviationWeight = 16.0;
         constexpr scalar_t kLockedCandidatePreferenceMargin = 0.002;
-        constexpr scalar_t kLockedCandidateEdgeThreshold = 0.03;
         constexpr scalar_t kLockedCandidateBoundaryThreshold = 0.01;
 
         struct JointSupportCosts
@@ -807,7 +806,6 @@ namespace ocs2::legged_robot
                                                              jointEvent.lockedFoothold.head<2>()).norm()
                                                           : 0.0;
                         const bool keepLockedCandidate = jointEvent.hasLockedFoothold &&
-                                                         lockedScore.edgePenaltyRaw <= kLockedCandidateEdgeThreshold &&
                                                          lockedScore.boundaryDistance >= kLockedCandidateBoundaryThreshold &&
                                                          (selectedDrift > kLockSoftRadius ||
                                                           lockedScore.totalCost <= selectedScore.totalCost +
@@ -1086,7 +1084,6 @@ namespace ocs2::legged_robot
         constexpr scalar_t reachConsistencyWeight = 0.12;
         constexpr scalar_t boundaryMarginWeight = 0.8;
         constexpr scalar_t continuityWeight = 0.4;
-        constexpr scalar_t edgePenaltyWeight = 0.6;
 
         FootholdScoreBreakdown breakdown;
 
@@ -1159,8 +1156,8 @@ namespace ocs2::legged_robot
             breakdown.lockDeviationCost = kLockDeviationWeight * lockViolation * lockViolation;
         }
 
-        const scalar_t edgePenaltyRaw = footholdScorer_ != nullptr ? footholdScorer_->computePenalty(candidateInWorld) : 0.0;
-        const scalar_t edgePenaltyCost = edgePenaltyWeight * edgePenaltyRaw;
+        const scalar_t edgePenaltyRaw = 0.0;
+        const scalar_t edgePenaltyCost = 0.0;
 
         breakdown.nominalTrackingCost = nominalTrackingCost;
         breakdown.projectedTrackingCost = projectedTrackingCost;

@@ -32,7 +32,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <ocs2_core/reference/ModeSchedule.h>
 
 #include <ocs2_legged_robot/common/Types.h>
-#include <ocs2_legged_robot/foot_planner/SplineCpg.h>
+
+#include "ocs2_quadruped_controller/interface/constraint/BSpline.h"
 
 namespace ocs2::legged_robot {
     class SwingTrajectoryPlanner {
@@ -72,7 +73,7 @@ namespace ocs2::legged_robot {
         const Config config_;
         const size_t numFeet_;
 
-        feet_array_t<std::vector<SplineCpg> > feetHeightTrajectories_;
+        feet_array_t<std::vector<BSpline> > feetHeightTrajectories_;
         feet_array_t<std::vector<scalar_t> > feetHeightTrajectoriesEvents_;
     };
 

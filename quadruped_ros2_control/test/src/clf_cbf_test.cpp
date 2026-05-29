@@ -29,7 +29,7 @@
 #include <limits>
 
 #include "ocs2_quadruped_controller/interface/constraint/QuinticSplineCpg.h"
-#include "ocs2_quadruped_controller/perceptive/synchronize/EdgeSphere.h"
+#include "EdgeSphere.h"
 
 // ============================================================================
 // 数据结构

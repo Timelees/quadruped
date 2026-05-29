@@ -4,7 +4,6 @@
 #include <memory>
 #include <ocs2_core/misc/LoadData.h>
 #include <boost/property_tree/ptree.hpp>
-#include "ocs2_quadruped_controller/perceptive/constraint/EdgeSphereConstraint.h"
 #include "ocs2_quadruped_controller/perceptive/constraint/FootCollisionConstraint.h"
 #include "ocs2_quadruped_controller/perceptive/constraint/FootPlacementCBFConstraint.h"
 #include "ocs2_quadruped_controller/perceptive/constraint/SphereSdfConstraint.h"
@@ -59,7 +58,6 @@ namespace ocs2::legged_robot
     {
         // 初始化地形模型
         planarTerrainPtr_ = std::make_shared<convex_plane_decomposition::PlanarTerrain>();
-        edgeSpheresPtr_ = std::make_shared<EdgeSphereArray>();
 
         double width{5.0}, height{5.0};
         convex_plane_decomposition::PlanarRegion plannerRegion;
@@ -111,9 +109,9 @@ namespace ocs2::legged_robot
                 footName + "_footPlacement",
                 getFootPlacementConstraint(i, taskFile, "footPlacement.", verbose));
             // CBF约束
-            problem_ptr_->softConstraintPtr->add(
-                footName + "_footPlacementCbf",
-                getFootPlacementCbfConstraint(i, taskFile, "footPlacementCbf.", verbose));
+            // problem_ptr_->softConstraintPtr->add(
+            //     footName + "_footPlacementCbf",
+            //     getFootPlacementCbfConstraint(i, taskFile, "footPlacementCbf.", verbose));
 
             std::unique_ptr<EndEffectorKinematics<scalar_t>> eeKinematicsPtr = getEeKinematicsPtr({footName}, footName);
             
@@ -125,15 +123,10 @@ namespace ocs2::legged_robot
                 footName + "_footCollision",
                 std::make_unique<StateSoftConstraint>(std::move(footCollisionConstraint), std::move(collisionPenalty)));
 
-            // std::unique_ptr<EdgeSphereConstraint> edgeSphereConstraint(
-            //     new EdgeSphereConstraint(*reference_manager_ptr_, *eeKinematicsPtr, edgeSpheresPtr_, i, 0.03));
-            // problem_ptr_->stateSoftConstraintPtr->add(
-            //     footName + "_edgeSphere",
-            //     std::make_unique<StateSoftConstraint>(std::move(edgeSphereConstraint), std::move(edgePenalty)));
+            
            
         }
-        // std::cout << "PerceptiveLeggedInterface: Initialized foot placement and collision constraints." << std::endl;
-    
+        
         // For collision avoidance
         scalar_t thighExcess = 0.025;
         scalar_t calfExcess = 0.02;
@@ -181,9 +174,6 @@ namespace ocs2::legged_robot
             std::move(swingTrajectoryPlanner),
             std::move(convexRegionSelector),
             *eeKinematicsPtr, comHeight, footPlacementRelaxationConfig));
-
-        // 感知模式：传入 edge sphere 数据，使摆动相轨迹避开地形边缘
-        dynamic_cast<PerceptiveLeggedReferenceManager&>(*reference_manager_ptr_).setEdgeSpheres(edgeSpheresPtr_);
 
         // NOTE: SwingTrajectoryPlanner 已回退到基线版本（无 QP/避碰接口），感知层仅保留参考管理与落足区域选择。
     }

@@ -19,7 +19,6 @@
 #include <ocs2_quadruped_controller/control/GaitManager.h>
 #include <ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedInterface.h>
 #include <ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h>
-#include <ocs2_quadruped_controller/perceptive/synchronize/PlanarEdgeReceiver.h>
 #include <ocs2_quadruped_controller/perceptive/synchronize/PlanarTerrainReceiver.h>
 #include <ocs2_sqp/SqpMpc.h>
 
@@ -132,16 +131,10 @@ namespace ocs2::legged_robot
 
         observation_.mode = estimator_->getMode();
 
-        if (enable_perceptive_ && planarEdgeReceiver_ != nullptr)
-        {
-            planarEdgeReceiver_->updateEdgeSpheres();
-        }
-
         visualizer_->update(observation_);
         if (enable_perceptive_)
         {
             footPlacementVisualizationPtr_->update(observation_);
-            edgeVisualizationPtr_->update(observation_);
             sphereVisualizationPtr_->update(observation_);
         }
 
@@ -197,9 +190,6 @@ namespace ocs2::legged_robot
                 *dynamic_cast<PerceptiveLeggedReferenceManager &>(*legged_interface_->getReferenceManagerPtr()).getConvexRegionSelectorPtr(),
                 legged_interface_->getCentroidalModelInfo().numThreeDofContacts, node_);
 
-            edgeVisualizationPtr_ = std::make_unique<EdgeVisualization>(
-                dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getEdgeSpheresPtr(), node_);
-
             // 碰撞球体标记可视化
             sphereVisualizationPtr_ = std::make_unique<SphereVisualization>(
                 legged_interface_->getPinocchioInterface(), legged_interface_->getCentroidalModelInfo(),
@@ -238,13 +228,7 @@ namespace ocs2::legged_robot
                     node_, dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getPlanarTerrainPtr(),
                     dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getSignedDistanceFieldPtr(),
                     "planar_terrain", "smooth_planar");
-            planarEdgeReceiver_ =
-                std::make_shared<PlanarEdgeReceiver>(
-                    node_, dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getEdgeSpheresPtr(),
-                    "terrain_edges");
-
             mpc_->getSolverPtr()->addSynchronizedModule(planarTerrainReceiver);
-            // Edge receiver is kept alive by CtrlComponent and synchronized manually.
         }
     }
 

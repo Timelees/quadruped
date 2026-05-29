@@ -12,7 +12,6 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
-#include "ocs2_quadruped_controller/perceptive/synchronize/PlanarEdgeReceiver.h"
 
 namespace ocs2::legged_robot
 {
@@ -50,11 +49,6 @@ namespace ocs2::legged_robot
             return pinocchioSphereInterfacePtr_;
         }
 
-        std::shared_ptr<EdgeSphereArray> getEdgeSpheresPtr() const
-        {
-            return edgeSpheresPtr_;
-        }
-
         size_t getNumVertices() const { return numVertices_; }
 
     protected:
@@ -65,7 +59,6 @@ namespace ocs2::legged_robot
 
         std::shared_ptr<convex_plane_decomposition::PlanarTerrain> planarTerrainPtr_;
         std::shared_ptr<grid_map::SignedDistanceField> signedDistanceFieldPtr_;
-        std::shared_ptr<EdgeSphereArray> edgeSpheresPtr_;
         std::shared_ptr<PinocchioSphereInterface> pinocchioSphereInterfacePtr_;
 
         std::unique_ptr<StateCost> getFootPlacementConstraint(size_t contactPointIndex,

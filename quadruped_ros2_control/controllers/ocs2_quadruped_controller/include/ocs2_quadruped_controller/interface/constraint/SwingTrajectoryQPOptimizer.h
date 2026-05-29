@@ -31,7 +31,6 @@
 #include <convex_plane_decomposition/PlanarRegion.h>
 
 #include "ocs2_quadruped_controller/interface/constraint/BSpline.h"
-#include "ocs2_quadruped_controller/perceptive/synchronize/EdgeSphere.h"
 
 namespace ocs2::legged_robot {
 
@@ -46,11 +45,6 @@ struct SwingTrajectoryQpConfig {
     int numCurveSamples = 300;
     int splineOrder = 3;
 
-
-    double sphereActivationDist = 0.01;  // 激活球约束的距离阈值 (m)
-    int maxSpheresPerQp = 5;          // 每个 QP 中考虑的最大球约束数量 
-
-
     // QP 权重
     double controlPointTrackingWeight = 0.2;    // 抬升量 L2 惩罚，避免无约束区域整体抬高
     double positionTrackingWeight = 0.5;        // 平滑抬升包络跟踪权重
@@ -62,7 +56,6 @@ struct SwingTrajectoryQpConfig {
     double controlPointZMin = -0.0;
     double controlPointZMax = 0.3;
     double groundClearance = 1e-3;
-    double sphereSafetyMargin = 0.02;         // 球障碍额外安全裕度
     double hessianRegularization = 1e-8;      // Hessian 对角正则项
 
     int ignoreSamples = 5;        ///< 忽略起始和结束的采样点数，避免过于接近地面或触地点导致的数值问题
@@ -149,9 +142,6 @@ public:
 
     SwingTrajectoryQpOptimizer(SwingTrajectoryQpConfig config, std::shared_ptr<TerrainInterface> terrainInterface);
 
-    /// 注入 EdgeSphere 数据 (从 PerceptiveLeggedInterface 获取)
-    void setEdgeSpheres(std::shared_ptr<EdgeSphereArray> edgeSpheresPtr) { edgeSpheresPtr_ = std::move(edgeSpheresPtr); }
-
     /**
      * @brief 优化单条腿的摆动轨迹 
      */
@@ -160,8 +150,7 @@ public:
         scalar_t swingStartTime,
         scalar_t swingFinalTime,
         const Eigen::Vector3d& liftOffPos3d,
-        const Eigen::Vector3d& touchDownPos3d,
-        const std::vector<const EdgeSphere*>& nearbySpheres) const;
+        const Eigen::Vector3d& touchDownPos3d) const;
 
     
     bool solveQp(const std::vector<int> &activeSet, Eigen::VectorXd &solution,
@@ -174,16 +163,8 @@ public:
 
     const SwingTrajectoryQpConfig& getConfig() const { return config_; }
 
-
-    // 筛选轨迹路径附近的 EdgeSphere
-    std::vector<const EdgeSphere*> filterNearbySpheres(
-        const Eigen::Vector3d& liftOffPos3d,
-        const Eigen::Vector3d& touchDownPos3d) const;
-
-        
     std::shared_ptr<TerrainInterface> terrainInterface_;
     SwingTrajectoryQpConfig config_;
-
 
 private:
 
@@ -200,10 +181,6 @@ private:
     Eigen::VectorXd computeTerrainHeightProfile(const Eigen::VectorXd& sampleX,
                                            const Eigen::VectorXd& sampleY) const;
 
-    Eigen::VectorXd computeSphereHeightProfile(const Eigen::VectorXd& sampleX,
-                                           const Eigen::VectorXd& sampleY, 
-                                           const std::vector<const EdgeSphere*>& nearbySpheres) const;
-    
     Eigen::VectorXd projectReferenceToBounds(const Eigen::VectorXd& refZ, const int nV, 
                                             const Eigen::VectorXd& lb_eigen, const Eigen::VectorXd& ub_eigen) const;
 
@@ -212,11 +189,7 @@ private:
                             const Eigen::VectorXd& refCurveZ,
                             const Eigen::VectorXd& sampleX,
                             const Eigen::VectorXd& terrainHeights,
-                            const Eigen::VectorXd& sphereHeights,
                             Eigen::VectorXd& xOpt) const;
-
-
-    std::shared_ptr<EdgeSphereArray> edgeSpheresPtr_;  ///< 地形边缘球体
 };
 
 }  // namespace ocs2::legged_robot
