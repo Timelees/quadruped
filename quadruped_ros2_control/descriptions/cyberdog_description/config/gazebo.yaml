@@ -113,6 +113,11 @@ ocs2_quadruped_controller:
 
     # 是否启动感知 true: 感知运动  false: 盲走
     enable_perceptive: true
+    planar_terrain_max_age: 1.0
+    planar_terrain_future_tolerance: 0.2
+    planar_terrain_center_jump_threshold: 0.6
+    planar_terrain_center_filter_threshold: 0.05
+    planar_terrain_height_filter_alpha: 0.5
 
     # 仿真/实机模式 true: 仿真  false: 实机
     sim_mode: true
@@ -134,4 +139,3 @@ ocs2_quadruped_controller:
       - angular_velocity.x
       - angular_velocity.y
       - angular_velocity.z
-

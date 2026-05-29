@@ -5,6 +5,7 @@
 #ifndef PLANARTERRAINRECEIVER_H
 #define PLANARTERRAINRECEIVER_H
 
+#include <atomic>
 #include <mutex>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
@@ -29,21 +30,40 @@ namespace ocs2::legged_robot
         void preSolverRun(scalar_t initTime, scalar_t finalTime, const vector_t& currentState,
                           const ReferenceManagerInterface& referenceManager) override;
 
-        void postSolverRun(const PrimalSolution& primalSolution) override
+        void postSolverRun(const PrimalSolution& /*primalSolution*/) override
         {
         }
 
     private:
+        bool sanitizeElevationLayer(convex_plane_decomposition::PlanarTerrain& planarTerrain) const;
+        bool acceptTimestamp(grid_map::Time timestamp) const;
+        bool acceptMapCenter(const convex_plane_decomposition::PlanarTerrain& planarTerrain,
+                             double& centerJump) const;
+        bool hasFilterCompatibleGeometry(const grid_map::GridMap& lhs, const grid_map::GridMap& rhs) const;
+        convex_plane_decomposition::PlanarTerrain filterTerrain(
+            const convex_plane_decomposition::PlanarTerrain& candidate,
+            double centerJump) const;
+        void updateSignedDistanceField(const convex_plane_decomposition::PlanarTerrain& planarTerrain) const;
+        double getOrDeclareDoubleParameter(const std::string& name, double defaultValue) const;
+
         rclcpp_lifecycle::LifecycleNode::SharedPtr node_;
         rclcpp::Subscription<convex_plane_decomposition_msgs::msg::PlanarTerrain>::SharedPtr subscription_;
-
-        convex_plane_decomposition::PlanarTerrain planarTerrain_;
-     
 
         std::string sdfElevationLayer_;
 
         std::mutex mutex_;
         std::atomic_bool updated_ = false;
+
+        convex_plane_decomposition::PlanarTerrain pendingTerrain_;
+        convex_plane_decomposition::PlanarTerrain filteredTerrain_;
+        bool hasFilteredTerrain_ = false;
+        grid_map::Time lastAcceptedTimestamp_ = 0;
+
+        double maxMapAge_ = 1.0;
+        double futureTimestampTolerance_ = 0.2;
+        double maxCenterJump_ = 0.6;
+        double centerFilterThreshold_ = 0.05;
+        double heightFilterAlpha_ = 0.5;
 
         std::shared_ptr<convex_plane_decomposition::PlanarTerrain> planarTerrainPtr_;
         std::shared_ptr<grid_map::SignedDistanceField> sdfPtr_;
