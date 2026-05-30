@@ -59,6 +59,39 @@ Eigen::MatrixXd makeThirdDifferenceMatrix(int numSamples)
     return diff;
 }
 
+Eigen::MatrixXd makeSampleDerivativeMatrix(const Eigen::VectorXd &sampleParams)
+{
+    const int numSamples = static_cast<int>(sampleParams.size());
+    Eigen::MatrixXd derivative = Eigen::MatrixXd::Zero(numSamples, numSamples);
+    if (numSamples < 2)
+    {
+        return derivative;
+    }
+
+    for (int i = 0; i < numSamples; ++i)
+    {
+        if (i == 0)
+        {
+            const double ds = std::max(sampleParams[1] - sampleParams[0], 1e-9);
+            derivative(i, 0) = -1.0 / ds;
+            derivative(i, 1) = 1.0 / ds;
+        }
+        else if (i == numSamples - 1)
+        {
+            const double ds = std::max(sampleParams[i] - sampleParams[i - 1], 1e-9);
+            derivative(i, i - 1) = -1.0 / ds;
+            derivative(i, i) = 1.0 / ds;
+        }
+        else
+        {
+            const double ds = std::max(sampleParams[i + 1] - sampleParams[i - 1], 1e-9);
+            derivative(i, i - 1) = -1.0 / ds;
+            derivative(i, i + 1) = 1.0 / ds;
+        }
+    }
+    return derivative;
+}
+
 Eigen::VectorXd buildPropagatedLiftProfile(const Eigen::VectorXd &requiredLift,
                                           int firstConstrainedSample,
                                           int lastConstrainedSample,
@@ -90,6 +123,29 @@ Eigen::VectorXd buildPropagatedLiftProfile(const Eigen::VectorXd &requiredLift,
     }
 
     return propagatedLift;
+}
+
+Eigen::VectorXd smoothLiftProfile(const Eigen::VectorXd &liftProfile, const Eigen::VectorXd &minimumLift)
+{
+    Eigen::VectorXd smoothed = liftProfile;
+    for (int iteration = 0; iteration < 2; ++iteration)
+    {
+        Eigen::VectorXd next = smoothed;
+        for (Eigen::Index i = 1; i + 1 < smoothed.size(); ++i)
+        {
+            next[i] = 0.25 * smoothed[i - 1] + 0.5 * smoothed[i] + 0.25 * smoothed[i + 1];
+        }
+        smoothed = next.cwiseMax(minimumLift);
+    }
+    return smoothed;
+}
+
+double computePhaseClearance(double phase, double maxClearance)
+{
+    constexpr double kPi = 3.14159265358979323846;
+    const double clampedPhase = std::min(std::max(phase, 0.0), 1.0);
+    const double window = std::sin(kPi * clampedPhase);
+    return maxClearance * window * window;
 }
 
 double computeAdaptiveControlPointZMax(const Eigen::MatrixXd &basisMat,
@@ -429,24 +485,7 @@ namespace ocs2::legged_robot
 
         if (ret != qpOASES::SUCCESSFUL_RETURN)
         {
-            {
-                qpOASES::QProblem reliableProblem(nV, nC);
-                qpOASES::Options reliableOptions;
-                reliableOptions.setToReliable();
-                reliableOptions.enableRegularisation = qpOASES::BT_TRUE;
-                reliableOptions.printLevel = qpOASES::PL_NONE;
-                reliableProblem.setOptions(reliableOptions);
-
-                qpOASES::int_t nWSR = static_cast<qpOASES::int_t>(std::max(1, config_.qpMaxWorkingSetRecalculations));
-                ret = reliableProblem.init(H.data(), g.data(), A.data(), lb.data(), ub.data(),
-                                           lbA.data(), ubA.data(), nWSR);
-                if (ret == qpOASES::SUCCESSFUL_RETURN)
-                {
-                    reliableProblem.getPrimalSolution(xOptVec.data());
-                }
-            }
-
-            if (ret != qpOASES::SUCCESSFUL_RETURN)
+            if (config_.verbose)
             {
                 std::cerr << "qpOASES initialization failed with code " << ret;
                 if (ret == qpOASES::RET_INIT_FAILED_INFEASIBILITY)
@@ -462,8 +501,8 @@ namespace ocs2::legged_robot
                     std::cerr << " (RET_INIT_FAILED_CHOLESKY)";
                 }
                 std::cerr << ", activeConstraints=" << nC << std::endl;
-                return false;
             }
+            return false;
         }
 
         solution.resize(nV);
@@ -504,7 +543,8 @@ namespace ocs2::legged_robot
         Eigen::VectorXd referenceCurveZ(fitSampleCount);
         for (int i = 0; i < fitSampleCount; ++i)
         {
-            referenceCurveZ[i] = refSpline.getPosition(fitParams[i]).z();
+            const double t = swingStartTime + fitParams[i] * (swingFinalTime - swingStartTime);
+            referenceCurveZ[i] = refSpline.getPosition(t).z();
         }
 
         const Eigen::VectorXd fittedControlZ = fitReferenceControlPointsToCurve(
@@ -555,13 +595,16 @@ namespace ocs2::legged_robot
                                                          const Eigen::VectorXd &refControlZ,
                                                          const Eigen::VectorXd &refCurveZ,
                                                          const Eigen::VectorXd &sampleX,
+                                                         const Eigen::VectorXd &sampleY,
+                                                         const Eigen::VectorXd &sampleParams,
+                                                         scalar_t swingDuration,
                                                          const Eigen::VectorXd &terrainHeights,
                                                          Eigen::VectorXd &xOpt) const
     {
         const int nV = basisMat.cols();         // 优化变量数量（控制点数量）
         const int numSamples = basisMat.rows(); // 采样点数量
         if (refControlZ.size() != nV || refCurveZ.size() != numSamples || sampleX.size() != numSamples ||
-            terrainHeights.size() != numSamples)
+            sampleY.size() != numSamples || sampleParams.size() != numSamples || terrainHeights.size() != numSamples)
         {
             std::cerr << "Invalid dimensions for optimizeControlPointsZ." << std::endl;
             return false;
@@ -570,15 +613,22 @@ namespace ocs2::legged_robot
         const int ignoredBoundarySamples = std::max(1, config_.ignoreSamples);
         const int firstConstrainedSample = std::min(numSamples - 1, ignoredBoundarySamples);
         const int lastConstrainedSample = std::max(firstConstrainedSample, numSamples - ignoredBoundarySamples);
+        const int firstInteriorSample = std::min(numSamples - 1, 1);
+        const int lastInteriorSample = std::max(firstInteriorSample, numSamples - 1);
         const Eigen::VectorXd baselineCurveZ = basisMat * refControlZ;
 
-        Eigen::VectorXd requiredCurveZ = terrainHeights.array() + config_.groundClearance;
+        Eigen::VectorXd requiredCurveZ(numSamples);
+        for (int j = 0; j < numSamples; ++j)
+        {
+            requiredCurveZ[j] = terrainHeights[j] + computePhaseClearance(sampleParams[j], config_.groundClearance);
+        }
 
         const Eigen::VectorXd requiredLiftCurve = (requiredCurveZ - baselineCurveZ).cwiseMax(0.0);
         const Eigen::VectorXd propagatedLiftCurve = buildPropagatedLiftProfile(
             requiredLiftCurve, firstConstrainedSample, lastConstrainedSample,
             config_.liftPropagationWindow, config_.liftPropagationSigma);
-        const Eigen::VectorXd propagatedRequiredCurveZ = baselineCurveZ + propagatedLiftCurve;
+        const Eigen::VectorXd smoothLiftCurve = smoothLiftProfile(propagatedLiftCurve, requiredLiftCurve);
+        const Eigen::VectorXd propagatedRequiredCurveZ = baselineCurveZ + smoothLiftCurve;
         const Eigen::VectorXd targetCurveZ = propagatedRequiredCurveZ.cwiseMax(refCurveZ);
 
         const Eigen::MatrixXd controlPointSecondDiff = makeSecondDifferenceMatrix(nV);
@@ -642,21 +692,17 @@ namespace ocs2::legged_robot
         const Eigen::VectorXd g_eigen = -2.0 * objectiveVector;
 
         double requiredUpperBound = terrainHeights.maxCoeff() + config_.groundClearance;
-        requiredUpperBound = std::max<double>(requiredUpperBound, refControlZ.maxCoeff());
+        requiredUpperBound = std::max<double>(requiredUpperBound, targetCurveZ.maxCoeff());
         constexpr double kControlPointZPadding = 0.03;
         const double adaptiveControlPointZMax = computeAdaptiveControlPointZMax(
-            basisMat, refControlZ, requiredCurveZ, firstConstrainedSample, lastConstrainedSample);
+            basisMat, refControlZ, targetCurveZ, firstInteriorSample, lastInteriorSample);
         const double dynamicControlPointZMax = std::max(
             std::max<double>(config_.controlPointZMax, requiredUpperBound + kControlPointZPadding),
             adaptiveControlPointZMax + kControlPointZPadding);
 
-        // if (config_.verbose && dynamicControlPointZMax > requiredUpperBound + kControlPointZPadding + 1e-6)
-        // {
-        //     std::cerr << "Raised control-point z max to " << dynamicControlPointZMax
-        //               << " to preserve boundary reachability." << std::endl;
-        // }
-
-        Eigen::VectorXd lb_eigen = Eigen::VectorXd::Constant(nV, config_.controlPointZMin);
+        const double dynamicControlPointZMin = std::min<double>(
+            config_.controlPointZMin, std::min(refControlZ.minCoeff(), terrainHeights.minCoeff()) - kControlPointZPadding);
+        Eigen::VectorXd lb_eigen = Eigen::VectorXd::Constant(nV, dynamicControlPointZMin);
         Eigen::VectorXd ub_eigen = Eigen::VectorXd::Constant(nV, dynamicControlPointZMax);
         lb_eigen[0] = refControlZ[0];
         ub_eigen[0] = refControlZ[0];
@@ -665,13 +711,43 @@ namespace ocs2::legged_robot
 
         std::vector<CandidateConstraint> candidates;
         candidates.reserve(2 * numSamples);
-        for (int j = firstConstrainedSample; j < lastConstrainedSample; ++j)
+        Eigen::MatrixXd derivativeBasis;
+        Eigen::VectorXd sampleXPrime;
+        Eigen::VectorXd sampleYPrime;
+        const double duration = std::max<double>(swingDuration, 1e-3);
+        if (config_.enableCbfConstraint)
         {
-            const double lowerBound = terrainHeights[j] + config_.groundClearance;
-            if (lowerBound > kConstraintViolationTolerance)
+            const Eigen::MatrixXd sampleDerivative = makeSampleDerivativeMatrix(sampleParams);
+            derivativeBasis = sampleDerivative * basisMat;
+            sampleXPrime = sampleDerivative * sampleX;
+            sampleYPrime = sampleDerivative * sampleY;
+        }
+        for (int j = firstInteriorSample; j < lastInteriorSample; ++j)
+        {
+            const double phaseClearance = computePhaseClearance(sampleParams[j], config_.groundClearance);
+            const double terrainLowerBound = terrainHeights[j] + phaseClearance;
+            if (terrainLowerBound > refCurveZ[j] + kConstraintViolationTolerance)
             {
                 candidates.push_back(CandidateConstraint{
-                    basisMat.row(j), lowerBound, j, 0,
+                    basisMat.row(j), terrainLowerBound, j, 0,
+                    std::max(0.0, targetCurveZ[j] - refCurveZ[j])});
+            }
+
+            if (config_.enableCbfConstraint &&
+                j >= firstConstrainedSample &&
+                j < lastConstrainedSample &&
+                sampleParams[j] >= config_.cbfStartPhase &&
+                sampleParams[j] <= config_.cbfEndPhase)
+            {
+                const Eigen::Vector2d terrainGradient = terrainInterface_->getGradient(sampleX[j], sampleY[j]);
+                const double terrainDerivative = terrainGradient.x() * sampleXPrime[j] +
+                                                 terrainGradient.y() * sampleYPrime[j];
+                const Eigen::RowVectorXd cbfRow =
+                    derivativeBasis.row(j) + config_.cbfGamma * duration * basisMat.row(j);
+                const double cbfLowerBound =
+                    terrainDerivative + config_.cbfGamma * duration * terrainLowerBound;
+                candidates.push_back(CandidateConstraint{
+                    cbfRow, cbfLowerBound, j, 1,
                     std::max(0.0, targetCurveZ[j] - refCurveZ[j])});
             }
         }
@@ -682,7 +758,10 @@ namespace ocs2::legged_robot
             return true;
         }
 
-        // 预计算每个候选约束的最大可达高度，以便在求解过程中快速判断约束是否可行
+        std::vector<bool> constraintDisabled(candidates.size(), false);
+
+        // 预计算每个候选约束的最大可达高度，以便在求解过程中快速判断约束是否可行。
+        // CBF 是轨迹生成的前馈安全偏置，不能因为局部不可行阻断整条轨迹；不可达 CBF 会被降级禁用。
         auto upperAchievableFor = [&](const CandidateConstraint &candidate)
         {
             double upperAchievable = 0.0;
@@ -702,6 +781,11 @@ namespace ocs2::legged_robot
         {
             const double upperAchievable = upperAchievableFor(candidates[i]);
             const double violation = candidates[i].lowerBound - upperAchievable;
+            if (violation > kConstraintViolationTolerance && candidates[i].type == 1)
+            {
+                constraintDisabled[i] = true;
+                continue;
+            }
             if (violation > worstViolation)
             {
                 worstViolation = violation;
@@ -725,250 +809,148 @@ namespace ocs2::legged_robot
             return false;
         }
 
-        // 将 Eigen 数据转换为 qpOASES 格式
-        std::vector<qpOASES::real_t> H;
-        std::vector<qpOASES::real_t> g;
-        std::vector<qpOASES::real_t> lb;
-        std::vector<qpOASES::real_t> ub;
-        H.resize(H_eigen.size());
-        g.resize(g_eigen.size());
-        lb.resize(lb_eigen.size());
-        ub.resize(ub_eigen.size());
-
-        int idx = 0;
-        for (int i = 0; i < nV; ++i)
-        {
-            for (int j = 0; j < nV; ++j)
-            {
-                H[idx++] = static_cast<qpOASES::real_t>(H_eigen(i, j));
-            }
-            g[i] = static_cast<qpOASES::real_t>(g_eigen[i]);
-            lb[i] = static_cast<qpOASES::real_t>(lb_eigen[i]);
-            ub[i] = static_cast<qpOASES::real_t>(ub_eigen[i]);
-        }
-
-        std::vector<int> activeSet;
-        activeSet.reserve(32);
-        std::vector<bool> isActive(candidates.size(), false);
         Eigen::VectorXd currentSolution = projectReferenceToBounds(refControlZ, nV, lb_eigen, ub_eigen);
 
-        int hotspotSampleIndex = -1;
-        double hotspotScore = -std::numeric_limits<double>::infinity();
-        for (const auto &candidate : candidates)
+        auto selectRepresentativeConstraints = [&](int maxTerrainConstraints, int maxCbfConstraints)
         {
-            const double score = candidate.lowerBound;
-            if (score > hotspotScore + kConstraintViolationTolerance)
+            struct ScoredConstraint
             {
-                hotspotScore = score;
-                hotspotSampleIndex = candidate.sampleIndex;
-            }
-        }
-
-        auto activateConstraintNeighborhood = [&](int centerSampleIndex, int radius)
-        {
-            std::vector<int> neighborhood;
-            neighborhood.reserve(static_cast<size_t>(2 * std::max(0, radius) + 2));
+                int index = -1;
+                double score = 0.0;
+            };
+            std::vector<ScoredConstraint> terrainConstraints;
+            std::vector<ScoredConstraint> cbfConstraints;
+            terrainConstraints.reserve(candidates.size());
+            cbfConstraints.reserve(candidates.size());
             for (size_t i = 0; i < candidates.size(); ++i)
             {
-                if (isActive[i])
-                {
-                    continue;
-                }
-
-                if (std::abs(candidates[i].sampleIndex - centerSampleIndex) > radius)
-                {
-                    continue;
-                }
-
-                neighborhood.push_back(static_cast<int>(i));
-            }
-
-            std::sort(neighborhood.begin(), neighborhood.end(), [&](int lhs, int rhs)
-            {
-                const auto &left = candidates[static_cast<size_t>(lhs)];
-                const auto &right = candidates[static_cast<size_t>(rhs)];
-                const int leftDistance = std::abs(left.sampleIndex - centerSampleIndex);
-                const int rightDistance = std::abs(right.sampleIndex - centerSampleIndex);
-                if (leftDistance != rightDistance)
-                {
-                    return leftDistance < rightDistance;
-                }
-                return left.referenceDeficit > right.referenceDeficit;
-            });
-
-            for (int candidateIndex : neighborhood)
-            {
-                activeSet.push_back(candidateIndex);
-                isActive[static_cast<size_t>(candidateIndex)] = true;
-            }
-        };
-
-        auto selectMostViolatedCandidate = [&](const Eigen::VectorXd &curveZ, int frontierRadius)
-        {
-            int bestIndex = -1;
-            double bestViolation = 0.0;
-            double bestReferenceDeficit = -1.0;
-            int bestDistance = std::numeric_limits<int>::max();
-
-            for (size_t i = 0; i < candidates.size(); ++i)
-            {
-                if (isActive[i])
+                if (constraintDisabled[i])
                 {
                     continue;
                 }
 
                 const auto &candidate = candidates[i];
-                const double violation = candidate.lowerBound - curveZ[candidate.sampleIndex];
-                if (violation <= kConstraintViolationTolerance)
+                const double violation = candidate.lowerBound - candidate.row.dot(currentSolution);
+                const double score = std::max(violation, candidate.referenceDeficit);
+                if (score <= kConstraintViolationTolerance)
                 {
                     continue;
                 }
 
-                const int distanceToHotspot = (hotspotSampleIndex >= 0)
-                                                  ? std::abs(candidate.sampleIndex - hotspotSampleIndex)
-                                                  : 0;
-                if (frontierRadius >= 0 && hotspotSampleIndex >= 0 && distanceToHotspot > frontierRadius)
+                if (candidate.type == 1)
                 {
-                    continue;
+                    cbfConstraints.push_back(ScoredConstraint{static_cast<int>(i), score});
                 }
-
-                const bool betterViolation = violation > bestViolation + kConstraintViolationTolerance;
-                const bool equalViolation = std::abs(violation - bestViolation) <= kConstraintViolationTolerance;
-                const bool betterDeficit = candidate.referenceDeficit > bestReferenceDeficit + kConstraintViolationTolerance;
-                const bool equalDeficit = std::abs(candidate.referenceDeficit - bestReferenceDeficit) <= kConstraintViolationTolerance;
-                const bool betterDistance = distanceToHotspot < bestDistance;
-
-                if (betterViolation ||
-                    (equalViolation && (betterDeficit ||
-                                        (equalDeficit && betterDistance))))
+                else
                 {
-                    bestIndex = static_cast<int>(i);
-                    bestViolation = violation;
-                    bestReferenceDeficit = candidate.referenceDeficit;
-                    bestDistance = distanceToHotspot;
+                    terrainConstraints.push_back(ScoredConstraint{static_cast<int>(i), score});
                 }
             }
 
-            return bestIndex;
+            const auto byDescendingScore = [](const ScoredConstraint &lhs, const ScoredConstraint &rhs)
+            {
+                return lhs.score > rhs.score;
+            };
+            std::sort(terrainConstraints.begin(), terrainConstraints.end(), byDescendingScore);
+            std::sort(cbfConstraints.begin(), cbfConstraints.end(), byDescendingScore);
+
+            std::vector<int> selected;
+            selected.reserve(static_cast<size_t>(std::max(0, maxTerrainConstraints) + std::max(0, maxCbfConstraints)));
+            auto appendSeparated = [&](const std::vector<ScoredConstraint> &source, int limit)
+            {
+                if (limit <= 0)
+                {
+                    return;
+                }
+                const int firstSelectedIndex = static_cast<int>(selected.size());
+                const int minSampleSpacing = std::max(1, numSamples / std::max(1, 2 * limit));
+                for (const auto &entry : source)
+                {
+                    if (static_cast<int>(selected.size()) - firstSelectedIndex >= limit)
+                    {
+                        return;
+                    }
+                    const int sampleIndex = candidates[static_cast<size_t>(entry.index)].sampleIndex;
+                    const bool separated = std::none_of(selected.begin() + firstSelectedIndex, selected.end(),
+                                                        [&](int selectedIndex)
+                                                        {
+                                                            return std::abs(candidates[static_cast<size_t>(selectedIndex)].sampleIndex -
+                                                                            sampleIndex) < minSampleSpacing;
+                                                        });
+                    if (separated)
+                    {
+                        selected.push_back(entry.index);
+                    }
+                }
+                for (const auto &entry : source)
+                {
+                    if (static_cast<int>(selected.size()) - firstSelectedIndex >= limit)
+                    {
+                        return;
+                    }
+                    if (std::find(selected.begin() + firstSelectedIndex, selected.end(), entry.index) == selected.end())
+                    {
+                        selected.push_back(entry.index);
+                    }
+                }
+            };
+
+            appendSeparated(terrainConstraints, maxTerrainConstraints);
+            appendSeparated(cbfConstraints, maxCbfConstraints);
+            return selected;
         };
 
-        int currentFrontierRadius = std::max(0, config_.constraintSeedRadius);
-        if (hotspotSampleIndex >= 0)
+        std::vector<int> activeSet = selectRepresentativeConstraints(
+            std::max(0, config_.maxTerrainConstraints),
+            config_.enableCbfConstraint ? std::max(0, config_.maxCbfConstraints) : 0);
+
+        if (activeSet.empty())
         {
-            activateConstraintNeighborhood(hotspotSampleIndex, currentFrontierRadius);
+            xOpt = currentSolution;
+            return true;
         }
 
-        for (int outerIter = 0; outerIter < config_.maxActiveSetIterations; ++outerIter)
+        if (!solveQp(activeSet, currentSolution, H_eigen, g_eigen, refControlZ, nV, lb_eigen, ub_eigen, candidates))
         {
-            if (!solveQp(activeSet, currentSolution, H_eigen, g_eigen, refControlZ, nV, lb_eigen, ub_eigen, candidates))
-            {
-                return false;
-            }
-
-            const Eigen::VectorXd curveZ = basisMat * currentSolution;
-            int violatingCandidate = selectMostViolatedCandidate(curveZ, currentFrontierRadius);
-            while (violatingCandidate < 0 && hotspotSampleIndex >= 0 && currentFrontierRadius < numSamples)
-            {
-                currentFrontierRadius = std::min(numSamples,
-                                                 currentFrontierRadius + std::max(1, config_.constraintExpandStep));
-                violatingCandidate = selectMostViolatedCandidate(curveZ, currentFrontierRadius);
-            }
-
-            if (violatingCandidate < 0)
-            {
-                violatingCandidate = selectMostViolatedCandidate(curveZ, -1);
-            }
-
-            if (violatingCandidate < 0)
-            {
-                xOpt = currentSolution;
-
-                if (config_.verbose)
-                {
-                    const Eigen::VectorXd optimizedCurveZ = basisMat * currentSolution;
-                    const Eigen::VectorXd trackingError = optimizedCurveZ - refCurveZ;
-
-                    double minTerrainMargin = std::numeric_limits<double>::infinity();
-                    double maxTerrainViolation = 0.0;
-                    int nearTerrainActiveCount = 0;
-
-                    double minTerrainMarginInside = std::numeric_limits<double>::infinity();
-                    double minTerrainMarginOutside = std::numeric_limits<double>::infinity();
-                    double maxTerrainViolationInside = 0.0;
-                    double maxTerrainViolationOutside = 0.0;
-                    int worstTerrainInsideIndex = -1;
-                    int worstTerrainOutsideIndex = -1;
-
-                    for (int j = 0; j < numSamples; ++j)
-                    {
-                        const bool insideConstraintWindow = (j >= firstConstrainedSample && j < lastConstrainedSample);
-                        const double terrainMargin = optimizedCurveZ[j] - (terrainHeights[j] + config_.groundClearance);
-                        minTerrainMargin = std::min(minTerrainMargin, terrainMargin);
-                        maxTerrainViolation = std::max(maxTerrainViolation, -terrainMargin);
-                        if (std::abs(terrainMargin) < 1e-4)
-                        {
-                            ++nearTerrainActiveCount;
-                        }
-
-                        if (insideConstraintWindow)
-                        {
-                            if (terrainMargin < minTerrainMarginInside)
-                            {
-                                minTerrainMarginInside = terrainMargin;
-                            }
-                            if (-terrainMargin > maxTerrainViolationInside)
-                            {
-                                maxTerrainViolationInside = -terrainMargin;
-                                worstTerrainInsideIndex = j;
-                            }
-                        }
-                        else
-                        {
-                            if (terrainMargin < minTerrainMarginOutside)
-                            {
-                                minTerrainMarginOutside = terrainMargin;
-                            }
-                            if (-terrainMargin > maxTerrainViolationOutside)
-                            {
-                                maxTerrainViolationOutside = -terrainMargin;
-                                worstTerrainOutsideIndex = j;
-                            }
-                        }
-                    }
-
-                    const double rmsTrackingError = std::sqrt(trackingError.squaredNorm() / std::max(1, numSamples));
-                    const double maxTrackingError = trackingError.cwiseAbs().maxCoeff();
-                    const double refMaxZ = refCurveZ.maxCoeff();
-                    const double refMinZ = refCurveZ.minCoeff();
-                    const double optMaxZ = optimizedCurveZ.maxCoeff();
-                    const double optMinZ = optimizedCurveZ.minCoeff();
-
-                }
-
-                return true;
-            }
-
-            if (isActive[violatingCandidate])
+            activeSet.erase(std::remove_if(activeSet.begin(), activeSet.end(),
+                                           [&](int candidateIndex)
+                                           {
+                                               return candidates[static_cast<size_t>(candidateIndex)].type == 1;
+                                           }),
+                            activeSet.end());
+            if (activeSet.empty() ||
+                !solveQp(activeSet, currentSolution, H_eigen, g_eigen, refControlZ, nV, lb_eigen, ub_eigen, candidates))
             {
                 if (config_.verbose)
                 {
-                    std::cerr << "Active-set QP stalled at sample " << candidates[violatingCandidate].sampleIndex
-                              << " with remaining violation "
-                              << (candidates[violatingCandidate].lowerBound - curveZ[candidates[violatingCandidate].sampleIndex])
-                              << std::endl;
+                    std::cerr << "Swing QP failed; falling back to reference swing trajectory." << std::endl;
                 }
                 return false;
             }
-
-            activateConstraintNeighborhood(candidates[violatingCandidate].sampleIndex,
-                                           std::max(0, config_.constraintBandRadius));
         }
 
+        xOpt = currentSolution;
         if (config_.verbose)
         {
-            std::cerr << "Active-set QP exceeded outer iterations." << std::endl;
+            const Eigen::VectorXd optimizedCurveZ = basisMat * currentSolution;
+            const Eigen::VectorXd trackingError = optimizedCurveZ - refCurveZ;
+            double minTerrainMargin = std::numeric_limits<double>::infinity();
+            for (int j = 0; j < numSamples; ++j)
+            {
+                const double terrainMargin = optimizedCurveZ[j] -
+                                             (terrainHeights[j] + computePhaseClearance(sampleParams[j],
+                                                                                        config_.groundClearance));
+                minTerrainMargin = std::min(minTerrainMargin, terrainMargin);
+            }
+
+            const double rmsTrackingError = std::sqrt(trackingError.squaredNorm() / std::max(1, numSamples));
+            std::cerr << "Swing QP solved: activeConstraints=" << activeSet.size()
+                      << ", rmsTrackingError=" << rmsTrackingError
+                      << ", minTerrainMargin=" << minTerrainMargin
+                      << ", refMaxZ=" << refCurveZ.maxCoeff()
+                      << ", optMaxZ=" << optimizedCurveZ.maxCoeff() << std::endl;
         }
-        return false;
+        return true;
     }
 
     // 优化摆动足轨迹，确保满足地形约束，同时尽量跟踪参考轨迹。返回优化后的轨迹样本序列。
@@ -1003,16 +985,43 @@ namespace ocs2::legged_robot
         Eigen::VectorXd refCurveZ(config_.numCurveSamples);
         for (int i = 0; i < config_.numCurveSamples; ++i)
         {
-            refCurveZ[i] = refSpline.getPosition(sampleParams[i]).z();
+            const double t = swingStartTime + sampleParams[i] * (swingFinalTime - swingStartTime);
+            refCurveZ[i] = refSpline.getPosition(t).z();
         }
         const Eigen::VectorXd terrainHeights = computeTerrainHeightProfile(sampleX, sampleY);
-
-        Eigen::VectorXd optimizedControlZ; // 优化后的控制点高度
-        const bool qpSolved = optimizeControlPointsZ(basisMat, z, refCurveZ, sampleX, terrainHeights, optimizedControlZ);
 
         OptimizedTrajectory result;
         result.startTime = swingStartTime;
         result.endTime = swingFinalTime;
+
+        const int ignoredBoundarySamples = std::max(1, config_.ignoreSamples);
+        const int firstConstrainedSample = std::min(static_cast<int>(refCurveZ.size()) - 1, ignoredBoundarySamples);
+        const int lastConstrainedSample = std::max(firstConstrainedSample,
+                                                   static_cast<int>(refCurveZ.size()) - ignoredBoundarySamples);
+        bool referenceCollides = false;
+        const double activationMargin = std::max(0.0, config_.collisionActivationMargin);
+        for (int i = firstConstrainedSample; i < lastConstrainedSample; ++i)
+        {
+            const double terrainLowerBound =
+                terrainHeights[i] + computePhaseClearance(sampleParams[i], config_.groundClearance);
+            if (refCurveZ[i] + activationMargin < terrainLowerBound)
+            {
+                referenceCollides = true;
+                break;
+            }
+        }
+
+        if (!referenceCollides)
+        {
+            result.collisionFree = true;
+            result.bspline = std::make_shared<BSpline>(refSpline);
+            return result;
+        }
+
+        Eigen::VectorXd optimizedControlZ; // 优化后的控制点高度
+        const bool qpSolved = optimizeControlPointsZ(
+            basisMat, z, refCurveZ, sampleX, sampleY, sampleParams,
+            swingFinalTime - swingStartTime, terrainHeights, optimizedControlZ);
 
         if (!qpSolved)
         {
@@ -1024,17 +1033,14 @@ namespace ocs2::legged_robot
         }
 
         bspline.setControlPoints(x, y, optimizedControlZ);
+        bspline.setKnots(bspline.generateKnots(config_.numControlPoints, swingStartTime, swingFinalTime, 0));
 
         const Eigen::VectorXd optimizedCurveZ = basisMat * optimizedControlZ;
-        const int ignoredBoundarySamples = std::max(1, config_.ignoreSamples);
-        const int firstConstrainedSample = std::min(static_cast<int>(optimizedCurveZ.size()) - 1, ignoredBoundarySamples);
-        const int lastConstrainedSample = std::max(firstConstrainedSample,
-                                                   static_cast<int>(optimizedCurveZ.size()) - ignoredBoundarySamples);
-
         result.collisionFree = true;
         for (int i = firstConstrainedSample; i < lastConstrainedSample; ++i)
         {
-            const double terrainLowerBound = terrainHeights[i] + config_.groundClearance;
+            const double terrainLowerBound =
+                terrainHeights[i] + computePhaseClearance(sampleParams[i], config_.groundClearance);
             if (optimizedCurveZ[i] + kConstraintViolationTolerance < terrainLowerBound)
             {
                 result.collisionFree = false;
@@ -1047,7 +1053,38 @@ namespace ocs2::legged_robot
             return result;
         }
 
+        const Eigen::VectorXd heightError = optimizedCurveZ - refCurveZ;
+        const double maxHeightDrop = std::max(0.0, -heightError.minCoeff());
+        const double maxHeightDeviation = heightError.cwiseAbs().maxCoeff();
+        const Eigen::MatrixXd jerkDiff = makeThirdDifferenceMatrix(static_cast<int>(refCurveZ.size()));
+        double refJerk = 0.0;
+        double optJerk = 0.0;
+        if (jerkDiff.rows() > 0)
+        {
+            refJerk = (jerkDiff * refCurveZ).norm() / std::sqrt(static_cast<double>(jerkDiff.rows()));
+            optJerk = (jerkDiff * optimizedCurveZ).norm() / std::sqrt(static_cast<double>(jerkDiff.rows()));
+        }
+
+        const bool excessiveDrop = maxHeightDrop > std::max(0.0, config_.maxOptimizedHeightDrop);
+        const bool excessiveDeviation =
+            maxHeightDeviation > std::max(0.0, config_.maxOptimizedHeightDeviation);
+        const bool excessiveJerk =
+            optJerk > std::max(0.0, config_.maxOptimizedJerkRatio) * std::max(refJerk, 1e-6) + 1e-5;
+        if (excessiveDrop || excessiveDeviation || excessiveJerk)
+        {
+            if (config_.verbose)
+            {
+                std::cerr << "Reject optimized swing trajectory: maxDrop=" << maxHeightDrop
+                          << ", maxDeviation=" << maxHeightDeviation
+                          << ", refJerk=" << refJerk
+                          << ", optJerk=" << optJerk << std::endl;
+            }
+            result.collisionFree = false;
+            return result;
+        }
+
         result.bspline = std::make_shared<BSpline>(std::move(bspline));
+        result.optimizedByQp = true;
         return result;
     }
 

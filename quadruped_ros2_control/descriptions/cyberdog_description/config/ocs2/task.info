@@ -22,7 +22,31 @@ swing_trajectory_config
   touchDownVelocity            -0.08   // 触地速度 - 降低以减少落地冲击
   swingHeight                   0.085
   swingTimeScale                0.15   // 摆动时间缩放因子
- 
+  useCbfUpdate                  true  // true: 使用地形感知 CBF-QP 生成摆动轨迹; false: 保持当前 update
+  cbfNumCurveSamples            120
+  cbfControlPointTrackingWeight 0.8
+  cbfPositionTrackingWeight     0.8
+  cbfVelocityTrackingWeight     0.35
+  cbfAccelerationTrackingWeight 0.2
+  cbfJerkSmoothnessWeight       0.08
+  cbfControlPointSmoothnessWeight 0.45
+  cbfControlPointJerkWeight     0.12
+  cbfGroundClearance            0.03
+  cbfCollisionActivationMargin  0.015
+  cbfMaxOptimizedHeightDrop     0.005
+  cbfMaxOptimizedHeightDeviation 0.08
+  cbfMaxOptimizedJerkRatio      2.0
+  cbfGamma                      3.0
+  cbfStartPhase                 0.18
+  cbfEndPhase                   0.82
+  cbfMaxTerrainConstraints      10
+  cbfMaxCbfConstraints          3
+  cbfQpMaxWorkingSetRecalculations 80
+  cbfLiftPropagationWindow      20
+  cbfLiftPropagationSigma       7.0
+  enableCbfConstraint           true
+  cbfElevationLayer             smooth_planar
+  cbfVerbose                    false
 }
 
 ; DDP settings

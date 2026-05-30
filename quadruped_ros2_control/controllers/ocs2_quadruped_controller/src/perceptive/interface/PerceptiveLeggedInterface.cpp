@@ -157,6 +157,10 @@ namespace ocs2::legged_robot
         auto swingTrajectoryPlanner =
             std::make_unique<SwingTrajectoryPlanner>(
                 loadSwingTrajectorySettings(taskFile, "swing_trajectory_config", verbose), 4);
+        swingTrajectoryPlanner->setTerrainInterface(std::make_shared<GridMapTerrainInterface>(
+            planarTerrainPtr_,
+            swingTrajectoryPlanner->getConfig().cbfQpConfig.elevationLayer,
+            swingTrajectoryPlanner->getConfig().cbfQpConfig.epsilon));
 
 
         std::unique_ptr<EndEffectorKinematics<scalar_t>> eeKinematicsPtr = getEeKinematicsPtr(

@@ -79,9 +79,10 @@ Eigen::MatrixXd BSpline::generateSplineBasisInternal(const Eigen::VectorXd& pts,
 
     for (int i = 0; i < numKnots - 1; ++i) {
         for (int j = 0; j < numParams; ++j) {
-            const double u = (pts[j] >= rightEndpoint)
+            const double clamped = std::min(std::max(pts[j], leftEndpoint), rightEndpoint);
+            const double u = (clamped >= rightEndpoint)
                                  ? std::nextafter(rightEndpoint, leftEndpoint)
-                                 : pts[j];
+                                 : clamped;
             if (u >= knots[i] && u < knots[i + 1]) {
                 basis(j, i) = 1.0;
             }
@@ -91,9 +92,10 @@ Eigen::MatrixXd BSpline::generateSplineBasisInternal(const Eigen::VectorXd& pts,
     for (int currentOrder = 2; currentOrder <= order; ++currentOrder) {
         for (int i = 0; i < numKnots - currentOrder; ++i) {
             for (int j = 0; j < numParams; ++j) {
-                const double u = (pts[j] >= rightEndpoint)
+                const double clamped = std::min(std::max(pts[j], leftEndpoint), rightEndpoint);
+                const double u = (clamped >= rightEndpoint)
                                      ? std::nextafter(rightEndpoint, leftEndpoint)
-                                     : pts[j];
+                                     : clamped;
                 const double leftCoeff = (knots[i + currentOrder - 1] != knots[i])
                                              ? (u - knots[i]) / (knots[i + currentOrder - 1] - knots[i])
                                              : 0.0;

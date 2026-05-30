@@ -213,19 +213,16 @@ namespace ocs2::legged_robot
             // std::cout << " updated based on projections\033[0m\n";
         }
 
-        // // 如果 QP 优化器已启用，使用带避碰优化的更新
-        // if (swingTrajectoryPtr_->isQpOptimizerEnabled()) {
-        //     auto [liftOff3d, touchDown3d] = getSwingPositions3d(contactFlagStocks, allProjections);
-        //     // std::cout << "modeSchedule: " << std::endl;
-        //     // for(int i = 0; i < modeSchedule.modeSequence.size(); ++i) {
-        //     //     std::cout << "  Time: " << modeSchedule.eventTimes[i] << ", Mode: " << modeSchedule.modeSequence[i] << std::endl;
-        //     // }
-        //     swingTrajectoryPtr_->updateWithQpOptimization(modeSchedule, initTime,
-        //                                                liftOffHeightSequence, touchDownHeightSequence,
-        //                                                liftOff3d, touchDown3d);
-        // } else {
+        if (swingTrajectoryPtr_->isCbfUpdateEnabled())
+        {
+            const auto [liftOff3d, touchDown3d] = getSwingPositions3d(contactFlagStocks, allProjections);
+            swingTrajectoryPtr_->updateCBF(modeSchedule, liftOffHeightSequence, touchDownHeightSequence,
+                                           liftOff3d, touchDown3d);
+        }
+        else
+        {
             swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
-        // }
+        }
     }
     
     // 根据当前状态和接触标志修正投影的高度

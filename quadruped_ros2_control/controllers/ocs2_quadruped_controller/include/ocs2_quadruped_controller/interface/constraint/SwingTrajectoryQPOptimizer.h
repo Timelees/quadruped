@@ -46,26 +46,36 @@ struct SwingTrajectoryQpConfig {
     int splineOrder = 3;
 
     // QP 权重
-    double controlPointTrackingWeight = 0.2;    // 抬升量 L2 惩罚，避免无约束区域整体抬高
-    double positionTrackingWeight = 0.5;        // 平滑抬升包络跟踪权重
-    double velocityTrackingWeight = 0.15;       // 抬升包络一阶差分跟踪权重
-    double accelerationTrackingWeight = 0.05;  // 抬升包络二阶差分跟踪权重
-    double jerkSmoothnessWeight = 0.01;         // 抬升曲线三阶差分平滑权重
-    double controlPointSmoothnessWeight = 0.1; // 控制点抬升量二阶差分平滑权重
-    double controlPointJerkWeight = 0.02;      // 控制点抬升量三阶差分平滑权重
+    double controlPointTrackingWeight = 0.8;    // 抬升量 L2 惩罚，避免无约束区域整体抬高
+    double positionTrackingWeight = 0.8;        // 平滑抬升包络跟踪权重
+    double velocityTrackingWeight = 0.35;       // 抬升包络一阶差分跟踪权重
+    double accelerationTrackingWeight = 0.2;    // 抬升包络二阶差分跟踪权重
+    double jerkSmoothnessWeight = 0.08;         // 抬升曲线三阶差分平滑权重
+    double controlPointSmoothnessWeight = 0.45; // 控制点抬升量二阶差分平滑权重
+    double controlPointJerkWeight = 0.12;       // 控制点抬升量三阶差分平滑权重
     double controlPointZMin = -0.0;
     double controlPointZMax = 0.3;
     double groundClearance = 1e-3;
+    double collisionActivationMargin = 0.015; // 名义轨迹低于地形安全高度超过该值时才启用 QP
+    double maxOptimizedHeightDrop = 0.005;    // QP 结果不能明显低于原始 BSpline
+    double maxOptimizedHeightDeviation = 0.08; // QP 结果相对原始 BSpline 的最大允许高度改变量
+    double maxOptimizedJerkRatio = 2.0;       // QP 结果的三阶差分粗糙度上限，相对原始 BSpline
     double hessianRegularization = 1e-8;      // Hessian 对角正则项
+    bool enableCbfConstraint = true;          // 将 h_dot + gamma h >= 0 作为线性样点约束加入 QP
+    double cbfGamma = 3.0;                    // CBF 收敛速度，越大越早抬腿避开地形
+    double cbfStartPhase = 0.18;              // 起跳端附近固定边界较强，CBF 从该相位后启用
+    double cbfEndPhase = 0.82;                // 落脚端附近固定边界较强，CBF 在该相位前启用
 
     int ignoreSamples = 5;        ///< 忽略起始和结束的采样点数，避免过于接近地面或触地点导致的数值问题
+    int maxTerrainConstraints = 12;     // 每条摆动轨迹只选取少量关键地形约束，避免阻塞 MPC
+    int maxCbfConstraints = 4;          // CBF 作为前馈安全偏置，保持小规模
+    int qpMaxWorkingSetRecalculations = 120;
     int maxActiveSetIterations = 80;
-    int qpMaxWorkingSetRecalculations = 4000;
     int constraintSeedRadius = 2;      // 先激活最难约束点附近的样点
     int constraintExpandStep = 1;      // 约束区域向两侧扩展的步长
     int constraintBandRadius = 1;      // 每次激活违反约束点时，同时激活其邻域样点
-    int liftPropagationWindow = 12;    // 将热点约束向两侧传播成平滑抬升包络的样点半径
-    double liftPropagationSigma = 4.0; // 热点抬升向两侧衰减的高斯尺度（样点）
+    int liftPropagationWindow = 20;    // 将热点约束向两侧传播成平滑抬升包络的样点半径
+    double liftPropagationSigma = 7.0; // 热点抬升向两侧衰减的高斯尺度（样点）
 
     // 地形梯度计算
     double epsilon = 0.005;      ///< 导数器不可用时的数值差分步长 (m)
@@ -136,6 +146,7 @@ public:
         scalar_t startTime = 0.0;
         scalar_t endTime = 0.0;
         bool collisionFree = false;
+        bool optimizedByQp = false;
         bool valid() const { return collisionFree && static_cast<bool>(bspline); }
     };
 
@@ -188,6 +199,9 @@ private:
                             const Eigen::VectorXd& refControlZ,
                             const Eigen::VectorXd& refCurveZ,
                             const Eigen::VectorXd& sampleX,
+                            const Eigen::VectorXd& sampleY,
+                            const Eigen::VectorXd& sampleParams,
+                            scalar_t swingDuration,
                             const Eigen::VectorXd& terrainHeights,
                             Eigen::VectorXd& xOpt) const;
 };

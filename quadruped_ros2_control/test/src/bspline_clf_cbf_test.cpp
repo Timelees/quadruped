@@ -1,667 +1,701 @@
 /******************************************************************************
- * 参考轨迹控制点采样 + B 样条重建测试
+ * B-spline swing trajectory CBF-QP demo.
  *
- * 流程:
- *   1. 生成一条 QuinticSplineCpg 参考摆动高度轨迹
- *   2. 沿参考轨迹均匀采样一组三维控制点 (x, y, z)
- *   3. 使用三次 B 样条生成离散曲线
- *   4. 导出 CSV 并调用 Python 绘图
+ * The test intentionally builds a nominal swing B-spline that intersects a
+ * stair step. A conservative CBF-QP then raises only the z control points while
+ * preserving the original curve shape as much as possible. The program exports
+ * CSV data and a paper-ready comparison figure.
  ******************************************************************************/
 
-#include <cstdlib>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <numeric>
 #include <string>
 #include <vector>
 
 #include <Eigen/Core>
-
 #include <qpOASES.hpp>
 
 #include "BSpline.h"
-#include "ocs2_quadruped_controller/interface/constraint/QuinticSplineCpg.h"
-#include "EdgeSphere.h"
 
+namespace {
 
-struct BSplineConfig {
-    // B 样条参数
+constexpr double kConstraintTolerance = 1e-8;
+constexpr double kCollisionReportTolerance = 1e-4;
+
+struct DemoConfig {
     int numControlPoints = 15;
-    int numCurveSamples = 300;
+    int numCurveSamples = 240;
     int splineOrder = 3;
 
-    // 摆动参数
     double swingStartTime = 0.0;
-    double swingFinalTime = 0.4;
-    double midHeight = 0.08;
+    double swingFinalTime = 0.42;
+    Eigen::Vector3d liftOff = Eigen::Vector3d(0.05, 0.0, 0.0);
+    Eigen::Vector3d touchDown = Eigen::Vector3d(0.24, 0.0, 0.08);
 
-    // 地形参数
-    double edgeX = 0.0;
-    double stepHeight = 0.00;
+    double stepEdgeX = 0.10;
+    double stepHeight = 0.08;
+    double nominalMidHeight = 0.055;
+    double groundClearance = 0.018;
+    double collisionActivationMargin = 0.004;
 
-    double sphereRadius = 0.0;
-    double groundClearance = 1e-3;
-    double sphereClearance = 0.01;
-    double controlPointSmoothnessWeight = 5e-2;
+    double cbfGamma = 3.0;
+    double cbfStartPhase = 0.18;
+    double cbfEndPhase = 0.82;
+
+    int liftPropagationWindow = 24;
+    double liftPropagationSigma = 8.0;
+    int maxTerrainConstraints = 14;
+    int maxCbfConstraints = 4;
+    int qpMaxWorkingSetRecalculations = 160;
+
+    double controlPointTrackingWeight = 0.9;
+    double positionTrackingWeight = 0.9;
+    double velocityTrackingWeight = 0.35;
+    double accelerationTrackingWeight = 0.25;
+    double jerkSmoothnessWeight = 0.10;
+    double controlPointSmoothnessWeight = 0.50;
+    double controlPointJerkWeight = 0.15;
+    double hessianRegularization = 1e-8;
     double controlPointZMin = -0.02;
-    double controlPointZMax = 0.22;
-
-    // 起飞和着陆位置
-    Eigen::Vector3d liftOffPos = Eigen::Vector3d(0.0, 0.0, 0.0);
-    Eigen::Vector3d touchDownPos = Eigen::Vector3d(0.10, 0.0, 0.0);
+    double controlPointZMax = 0.24;
 };
 
-// ============================================================================
-// 台阶地形: x < edgeX 时 z=0, x >= edgeX 时 z=stepHeight
-// ============================================================================
-class StepTerrain {
-public:
-    StepTerrain(double edgeX, double stepHeight)
-        : edgeX_(edgeX), stepHeight_(stepHeight) {}
-
-    double getHeight(double x, double /*y*/) const {
-        return (x >= edgeX_) ? stepHeight_ : 0.0;
-    }
-
-    Eigen::Vector2d getGradient(double x, double /*y*/) const {
-        (void)x;
-        return Eigen::Vector2d::Zero();
-    }
-
-    Eigen::Matrix2d getHessian(double x, double /*y*/) const {
-        (void)x;
-        return Eigen::Matrix2d::Zero();
-    }
-
-    double edgeX() const { return edgeX_; }
-    double stepHeight() const { return stepHeight_; }
-
-private:
-    double edgeX_, stepHeight_;
-};
-
-struct CurvePoint {
+struct CurveSample {
+    double phase = 0.0;
     double time = 0.0;
     Eigen::Vector3d position = Eigen::Vector3d::Zero();
+    double terrainHeight = 0.0;
+    double safetyHeight = 0.0;
+    bool collision = false;
 };
 
 struct CollisionStats {
-    int terrainCollisionCount = 0;
-    int sphereCollisionCount = 0;
-    double minTerrainClearance = std::numeric_limits<double>::infinity();
-    double minSphereSignedDistance = std::numeric_limits<double>::infinity();
+    int collisionCount = 0;
+    double minClearance = std::numeric_limits<double>::infinity();
+    double maxViolation = 0.0;
 };
 
-static StepTerrain* terrain = nullptr;
-static ocs2::legged_robot::EdgeSphere stepEdgeSphere;
+struct CandidateConstraint {
+    Eigen::RowVectorXd row;
+    double lowerBound = 0.0;
+    int sampleIndex = -1;
+    int type = 0;  // 0: terrain height, 1: CBF
+    double score = 0.0;
+};
 
-Eigen::Vector3d interpolateFootPosition(const Eigen::Vector3d& liftOff,
-                                        const Eigen::Vector3d& touchDown,
-                                        double t,
-                                        double t0,
-                                        double tf) {
-    const double alpha = (tf > t0) ? (t - t0) / (tf - t0) : 0.0;
-    return liftOff + alpha * (touchDown - liftOff);
+double phaseToTime(double phase, const DemoConfig& cfg) {
+    return cfg.swingStartTime + phase * (cfg.swingFinalTime - cfg.swingStartTime);
 }
 
-double normalizedToTime(double u, const BSplineConfig& cfg) {
-    return cfg.swingStartTime + u * (cfg.swingFinalTime - cfg.swingStartTime);
+double terrainHeight(double x, const DemoConfig& cfg) {
+    return (x >= cfg.stepEdgeX) ? cfg.stepHeight : 0.0;
 }
 
-void sampleReferenceTrajectory(const ocs2::legged_robot::QuinticSplineCpg& refSpline,
-                               const BSplineConfig& cfg,
-                               int numSamples,
-                               std::vector<CurvePoint>& samples) {
-    samples.clear();
-    samples.reserve(numSamples);
+double terrainGradientX(double x, const DemoConfig& cfg) {
+    (void)x;
+    (void)cfg;
+    return 0.0;
+}
 
-    const Eigen::VectorXd params = Eigen::VectorXd::LinSpaced(numSamples, 0.0, 1.0);
-    for (int i = 0; i < numSamples; ++i) {
-        const double t = normalizedToTime(params[i], cfg);
-        const Eigen::Vector3d footPos = interpolateFootPosition(
-            cfg.liftOffPos, cfg.touchDownPos, t, cfg.swingStartTime, cfg.swingFinalTime);
+double phaseClearance(double phase, double maxClearance) {
+    constexpr double kPi = 3.14159265358979323846;
+    const double clampedPhase = std::min(std::max(phase, 0.0), 1.0);
+    const double window = std::sin(kPi * clampedPhase);
+    return maxClearance * window * window;
+}
 
-        CurvePoint point;
-        point.time = t;
-        point.position = Eigen::Vector3d(footPos.x(), footPos.y(), refSpline.position(t));
-        samples.push_back(point);
+Eigen::MatrixXd makeForwardDifferenceMatrix(int rows) {
+    if (rows < 2) {
+        return Eigen::MatrixXd(0, std::max(0, rows));
     }
+    Eigen::MatrixXd diff = Eigen::MatrixXd::Zero(rows - 1, rows);
+    for (int i = 0; i + 1 < rows; ++i) {
+        diff(i, i) = -1.0;
+        diff(i, i + 1) = 1.0;
+    }
+    return diff;
 }
 
-void sampleReferenceTrajectoryToControlPoints(const ocs2::legged_robot::QuinticSplineCpg& refSpline,
-                                              const BSplineConfig& cfg,
-                                              std::vector<Eigen::Vector3d>& controlPoints) {
-    controlPoints.clear();
-    controlPoints.reserve(cfg.numControlPoints);
+Eigen::MatrixXd makeSecondDifferenceMatrix(int rows) {
+    if (rows < 3) {
+        return Eigen::MatrixXd(0, std::max(0, rows));
+    }
+    Eigen::MatrixXd diff = Eigen::MatrixXd::Zero(rows - 2, rows);
+    for (int i = 0; i + 2 < rows; ++i) {
+        diff(i, i) = 1.0;
+        diff(i, i + 1) = -2.0;
+        diff(i, i + 2) = 1.0;
+    }
+    return diff;
+}
 
-    const Eigen::VectorXd params = Eigen::VectorXd::LinSpaced(cfg.numControlPoints, 0.0, 1.0);
+Eigen::MatrixXd makeThirdDifferenceMatrix(int rows) {
+    if (rows < 4) {
+        return Eigen::MatrixXd(0, std::max(0, rows));
+    }
+    Eigen::MatrixXd diff = Eigen::MatrixXd::Zero(rows - 3, rows);
+    for (int i = 0; i + 3 < rows; ++i) {
+        diff(i, i) = -1.0;
+        diff(i, i + 1) = 3.0;
+        diff(i, i + 2) = -3.0;
+        diff(i, i + 3) = 1.0;
+    }
+    return diff;
+}
+
+Eigen::MatrixXd makeSampleDerivativeMatrix(const Eigen::VectorXd& phases) {
+    const int n = static_cast<int>(phases.size());
+    Eigen::MatrixXd derivative = Eigen::MatrixXd::Zero(n, n);
+    if (n < 2) {
+        return derivative;
+    }
+
+    for (int i = 0; i < n; ++i) {
+        if (i == 0) {
+            const double ds = std::max(phases[1] - phases[0], 1e-9);
+            derivative(i, 0) = -1.0 / ds;
+            derivative(i, 1) = 1.0 / ds;
+        } else if (i == n - 1) {
+            const double ds = std::max(phases[i] - phases[i - 1], 1e-9);
+            derivative(i, i - 1) = -1.0 / ds;
+            derivative(i, i) = 1.0 / ds;
+        } else {
+            const double ds = std::max(phases[i + 1] - phases[i - 1], 1e-9);
+            derivative(i, i - 1) = -1.0 / ds;
+            derivative(i, i + 1) = 1.0 / ds;
+        }
+    }
+    return derivative;
+}
+
+Eigen::VectorXd propagateLiftProfile(const Eigen::VectorXd& requiredLift,
+                                     int firstSample,
+                                     int lastSample,
+                                     int window,
+                                     double sigma) {
+    Eigen::VectorXd propagated = requiredLift;
+    if (window <= 0 || sigma <= 1e-9) {
+        return propagated;
+    }
+
+    const double sigmaSquared = sigma * sigma;
+    for (int center = firstSample; center < lastSample; ++center) {
+        if (requiredLift[center] <= kConstraintTolerance) {
+            continue;
+        }
+        const int begin = std::max(firstSample, center - window);
+        const int end = std::min(lastSample, center + window + 1);
+        for (int sample = begin; sample < end; ++sample) {
+            const double distance = static_cast<double>(sample - center);
+            const double weight = std::exp(-0.5 * distance * distance / sigmaSquared);
+            propagated[sample] = std::max(propagated[sample], requiredLift[center] * weight);
+        }
+    }
+    return propagated;
+}
+
+Eigen::VectorXd smoothLiftProfile(const Eigen::VectorXd& lift, const Eigen::VectorXd& minimumLift) {
+    Eigen::VectorXd smoothed = lift;
+    for (int iteration = 0; iteration < 2; ++iteration) {
+        Eigen::VectorXd next = smoothed;
+        for (Eigen::Index i = 1; i + 1 < smoothed.size(); ++i) {
+            next[i] = 0.25 * smoothed[i - 1] + 0.5 * smoothed[i] + 0.25 * smoothed[i + 1];
+        }
+        smoothed = next.cwiseMax(minimumLift);
+    }
+    return smoothed;
+}
+
+Eigen::Vector3d interpolateFoot(const DemoConfig& cfg, double phase) {
+    return cfg.liftOff + phase * (cfg.touchDown - cfg.liftOff);
+}
+
+BSpline createNominalSwingSpline(const DemoConfig& cfg,
+                                 Eigen::VectorXd& controlX,
+                                 Eigen::VectorXd& controlY,
+                                 Eigen::VectorXd& controlZ) {
+    controlX.resize(cfg.numControlPoints);
+    controlY.resize(cfg.numControlPoints);
+    controlZ.resize(cfg.numControlPoints);
+
     for (int i = 0; i < cfg.numControlPoints; ++i) {
-        const double t = normalizedToTime(params[i], cfg);
-        const Eigen::Vector3d footPos = interpolateFootPosition(
-            cfg.liftOffPos, cfg.touchDownPos, t, cfg.swingStartTime, cfg.swingFinalTime);
-        controlPoints.emplace_back(footPos.x(), footPos.y(), refSpline.position(t));
+        const double phase = static_cast<double>(i) / static_cast<double>(cfg.numControlPoints - 1);
+        const Eigen::Vector3d foot = interpolateFoot(cfg, phase);
+        controlX[i] = foot.x();
+        controlY[i] = foot.y();
+
+        const double linearZ = (1.0 - phase) * cfg.liftOff.z() + phase * cfg.touchDown.z();
+        const double arc = 4.0 * phase * (1.0 - phase) * cfg.nominalMidHeight;
+        controlZ[i] = linearZ + arc;
     }
+
+    BSpline spline(cfg.splineOrder);
+    spline.setControlPoints(controlX, controlY, controlZ);
+    spline.setKnots(spline.generateKnots(cfg.numControlPoints, 0.0, 1.0, 0));
+    return spline;
 }
 
-void evaluateBSplineCurve(const BSpline& bspline,
-                          const BSplineConfig& cfg,
-                          std::vector<CurvePoint>& curveSamples) {
-    curveSamples.clear();
-    curveSamples.reserve(cfg.numCurveSamples);
+std::vector<CurveSample> sampleSpline(const BSpline& spline, const DemoConfig& cfg) {
+    std::vector<CurveSample> samples;
+    samples.reserve(cfg.numCurveSamples);
 
-    const Eigen::VectorXd params = Eigen::VectorXd::LinSpaced(cfg.numCurveSamples, 0.0, 1.0);
-    const Eigen::VectorXd splineX = bspline.getSplineX(params);
-    const Eigen::VectorXd splineY = bspline.getSplineY(params);
-    const Eigen::VectorXd splineZ = bspline.getSplineZ(params);
-
-    for (int i = 0; i < params.size(); ++i) {
-        CurvePoint point;
-        point.time = normalizedToTime(params[i], cfg);
-        point.position = Eigen::Vector3d(splineX[i], splineY[i], splineZ[i]);
-        curveSamples.push_back(point);
+    const Eigen::VectorXd phases = Eigen::VectorXd::LinSpaced(cfg.numCurveSamples, 0.0, 1.0);
+    const Eigen::VectorXd xs = spline.getSplineX(phases);
+    const Eigen::VectorXd ys = spline.getSplineY(phases);
+    const Eigen::VectorXd zs = spline.getSplineZ(phases);
+    for (int i = 0; i < cfg.numCurveSamples; ++i) {
+        CurveSample sample;
+        sample.phase = phases[i];
+        sample.time = phaseToTime(phases[i], cfg);
+        sample.position = Eigen::Vector3d(xs[i], ys[i], zs[i]);
+        sample.terrainHeight = terrainHeight(xs[i], cfg);
+        sample.safetyHeight = sample.terrainHeight + phaseClearance(phases[i], cfg.groundClearance);
+        sample.collision = zs[i] + cfg.collisionActivationMargin < sample.safetyHeight;
+        samples.push_back(sample);
     }
+    return samples;
 }
 
-CollisionStats analyzeCurveCollisions(const std::vector<CurvePoint>& curve) {
+CollisionStats analyzeCollisions(const std::vector<CurveSample>& samples) {
     CollisionStats stats;
-
-    for (const auto& point : curve) {
-        const double terrainHeight = terrain->getHeight(point.position.x(), point.position.y());
-        const double terrainClearance = point.position.z() - terrainHeight;
-        stats.minTerrainClearance = std::min(stats.minTerrainClearance, terrainClearance);
-        if (terrainClearance < -1e-6) {
-            ++stats.terrainCollisionCount;
-        }
-
-        if (stepEdgeSphere.radius > 0.0) {
-            const double sphereSignedDistance = (point.position - stepEdgeSphere.center).norm() - stepEdgeSphere.radius;
-            stats.minSphereSignedDistance = std::min(stats.minSphereSignedDistance, sphereSignedDistance);
-            if (sphereSignedDistance < -1e-6) {
-                ++stats.sphereCollisionCount;
-            }
+    for (const auto& sample : samples) {
+        const double clearance = sample.position.z() - sample.safetyHeight;
+        stats.minClearance = std::min(stats.minClearance, clearance);
+        stats.maxViolation = std::max(stats.maxViolation, -clearance);
+        if (clearance < -kCollisionReportTolerance) {
+            ++stats.collisionCount;
         }
     }
-
     return stats;
 }
 
-Eigen::VectorXd computeTerrainHeightProfile(const Eigen::VectorXd& sampleX) {
-    Eigen::VectorXd terrainHeights(sampleX.size());
-    for (int i = 0; i < sampleX.size(); ++i) {
-        terrainHeights[i] = terrain->getHeight(sampleX[i], 0.0);
-    }
-    return terrainHeights;
-}
-
-Eigen::VectorXd computeTerrainHeightProfile(const Eigen::VectorXd& sampleX,
-                                           const Eigen::VectorXd& sampleY) {
-    Eigen::VectorXd terrainHeights(sampleX.size());
-    for (int i = 0; i < sampleX.size(); ++i) {
-        terrainHeights[i] = terrain->getHeight(sampleX[i], sampleY[i]);
-    }
-    return terrainHeights;
-}
-
-Eigen::VectorXd computeSphereHeightProfile(const Eigen::VectorXd& sampleX,
-                                           const Eigen::VectorXd& sampleY,
-                                           const BSplineConfig& cfg) {
-    Eigen::VectorXd sphereHeights = Eigen::VectorXd::Constant(
-        sampleX.size(), -std::numeric_limits<double>::infinity());
-
-    if (stepEdgeSphere.radius <= 0.0) {
-        return sphereHeights;
-    }
-
-    const double safeRadius = stepEdgeSphere.radius + cfg.sphereClearance;
-
-    for (int i = 0; i < sampleX.size(); ++i) {
-        const double dx = sampleX[i] - stepEdgeSphere.center.x();
-        const double dy = sampleY[i] - stepEdgeSphere.center.y();
-        const double radialTerm = safeRadius * safeRadius - dx * dx - dy * dy;
-        if (radialTerm > 0.0) {
-            sphereHeights[i] = stepEdgeSphere.center.z() + std::sqrt(radialTerm);
-        }
-    }
-
-    return sphereHeights;
-}
-
-bool optimizeControlPointsZ(
-    const Eigen::MatrixXd& basisMat,
-    const Eigen::VectorXd& refZ,
-    const Eigen::VectorXd& sampleX,
-    const Eigen::VectorXd& terrainHeights,
-    const Eigen::VectorXd& sphereHeights,
-    double groundClearance,
-    double smoothnessWeight,
-    double zMin,
-    double zMax,
-    Eigen::VectorXd& xOpt)
-{
-    const int nV = basisMat.cols();
-    const int numSamples = basisMat.rows();
-    if (refZ.size() != nV || sampleX.size() != numSamples || terrainHeights.size() != numSamples ||
-        sphereHeights.size() != numSamples) {
-        std::cerr << "Invalid dimensions for optimizeControlPointsZ." << std::endl;
-        return false;
-    }
-
-    Eigen::MatrixXd regularization = Eigen::MatrixXd::Zero(nV, nV);
-    if (nV >= 3) {
-        Eigen::MatrixXd secondDiff = Eigen::MatrixXd::Zero(nV - 2, nV);
-        for (int i = 0; i < nV - 2; ++i) {
-            secondDiff(i, i) = 1.0;
-            secondDiff(i, i + 1) = -2.0;
-            secondDiff(i, i + 2) = 1.0;
-        }
-        regularization = secondDiff.transpose() * secondDiff;
-    }
-
-    const Eigen::MatrixXd H_eigen = 2.0 * (Eigen::MatrixXd::Identity(nV, nV) + smoothnessWeight * regularization);
-    const Eigen::VectorXd g_eigen = -2.0 * refZ;
-
-    Eigen::VectorXd lb_eigen = Eigen::VectorXd::Constant(nV, zMin);
-    Eigen::VectorXd ub_eigen = Eigen::VectorXd::Constant(nV, zMax);
-    lb_eigen[0] = refZ[0];
-    ub_eigen[0] = refZ[0];
-    lb_eigen[nV - 1] = refZ[nV - 1];
-    ub_eigen[nV - 1] = refZ[nV - 1];
-
-    struct CandidateConstraint {
-        Eigen::RowVectorXd row;
-        double lowerBound = 0.0;
-        int sampleIndex = -1;
-        int type = 0;
-    };
-
-    std::vector<CandidateConstraint> candidates;
-    candidates.reserve(2 * numSamples);
-    for (int j = 1; j < numSamples - 1; ++j) {
-        candidates.push_back(CandidateConstraint{basisMat.row(j), terrainHeights[j] + groundClearance, j, 0});
-    }
-    for (int j = 1; j < numSamples - 1; ++j) {
-        if (std::isfinite(sphereHeights[j])) {
-            candidates.push_back(CandidateConstraint{basisMat.row(j), sphereHeights[j], j, 1});
-        }
-    }
-
-    auto upperAchievableFor = [&](const CandidateConstraint& candidate) {
-        double upperAchievable = 0.0;
-        for (int j = 0; j < nV; ++j) {
-            const double a = candidate.row[j];
-            upperAchievable += a * ((a >= 0.0) ? ub_eigen[j] : lb_eigen[j]);
-        }
-        return upperAchievable;
-    };
-
-    double worstViolation = 0.0;
-    int worstConstraint = -1;
-    double worstLowerBound = 0.0;
-    double worstUpperAchievable = 0.0;
-    for (size_t i = 0; i < candidates.size(); ++i) {
-        const double upperAchievable = upperAchievableFor(candidates[i]);
-        const double violation = candidates[i].lowerBound - upperAchievable;
-        if (violation > worstViolation) {
-            worstViolation = violation;
-            worstConstraint = static_cast<int>(i);
-            worstLowerBound = candidates[i].lowerBound;
-            worstUpperAchievable = upperAchievable;
-        }
-    }
-
-    if (worstViolation > 1e-8) {
-        std::cerr << "QP infeasible before solve. Worst constraint=" << worstConstraint
-                  << " sampleX=" << sampleX[candidates[worstConstraint].sampleIndex]
-                  << " type=" << (candidates[worstConstraint].type == 0 ? "terrain" : "sphere")
-                  << " lowerBound=" << worstLowerBound
-                  << " upperAchievable=" << worstUpperAchievable
-                  << " violation=" << worstViolation << std::endl;
-        return false;
-    }
-
-    std::vector<qpOASES::real_t> H(H_eigen.size());
-    std::vector<qpOASES::real_t> g(g_eigen.size());
-    std::vector<qpOASES::real_t> lb(lb_eigen.size());
-    std::vector<qpOASES::real_t> ub(ub_eigen.size());
-
-    int idx = 0;
-    for (int i = 0; i < nV; ++i) {
-        for (int j = 0; j < nV; ++j) {
-            H[idx++] = static_cast<qpOASES::real_t>(H_eigen(i, j));
-        }
-        g[i] = static_cast<qpOASES::real_t>(g_eigen[i]);
-        lb[i] = static_cast<qpOASES::real_t>(lb_eigen[i]);
-        ub[i] = static_cast<qpOASES::real_t>(ub_eigen[i]);
-    }
-
-    auto projectReferenceToBounds = [&]() {
-        Eigen::VectorXd projected = refZ;
-        for (int i = 0; i < nV; ++i) {
-            projected[i] = std::min(std::max(projected[i], lb_eigen[i]), ub_eigen[i]);
-        }
-        return projected;
-    };
-
-    auto solveSubproblem = [&](const std::vector<int>& activeSet, Eigen::VectorXd& solution) {
-        if (activeSet.empty()) {
-            solution = projectReferenceToBounds();
+bool referenceRequiresOptimization(const std::vector<CurveSample>& samples, const DemoConfig& cfg) {
+    for (const auto& sample : samples) {
+        if (sample.position.z() + cfg.collisionActivationMargin < sample.safetyHeight) {
             return true;
         }
-
-        const int nC = static_cast<int>(activeSet.size());
-        Eigen::MatrixXd A_eigen(nC, nV);
-        Eigen::VectorXd lbA_eigen(nC);
-        Eigen::VectorXd ubA_eigen = Eigen::VectorXd::Constant(nC, 1e20);
-        for (int i = 0; i < nC; ++i) {
-            A_eigen.row(i) = candidates[activeSet[i]].row;
-            lbA_eigen[i] = candidates[activeSet[i]].lowerBound;
-        }
-
-        std::vector<qpOASES::real_t> A(A_eigen.size());
-        std::vector<qpOASES::real_t> lbA(lbA_eigen.size());
-        std::vector<qpOASES::real_t> ubA(ubA_eigen.size());
-        int aIdx = 0;
-        for (int i = 0; i < nC; ++i) {
-            for (int j = 0; j < nV; ++j) {
-                A[aIdx++] = static_cast<qpOASES::real_t>(A_eigen(i, j));
-            }
-            lbA[i] = static_cast<qpOASES::real_t>(lbA_eigen[i]);
-            ubA[i] = static_cast<qpOASES::real_t>(ubA_eigen[i]);
-        }
-
-        qpOASES::QProblem problem(nV, nC);
-        qpOASES::Options options;
-        options.setToReliable();
-        options.printLevel = qpOASES::PL_NONE;
-        problem.setOptions(options);
-
-        qpOASES::int_t nWSR = 4000;
-        const auto ret = problem.init(H.data(), g.data(), A.data(), lb.data(), ub.data(),
-                                      lbA.data(), ubA.data(), nWSR);
-
-        if (ret != qpOASES::SUCCESSFUL_RETURN) {
-            std::cerr << "qpOASES initialization failed with code " << ret;
-            if (ret == qpOASES::RET_INIT_FAILED_INFEASIBILITY) {
-                std::cerr << " (RET_INIT_FAILED_INFEASIBILITY)";
-            } else if (ret == qpOASES::RET_MAX_NWSR_REACHED) {
-                std::cerr << " (RET_MAX_NWSR_REACHED)";
-            } else if (ret == qpOASES::RET_INIT_FAILED_CHOLESKY) {
-                std::cerr << " (RET_INIT_FAILED_CHOLESKY)";
-            }
-            std::cerr << ", activeConstraints=" << nC << std::endl;
-            return false;
-        }
-
-        std::vector<qpOASES::real_t> xOptVec(nV);
-        problem.getPrimalSolution(xOptVec.data());
-        solution.resize(nV);
-        for (int i = 0; i < nV; ++i) {
-            solution[i] = static_cast<double>(xOptVec[i]);
-        }
-        return true;
-    };
-
-    std::vector<int> activeSet;
-    activeSet.reserve(32);
-    std::vector<bool> isActive(candidates.size(), false);
-    Eigen::VectorXd currentSolution = projectReferenceToBounds();
-
-    for (int outerIter = 0; outerIter < 80; ++outerIter) {
-        if (!solveSubproblem(activeSet, currentSolution)) {
-            return false;
-        }
-
-        const Eigen::VectorXd curveZ = basisMat * currentSolution;
-        double maxViolation = 0.0;
-        int violatingCandidate = -1;
-        for (size_t i = 0; i < candidates.size(); ++i) {
-            const int sampleIndex = candidates[i].sampleIndex;
-            const double violation = candidates[i].lowerBound - curveZ[sampleIndex];
-            if (violation > maxViolation + 1e-8) {
-                maxViolation = violation;
-                violatingCandidate = static_cast<int>(i);
-            }
-        }
-
-        if (violatingCandidate < 0) {
-            xOpt = currentSolution;
-            return true;
-        }
-
-        if (isActive[violatingCandidate]) {
-            std::cerr << "Active-set QP stalled at sample " << candidates[violatingCandidate].sampleIndex
-                      << " with remaining violation " << maxViolation << std::endl;
-            return false;
-        }
-
-        activeSet.push_back(violatingCandidate);
-        isActive[violatingCandidate] = true;
     }
-
-    std::cerr << "Active-set QP exceeded outer iterations." << std::endl;
     return false;
 }
 
+Eigen::VectorXd projectReferenceToBounds(const Eigen::VectorXd& ref,
+                                         const Eigen::VectorXd& lb,
+                                         const Eigen::VectorXd& ub) {
+    Eigen::VectorXd projected = ref;
+    for (int i = 0; i < ref.size(); ++i) {
+        projected[i] = std::min(std::max(projected[i], lb[i]), ub[i]);
+    }
+    return projected;
+}
 
-void writeCsvAndPlot(const std::vector<CurvePoint>& referenceCurve,
-                     const std::vector<Eigen::Vector3d>& controlPoints,
-                     const std::vector<CurvePoint>& bsplineCurve,
-                     const BSplineConfig& cfg) {
-    const std::string csvPath = "/tmp/bspline_reference_sampling.csv";
-    const std::string scriptPath = "/tmp/bspline_reference_sampling_plot.py";
+bool solveQp(const Eigen::MatrixXd& H,
+             const Eigen::VectorXd& g,
+             const Eigen::VectorXd& lb,
+             const Eigen::VectorXd& ub,
+             const std::vector<CandidateConstraint>& candidates,
+             const std::vector<int>& activeSet,
+             int maxWorkingSetRecalculations,
+             const Eigen::VectorXd& reference,
+             Eigen::VectorXd& solution) {
+    const int nV = static_cast<int>(H.cols());
+    if (activeSet.empty()) {
+        solution = projectReferenceToBounds(reference, lb, ub);
+        return true;
+    }
+
+    const int nC = static_cast<int>(activeSet.size());
+    Eigen::MatrixXd A = Eigen::MatrixXd::Zero(nC, nV);
+    Eigen::VectorXd lbA(nC);
+    Eigen::VectorXd ubA = Eigen::VectorXd::Constant(nC, 1e20);
+    for (int i = 0; i < nC; ++i) {
+        A.row(i) = candidates[activeSet[i]].row;
+        lbA[i] = candidates[activeSet[i]].lowerBound;
+    }
+
+    std::vector<qpOASES::real_t> hRaw(H.size());
+    std::vector<qpOASES::real_t> gRaw(g.size());
+    std::vector<qpOASES::real_t> lbRaw(lb.size());
+    std::vector<qpOASES::real_t> ubRaw(ub.size());
+    std::vector<qpOASES::real_t> aRaw(A.size());
+    std::vector<qpOASES::real_t> lbARaw(lbA.size());
+    std::vector<qpOASES::real_t> ubARaw(ubA.size());
+
+    int hIdx = 0;
+    for (int i = 0; i < nV; ++i) {
+        for (int j = 0; j < nV; ++j) {
+            hRaw[hIdx++] = static_cast<qpOASES::real_t>(H(i, j));
+        }
+        gRaw[i] = static_cast<qpOASES::real_t>(g[i]);
+        lbRaw[i] = static_cast<qpOASES::real_t>(lb[i]);
+        ubRaw[i] = static_cast<qpOASES::real_t>(ub[i]);
+    }
+
+    int aIdx = 0;
+    for (int i = 0; i < nC; ++i) {
+        for (int j = 0; j < nV; ++j) {
+            aRaw[aIdx++] = static_cast<qpOASES::real_t>(A(i, j));
+        }
+        lbARaw[i] = static_cast<qpOASES::real_t>(lbA[i]);
+        ubARaw[i] = static_cast<qpOASES::real_t>(ubA[i]);
+    }
+
+    qpOASES::QProblem problem(nV, nC);
+    qpOASES::Options options;
+    options.setToMPC();
+    options.enableRegularisation = qpOASES::BT_TRUE;
+    options.printLevel = qpOASES::PL_NONE;
+    problem.setOptions(options);
+
+    qpOASES::int_t nWSR = static_cast<qpOASES::int_t>(std::max(1, maxWorkingSetRecalculations));
+    const auto ret = problem.init(hRaw.data(), gRaw.data(), aRaw.data(), lbRaw.data(), ubRaw.data(),
+                                  lbARaw.data(), ubARaw.data(), nWSR);
+    if (ret != qpOASES::SUCCESSFUL_RETURN) {
+        std::cerr << "qpOASES failed with code " << ret << ", activeConstraints=" << nC << "\n";
+        return false;
+    }
+
+    std::vector<qpOASES::real_t> xOpt(nV);
+    problem.getPrimalSolution(xOpt.data());
+    solution.resize(nV);
+    for (int i = 0; i < nV; ++i) {
+        solution[i] = static_cast<double>(xOpt[i]);
+    }
+    return true;
+}
+
+std::vector<int> selectConstraints(const std::vector<CandidateConstraint>& candidates,
+                                   int numSamples,
+                                   int maxTerrainConstraints,
+                                   int maxCbfConstraints) {
+    std::vector<int> terrain;
+    std::vector<int> cbf;
+    for (int i = 0; i < static_cast<int>(candidates.size()); ++i) {
+        if (candidates[i].type == 0) {
+            terrain.push_back(i);
+        } else {
+            cbf.push_back(i);
+        }
+    }
+
+    auto byScore = [&](int lhs, int rhs) {
+        return candidates[lhs].score > candidates[rhs].score;
+    };
+    std::sort(terrain.begin(), terrain.end(), byScore);
+    std::sort(cbf.begin(), cbf.end(), byScore);
+
+    std::vector<int> selected;
+    auto appendSeparated = [&](const std::vector<int>& source, int limit) {
+        const int firstSelected = static_cast<int>(selected.size());
+        const int minSpacing = std::max(1, numSamples / std::max(1, 2 * limit));
+        for (const int index : source) {
+            if (static_cast<int>(selected.size()) - firstSelected >= limit) {
+                return;
+            }
+            const int sampleIndex = candidates[index].sampleIndex;
+            const bool separated = std::none_of(selected.begin() + firstSelected, selected.end(), [&](int selectedIndex) {
+                return std::abs(candidates[selectedIndex].sampleIndex - sampleIndex) < minSpacing;
+            });
+            if (separated) {
+                selected.push_back(index);
+            }
+        }
+        for (const int index : source) {
+            if (static_cast<int>(selected.size()) - firstSelected >= limit) {
+                return;
+            }
+            if (std::find(selected.begin() + firstSelected, selected.end(), index) == selected.end()) {
+                selected.push_back(index);
+            }
+        }
+    };
+
+    appendSeparated(terrain, maxTerrainConstraints);
+    appendSeparated(cbf, maxCbfConstraints);
+    return selected;
+}
+
+bool optimizeControlPointsZ(const Eigen::MatrixXd& basis,
+                            const Eigen::VectorXd& refControlZ,
+                            const Eigen::VectorXd& refCurveZ,
+                            const Eigen::VectorXd& sampleX,
+                            const Eigen::VectorXd& phases,
+                            const DemoConfig& cfg,
+                            Eigen::VectorXd& optimizedControlZ,
+                            std::vector<int>& selectedConstraintSamples) {
+    const int nV = static_cast<int>(basis.cols());
+    const int numSamples = static_cast<int>(basis.rows());
+    const int firstSample = std::min(numSamples - 1, 4);
+    const int lastSample = std::max(firstSample, numSamples - 4);
+    const double duration = std::max(cfg.swingFinalTime - cfg.swingStartTime, 1e-3);
+
+    Eigen::VectorXd terrain(numSamples);
+    Eigen::VectorXd requiredCurveZ(numSamples);
+    for (int i = 0; i < numSamples; ++i) {
+        terrain[i] = terrainHeight(sampleX[i], cfg);
+        requiredCurveZ[i] = terrain[i] + phaseClearance(phases[i], cfg.groundClearance);
+    }
+
+    const Eigen::VectorXd baselineCurveZ = basis * refControlZ;
+    const Eigen::VectorXd requiredLift = (requiredCurveZ - baselineCurveZ).cwiseMax(0.0);
+    const Eigen::VectorXd propagatedLift = propagateLiftProfile(
+        requiredLift, firstSample, lastSample, cfg.liftPropagationWindow, cfg.liftPropagationSigma);
+    const Eigen::VectorXd smoothLift = smoothLiftProfile(propagatedLift, requiredLift);
+    const Eigen::VectorXd targetCurveZ = (baselineCurveZ + smoothLift).cwiseMax(refCurveZ);
+
+    const Eigen::MatrixXd cpSecondDiff = makeSecondDifferenceMatrix(nV);
+    const Eigen::MatrixXd cpThirdDiff = makeThirdDifferenceMatrix(nV);
+    const Eigen::MatrixXd forwardDiff = makeForwardDifferenceMatrix(numSamples);
+    const Eigen::MatrixXd secondDiff = makeSecondDifferenceMatrix(numSamples);
+    const Eigen::MatrixXd thirdDiff = makeThirdDifferenceMatrix(numSamples);
+
+    Eigen::MatrixXd objective = Eigen::MatrixXd::Zero(nV, nV);
+    Eigen::VectorXd vector = Eigen::VectorXd::Zero(nV);
+
+    objective.diagonal().array() += cfg.controlPointTrackingWeight;
+    vector += cfg.controlPointTrackingWeight * refControlZ;
+
+    objective += cfg.positionTrackingWeight * basis.transpose() * basis;
+    vector += cfg.positionTrackingWeight * basis.transpose() * targetCurveZ;
+
+    if (cpSecondDiff.rows() > 0) {
+        objective += cfg.controlPointSmoothnessWeight * cpSecondDiff.transpose() * cpSecondDiff;
+    }
+    if (cpThirdDiff.rows() > 0) {
+        objective += cfg.controlPointJerkWeight * cpThirdDiff.transpose() * cpThirdDiff;
+    }
+    if (forwardDiff.rows() > 0) {
+        const Eigen::MatrixXd mapping = forwardDiff * basis;
+        objective += cfg.velocityTrackingWeight * mapping.transpose() * mapping;
+        vector += cfg.velocityTrackingWeight * mapping.transpose() * (forwardDiff * targetCurveZ);
+    }
+    if (secondDiff.rows() > 0) {
+        const Eigen::MatrixXd mapping = secondDiff * basis;
+        objective += cfg.accelerationTrackingWeight * mapping.transpose() * mapping;
+        vector += cfg.accelerationTrackingWeight * mapping.transpose() * (secondDiff * targetCurveZ);
+    }
+    if (thirdDiff.rows() > 0) {
+        const Eigen::MatrixXd mapping = thirdDiff * basis;
+        objective += cfg.jerkSmoothnessWeight * mapping.transpose() * mapping;
+    }
+
+    Eigen::MatrixXd H = 2.0 * objective;
+    H = 0.5 * (H + H.transpose()).eval();
+    H.diagonal().array() += 2.0 * cfg.hessianRegularization;
+    const Eigen::VectorXd g = -2.0 * vector;
+
+    Eigen::VectorXd lb = Eigen::VectorXd::Constant(nV, cfg.controlPointZMin);
+    Eigen::VectorXd ub = Eigen::VectorXd::Constant(nV, cfg.controlPointZMax);
+    lb[0] = refControlZ[0];
+    ub[0] = refControlZ[0];
+    lb[nV - 1] = refControlZ[nV - 1];
+    ub[nV - 1] = refControlZ[nV - 1];
+
+    const Eigen::MatrixXd derivativeBasis = makeSampleDerivativeMatrix(phases) * basis;
+    const Eigen::VectorXd sampleXPrime = makeSampleDerivativeMatrix(phases) * sampleX;
+    std::vector<CandidateConstraint> candidates;
+    candidates.reserve(2 * numSamples);
+
+    for (int j = 1; j + 1 < numSamples; ++j) {
+        const double terrainLowerBound = requiredCurveZ[j];
+        if (terrainLowerBound > refCurveZ[j] + kConstraintTolerance) {
+            const double violation = std::max(0.0, terrainLowerBound - refCurveZ[j]);
+            candidates.push_back(CandidateConstraint{
+                basis.row(j), terrainLowerBound, j, 0,
+                std::max(violation, targetCurveZ[j] - refCurveZ[j])});
+        }
+
+        if (j >= firstSample &&
+            j < lastSample &&
+            phases[j] >= cfg.cbfStartPhase &&
+            phases[j] <= cfg.cbfEndPhase) {
+            const double terrainDerivative = terrainGradientX(sampleX[j], cfg) * sampleXPrime[j];
+            const Eigen::RowVectorXd cbfRow = derivativeBasis.row(j) + cfg.cbfGamma * duration * basis.row(j);
+            const double cbfLowerBound = terrainDerivative + cfg.cbfGamma * duration * terrainLowerBound;
+            const double violation = std::max(0.0, cbfLowerBound - cbfRow.dot(refControlZ));
+            if (violation > kConstraintTolerance) {
+                candidates.push_back(CandidateConstraint{cbfRow, cbfLowerBound, j, 1, violation});
+            }
+        }
+    }
+
+    const std::vector<int> activeSet = selectConstraints(
+        candidates, numSamples, cfg.maxTerrainConstraints, cfg.maxCbfConstraints);
+    selectedConstraintSamples.clear();
+    for (const int candidateIndex : activeSet) {
+        selectedConstraintSamples.push_back(candidates[candidateIndex].sampleIndex);
+    }
+
+    if (!solveQp(H, g, lb, ub, candidates, activeSet, cfg.qpMaxWorkingSetRecalculations,
+                 refControlZ, optimizedControlZ)) {
+        return false;
+    }
+
+    return true;
+}
+
+void writeCsvAndPlot(const std::vector<CurveSample>& nominal,
+                     const std::vector<CurveSample>& optimized,
+                     const Eigen::VectorXd& controlX,
+                     const Eigen::VectorXd& nominalControlZ,
+                     const Eigen::VectorXd& optimizedControlZ) {
+    const std::string csvPath = "/tmp/bspline_cbf_qp_comparison.csv";
+    const std::string scriptPath = "/tmp/bspline_cbf_qp_comparison_plot.py";
+    const std::string pngPath = "/tmp/bspline_cbf_qp_comparison.png";
 
     std::ofstream csv(csvPath);
-    csv << "type,index,time,x,z\n";
-
-    for (int i = 0; i <= cfg.numCurveSamples; ++i) {
-        const double alpha = static_cast<double>(i) / std::max(cfg.numCurveSamples, 1);
-        const double x = cfg.liftOffPos.x() + alpha * (cfg.edgeX - cfg.liftOffPos.x());
-        if (x < cfg.edgeX) {
-            csv << "terrain," << i << ",-1," << x << ",0\n";
-        }
+    csv << "type,index,phase,time,x,z,terrain,safety,collision\n";
+    for (size_t i = 0; i < nominal.size(); ++i) {
+        csv << "nominal," << i << "," << nominal[i].phase << "," << nominal[i].time << ","
+            << nominal[i].position.x() << "," << nominal[i].position.z() << ","
+            << nominal[i].terrainHeight << "," << nominal[i].safetyHeight << ","
+            << (nominal[i].collision ? 1 : 0) << "\n";
     }
-    csv << "terrain," << cfg.numCurveSamples + 1 << ",-1," << cfg.edgeX << ",0\n";
-    csv << "terrain," << cfg.numCurveSamples + 2 << ",-1," << cfg.edgeX << "," << cfg.stepHeight << "\n";
-    for (int i = 0; i <= cfg.numCurveSamples; ++i) {
-        const double alpha = static_cast<double>(i) / std::max(cfg.numCurveSamples, 1);
-        const double x = cfg.edgeX + alpha * (cfg.touchDownPos.x() - cfg.edgeX);
-        if (x > cfg.edgeX) {
-            csv << "terrain," << cfg.numCurveSamples + 3 + i << ",-1," << x << "," << cfg.stepHeight << "\n";
-        }
+    for (size_t i = 0; i < optimized.size(); ++i) {
+        csv << "optimized," << i << "," << optimized[i].phase << "," << optimized[i].time << ","
+            << optimized[i].position.x() << "," << optimized[i].position.z() << ","
+            << optimized[i].terrainHeight << "," << optimized[i].safetyHeight << ","
+            << (optimized[i].collision ? 1 : 0) << "\n";
     }
-
-    const int circleSamples = 64;
-    if (stepEdgeSphere.radius > 0.0) {
-        for (int i = 0; i <= circleSamples; ++i) {
-            const double theta = 2.0 * std::acos(-1.0) * static_cast<double>(i) / circleSamples;
-            const double sphereX = stepEdgeSphere.center.x() + stepEdgeSphere.radius * std::cos(theta);
-            const double sphereZ = stepEdgeSphere.center.z() + stepEdgeSphere.radius * std::sin(theta);
-            csv << "sphere," << i << ",-1," << sphereX << "," << sphereZ << "\n";
-        }
-    }
-
-    for (size_t i = 0; i < referenceCurve.size(); ++i) {
-        csv << "reference," << i << "," << referenceCurve[i].time << ","
-            << referenceCurve[i].position.x() << "," << referenceCurve[i].position.z() << "\n";
-    }
-
-    for (size_t i = 0; i < controlPoints.size(); ++i) {
-        csv << "control_point," << i << ",-1,"
-            << controlPoints[i].x() << "," << controlPoints[i].z() << "\n";
-    }
-
-    for (size_t i = 0; i < bsplineCurve.size(); ++i) {
-        csv << "bspline," << i << "," << bsplineCurve[i].time << ","
-            << bsplineCurve[i].position.x() << "," << bsplineCurve[i].position.z() << "\n";
+    for (int i = 0; i < controlX.size(); ++i) {
+        csv << "nominal_control," << i << ",-1,-1," << controlX[i] << "," << nominalControlZ[i]
+            << ",nan,nan,0\n";
+        csv << "optimized_control," << i << ",-1,-1," << controlX[i] << "," << optimizedControlZ[i]
+            << ",nan,nan,0\n";
     }
     csv.close();
 
     std::ofstream py(scriptPath);
     py << "import csv\n"
        << "from collections import defaultdict\n"
-         << "import matplotlib.pyplot as plt\n\n"
-         << "data = defaultdict(lambda: {'x': [], 'z': [], 'idx': [], 'time': []})\n"
-       << "with open('" << csvPath << "', newline='') as f:\n"
-       << "    reader = csv.DictReader(f)\n"
-       << "    for row in reader:\n"
+       << "import math\n"
+       << "import os\n"
+       << "os.environ.setdefault('MPLCONFIGDIR', '/tmp/matplotlib')\n"
+       << "import matplotlib.pyplot as plt\n\n"
+       << "from matplotlib import font_manager as fm\n"
+       << "font_candidates = [\n"
+       << "    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',\n"
+       << "    '/usr/share/fonts/opentype/noto/NotoSansCJK-Medium.ttc',\n"
+       << "    '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',\n"
+       << "]\n"
+       << "font_prop = None\n"
+       << "for font_path in font_candidates:\n"
+       << "    if os.path.exists(font_path):\n"
+       << "        fm.fontManager.addfont(font_path)\n"
+       << "        font_prop = fm.FontProperties(fname=font_path)\n"
+       << "        plt.rcParams['font.sans-serif'] = [font_prop.get_name(), 'DejaVu Sans']\n"
+       << "        break\n"
+       << "plt.rcParams['axes.unicode_minus'] = False\n\n"
+       << "csv_path = '" << csvPath << "'\n"
+       << "png_path = '" << pngPath << "'\n"
+       << "data = defaultdict(lambda: defaultdict(list))\n"
+       << "with open(csv_path, newline='') as f:\n"
+       << "    for row in csv.DictReader(f):\n"
        << "        key = row['type']\n"
-       << "        data[key]['time'].append(float(row['time']))\n"
-       << "        data[key]['x'].append(float(row['x']))\n"
-       << "        data[key]['z'].append(float(row['z']))\n"
-       << "        data[key]['idx'].append(int(row['index']))\n\n"
-    << "fig, axes = plt.subplots(1, 2, figsize=(15.5, 5.4), gridspec_kw={'width_ratios': [1.9, 1.1]})\n"
-    << "ax_curve, ax_cp = axes\n"
-    << "if len(data['terrain']['x']) > 0:\n"
-    << "    ax_curve.fill_between(data['terrain']['x'], -0.02, data['terrain']['z'], alpha=0.3, color='brown', label='Terrain')\n"
-    << "    ax_curve.plot(data['terrain']['x'], data['terrain']['z'], 'k-', linewidth=2.0)\n"
-    << "if len(data['sphere']['x']) > 0:\n"
-    << "    ax_curve.plot(data['sphere']['x'], data['sphere']['z'], 'm-', linewidth=1.5, label='EdgeSphere')\n"
-    << "    ax_curve.fill(data['sphere']['x'], data['sphere']['z'], color='magenta', alpha=0.18)\n"
-       << "ax_curve.plot(data['reference']['x'], data['reference']['z'], 'k--', linewidth=2.0, label='Reference trajectory')\n"
-    << "ax_curve.plot(data['bspline']['x'], data['bspline']['z'], 'r-', linewidth=2.2, label='Optimized B-spline curve')\n"
-    << "ax_curve.plot(data['control_point']['x'], data['control_point']['z'], 'bo--', markersize=4.5, linewidth=1.0, label='Optimized control points')\n"
-    << "ax_curve.plot(" << cfg.liftOffPos.x() << ", " << cfg.liftOffPos.z() << ", 'go', markersize=8, zorder=5, label='LiftOff')\n"
-    << "ax_curve.plot(" << cfg.touchDownPos.x() << ", " << cfg.touchDownPos.z() << ", 'rs', markersize=8, zorder=5, label='TouchDown')\n"
-    << "ax_curve.axvline(x=" << cfg.edgeX << ", color='gray', linestyle=':', alpha=0.5, label='Step edge')\n"
-    << "ax_curve.set_title('Reference / B-spline / Environment')\n"
-       << "ax_curve.set_xlabel('X (m)')\n"
-       << "ax_curve.set_ylabel('Z (m)')\n"
-       << "ax_curve.grid(True, alpha=0.3)\n"
-       << "ax_curve.legend()\n"
-       << "ax_curve.set_aspect('equal', adjustable='box')\n\n"
-       << "ax_cp.plot(data['control_point']['idx'], data['control_point']['x'], 'o-', linewidth=1.4, markersize=5, label='x')\n"
-       << "ax_cp.plot(data['control_point']['idx'], data['control_point']['z'], 'o-', linewidth=1.4, markersize=5, label='z')\n"
-       << "ax_cp.set_title('Sampled Control Points')\n"
-       << "ax_cp.set_xlabel('Control point index')\n"
-       << "ax_cp.set_ylabel('Value (m)')\n"
-       << "ax_cp.grid(True, alpha=0.3)\n"
-       << "ax_cp.legend()\n\n"
+       << "        for field in ['index','phase','time','x','z','terrain','safety','collision']:\n"
+       << "            value = row[field]\n"
+       << "            try:\n"
+       << "                data[key][field].append(float(value))\n"
+       << "            except ValueError:\n"
+       << "                data[key][field].append(float('nan'))\n\n"
+       << "fig, ax = plt.subplots(figsize=(9.2, 4.8))\n"
+       << "x = data['nominal']['x']\n"
+       << "terrain = data['nominal']['terrain']\n"
+       << "ax.fill_between(x, [-0.025]*len(x), terrain, color='#8d6e63', alpha=0.28, label='楼梯地形')\n"
+       << "ax.plot(x, terrain, color='black', linewidth=1.8, label='地形高度')\n"
+       << "ax.plot(data['nominal']['x'], data['nominal']['z'], color='#d62728', linestyle='--', linewidth=2.2, label='原始B样条轨迹（碰撞）')\n"
+       << "ax.plot(data['optimized']['x'], data['optimized']['z'], color='#1f77b4', linewidth=2.4, label='优化后CBF-QP B样条轨迹')\n"
+       << "ax.plot(data['nominal_control']['x'], data['nominal_control']['z'], 'o--', color='#ef9a9a', markersize=4.0, linewidth=1.0, label='原始控制点')\n"
+       << "ax.plot(data['optimized_control']['x'], data['optimized_control']['z'], 'o-', color='#90caf9', markersize=4.0, linewidth=1.0, label='优化后控制点')\n"
+       << "ax.set_xlabel('x 位置 [m]', fontproperties=font_prop)\n"
+       << "ax.set_ylabel('z 高度 [m]', fontproperties=font_prop)\n"
+       << "ax.set_title('楼梯地形下摆动足B样条轨迹优化对比', fontproperties=font_prop)\n"
+       << "ax.grid(True, alpha=0.28)\n"
+       << "ax.set_aspect('equal', adjustable='box')\n"
+       << "ax.legend(loc='lower right', fontsize=8.5, prop=font_prop, framealpha=0.88)\n"
        << "plt.tight_layout()\n"
-       << "plt.savefig('/tmp/bspline_reference_sampling.png', dpi=150, bbox_inches='tight')\n"
-       << "print('[Saved /tmp/bspline_reference_sampling.png]')\n";
+       << "plt.savefig(png_path, dpi=220, bbox_inches='tight')\n"
+       << "print('[Saved ' + png_path + ']')\n";
     py.close();
 
     std::cout << "[CSV] " << csvPath << "\n";
-    std::cout << "[Plot script] " << scriptPath << "\n";
-
-    const int ret = std::system("python3 /tmp/bspline_reference_sampling_plot.py 2>/dev/null");
+    std::cout << "[Plot script] " << scriptPath << "\n" << std::flush;
+    const int ret = std::system(("python3 " + scriptPath).c_str());
     if (ret != 0) {
         std::cout << "[Auto-plot failed] run manually: python3 " << scriptPath << "\n";
     }
 }
 
-int main(int /*argc*/, char* /*argv*/[]) {
-    BSplineConfig cfg;
+}  // namespace
+
+int main() {
+    const DemoConfig cfg;
 
     std::cout << "========================================\n"
-              << "  Reference Sampling + B-Spline Test\n"
-              << "========================================\n\n"
-              << "[Config]\n"
-              << "  numControlPoints = " << cfg.numControlPoints << "\n"
-              << "  numCurveSamples  = " << cfg.numCurveSamples << "\n"
-              << "  splineOrder      = " << cfg.splineOrder << " (cubic)\n"
-              << "  swingTime        = [" << cfg.swingStartTime << ", " << cfg.swingFinalTime << "]\n"
-              << "  midHeight        = " << cfg.midHeight << " m\n"
-              << "  stepEdgeX        = " << cfg.edgeX << " m\n"
-              << "  stepHeight       = " << cfg.stepHeight << " m\n"
-              << "  sphereRadius     = " << cfg.sphereRadius << " m\n\n";
+              << "  B-spline CBF-QP stair collision demo\n"
+              << "========================================\n"
+              << std::fixed << std::setprecision(4)
+              << "step edge x      : " << cfg.stepEdgeX << " m\n"
+              << "step height      : " << cfg.stepHeight << " m\n"
+              << "phase clearance  : " << cfg.groundClearance << " m\n"
+              << "activation margin: " << cfg.collisionActivationMargin << " m\n\n";
 
-    StepTerrain terrainObj(cfg.edgeX, cfg.stepHeight);
-    terrain = &terrainObj;
-    stepEdgeSphere.center = Eigen::Vector3d(cfg.edgeX, 0.0, cfg.stepHeight);
-    stepEdgeSphere.radius = cfg.sphereRadius;
+    Eigen::VectorXd controlX;
+    Eigen::VectorXd controlY;
+    Eigen::VectorXd nominalControlZ;
+    BSpline nominalSpline = createNominalSwingSpline(cfg, controlX, controlY, nominalControlZ);
+    std::vector<CurveSample> nominalCurve = sampleSpline(nominalSpline, cfg);
+    const CollisionStats nominalStats = analyzeCollisions(nominalCurve);
+    const bool shouldOptimize = referenceRequiresOptimization(nominalCurve, cfg);
 
-    using Node = ocs2::legged_robot::QuinticSpline::Node;
-    const Node liftOff{cfg.swingStartTime, cfg.liftOffPos.z(), 0.0, 0.0};
-    const Node touchDown{cfg.swingFinalTime, cfg.touchDownPos.z(), 0.0, 0.0};
-    const ocs2::legged_robot::QuinticSplineCpg refSpline(liftOff, cfg.midHeight, touchDown);
+    std::cout << "[Nominal] collision samples = " << nominalStats.collisionCount
+              << ", min clearance = " << nominalStats.minClearance
+              << ", max violation = " << nominalStats.maxViolation << "\n"
+              << "[Trigger] QP optimization required = " << (shouldOptimize ? "YES" : "NO") << "\n";
 
-    std::vector<CurvePoint> referenceCurve;
-    sampleReferenceTrajectory(refSpline, cfg, cfg.numCurveSamples, referenceCurve);
-
-    std::vector<Eigen::Vector3d> controlPoints;
-    sampleReferenceTrajectoryToControlPoints(refSpline, cfg, controlPoints);
-
-    Eigen::VectorXd x(cfg.numControlPoints);
-    Eigen::VectorXd y(cfg.numControlPoints);
-    Eigen::VectorXd z(cfg.numControlPoints);
-    for (int i = 0; i < cfg.numControlPoints; ++i) {
-        x[i] = controlPoints[i].x();
-        y[i] = controlPoints[i].y();
-        z[i] = controlPoints[i].z();
-        // std::cout << "Control point " << i << ": x = " << x[i] << ", y = " << y[i] << ", z = " << z[i] << "\n";
+    if (!shouldOptimize) {
+        std::cerr << "The nominal trajectory did not collide. Increase stepHeight or reduce nominalMidHeight.\n";
+        return 1;
     }
 
-    BSpline bspline(cfg.splineOrder);
-    bspline.setControlPoints(x, y, z);
-    bspline.setKnots(bspline.generateKnots(cfg.numControlPoints, 0.0, 1.0, 0));
-
-    const Eigen::VectorXd sampleParams = Eigen::VectorXd::LinSpaced(cfg.numCurveSamples, 0.0, 1.0);
-    const Eigen::MatrixXd basisMat = bspline.generateSplineBasis(sampleParams);
-    const Eigen::VectorXd sampleX = basisMat * x;
-    const Eigen::VectorXd sampleY = basisMat * y;
-    const Eigen::VectorXd terrainHeights = computeTerrainHeightProfile(sampleX, sampleY);
-    const Eigen::VectorXd sphereHeights = computeSphereHeightProfile(sampleX, sampleY, cfg);
+    const Eigen::VectorXd phases = Eigen::VectorXd::LinSpaced(cfg.numCurveSamples, 0.0, 1.0);
+    const Eigen::MatrixXd basis = nominalSpline.generateSplineBasis(phases);
+    const Eigen::VectorXd sampleX = basis * controlX;
+    const Eigen::VectorXd nominalCurveZ = basis * nominalControlZ;
 
     Eigen::VectorXd optimizedControlZ;
-    const bool qpSolved = optimizeControlPointsZ(
-        basisMat,
-        z,
-        sampleX,
-        terrainHeights,
-        sphereHeights,
-        cfg.groundClearance,
-        cfg.controlPointSmoothnessWeight,
-        cfg.controlPointZMin,
-        cfg.controlPointZMax,
-        optimizedControlZ);
+    std::vector<int> selectedConstraintSamples;
+    const bool solved = optimizeControlPointsZ(
+        basis, nominalControlZ, nominalCurveZ, sampleX, phases,
+        cfg, optimizedControlZ, selectedConstraintSamples);
 
-    if (!qpSolved) {
-        std::cerr << "Failed to optimize B-spline control points. Falling back to sampled reference control points." << std::endl;
-        optimizedControlZ = z;
+    if (!solved) {
+        std::cerr << "Failed to solve CBF-QP for demo trajectory.\n";
+        return 2;
     }
 
-    for (int i = 0; i < cfg.numControlPoints; ++i) {
-        controlPoints[i].z() = optimizedControlZ[i];
-    }
+    BSpline optimizedSpline(cfg.splineOrder);
+    optimizedSpline.setControlPoints(controlX, controlY, optimizedControlZ);
+    optimizedSpline.setKnots(optimizedSpline.generateKnots(cfg.numControlPoints, 0.0, 1.0, 0));
+    std::vector<CurveSample> optimizedCurve = sampleSpline(optimizedSpline, cfg);
+    const CollisionStats optimizedStats = analyzeCollisions(optimizedCurve);
 
-    bspline.setControlPoints(x, y, optimizedControlZ);
+    const Eigen::MatrixXd thirdDiff = makeThirdDifferenceMatrix(cfg.numCurveSamples);
+    const double nominalJerk = (thirdDiff * nominalCurveZ).norm();
+    const double optimizedJerk = (thirdDiff * (basis * optimizedControlZ)).norm();
 
-    std::vector<CurvePoint> bsplineCurve;
-    evaluateBSplineCurve(bspline, cfg, bsplineCurve);
+    std::cout << "[Optimized] collision samples = " << optimizedStats.collisionCount
+              << ", min clearance = " << optimizedStats.minClearance
+              << ", max violation = " << optimizedStats.maxViolation << "\n"
+              << "[QP] selected constraints = " << selectedConstraintSamples.size()
+              << ", nominal jerk norm = " << nominalJerk
+              << ", optimized jerk norm = " << optimizedJerk << "\n";
 
-    const CollisionStats refCollisionStats = analyzeCurveCollisions(referenceCurve);
-    const CollisionStats bsplineCollisionStats = analyzeCurveCollisions(bsplineCurve);
-
-    std::cout << std::fixed << std::setprecision(4)
-              << "[Generated] reference samples = " << referenceCurve.size()
-              << ", control points = " << controlPoints.size()
-              << ", bspline samples = " << bsplineCurve.size() << "\n";
-
-    std::cout << "[QP] solved = " << (qpSolved ? "YES" : "NO")
-              << ", smoothnessWeight = " << cfg.controlPointSmoothnessWeight
-              << ", groundClearance = " << cfg.groundClearance
-              << ", sphereClearance = " << cfg.sphereClearance << "\n";
-
-    std::cout << "[Reference collisions] terrain = " << refCollisionStats.terrainCollisionCount
-              << ", sphere = " << refCollisionStats.sphereCollisionCount
-              << ", min terrain clearance = " << refCollisionStats.minTerrainClearance;
-    if (stepEdgeSphere.radius > 0.0) {
-        std::cout << ", min sphere signed distance = " << refCollisionStats.minSphereSignedDistance;
-    }
-    std::cout << "\n";
-
-    std::cout << "[B-spline collisions] terrain = " << bsplineCollisionStats.terrainCollisionCount
-              << ", sphere = " << bsplineCollisionStats.sphereCollisionCount
-              << ", min terrain clearance = " << bsplineCollisionStats.minTerrainClearance;
-    if (stepEdgeSphere.radius > 0.0) {
-        std::cout << ", min sphere signed distance = " << bsplineCollisionStats.minSphereSignedDistance;
-    }
-    std::cout << "\n";
-
-    writeCsvAndPlot(referenceCurve, controlPoints, bsplineCurve, cfg);
-    return 0;
+    writeCsvAndPlot(nominalCurve, optimizedCurve, controlX, nominalControlZ, optimizedControlZ);
+    return optimizedStats.maxViolation <= kCollisionReportTolerance ? 0 : 3;
 }

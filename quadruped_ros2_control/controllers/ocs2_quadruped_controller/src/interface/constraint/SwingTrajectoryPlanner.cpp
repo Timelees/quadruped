@@ -32,6 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "ocs2_quadruped_controller/interface/constraint/SwingTrajectoryPlanner.h"
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <ocs2_core/misc/LoadData.h>
@@ -44,6 +45,9 @@ namespace ocs2::legged_robot {
         constexpr int kHeightSplineDegree = 5;
         constexpr int kSwingHeightControlPoints = 7;
         constexpr int kStanceHeightControlPoints = 6;
+        constexpr scalar_t kSwingCacheTimeTolerance = 0.02;
+        constexpr scalar_t kSwingCachePositionTolerance = 0.04;
+        constexpr size_t kMaxCachedSwingsPerLeg = 32;
 
         BSpline createHeightBSpline(const Eigen::VectorXd& zControlPoints, scalar_t startTime, scalar_t finalTime) {
             BSpline spline(kHeightSplineDegree);
@@ -103,6 +107,72 @@ namespace ocs2::legged_robot {
 
     SwingTrajectoryPlanner::SwingTrajectoryPlanner(Config config, size_t numFeet) : config_(config),
         numFeet_(numFeet) {
+    }
+
+    void SwingTrajectoryPlanner::setTerrainInterface(std::shared_ptr<TerrainInterface> terrainInterface) {
+        for (auto& cache : cachedSwingTrajectories_) {
+            cache.clear();
+        }
+        if (!terrainInterface) {
+            swingTrajectoryQpOptimizer_.reset();
+            return;
+        }
+        swingTrajectoryQpOptimizer_ = std::make_shared<SwingTrajectoryQpOptimizer>(
+            config_.cbfQpConfig, std::move(terrainInterface));
+    }
+
+    bool SwingTrajectoryPlanner::getCachedSwingTrajectory(size_t leg, scalar_t startTime, scalar_t finalTime,
+                                                          const Eigen::Vector3d& liftOff,
+                                                          const Eigen::Vector3d& touchDown,
+                                                          BSpline& spline) const {
+        if (leg >= cachedSwingTrajectories_.size()) {
+            return false;
+        }
+
+        const auto& cache = cachedSwingTrajectories_[leg];
+        const auto match = std::find_if(cache.begin(), cache.end(), [&](const CachedSwingTrajectory& cached) {
+            return std::abs(cached.startTime - startTime) <= kSwingCacheTimeTolerance &&
+                   std::abs(cached.finalTime - finalTime) <= kSwingCacheTimeTolerance &&
+                   (cached.liftOff - liftOff).norm() <= kSwingCachePositionTolerance &&
+                   (cached.touchDown - touchDown).norm() <= kSwingCachePositionTolerance;
+        });
+        if (match == cache.end()) {
+            return false;
+        }
+
+        spline = match->spline;
+        return true;
+    }
+
+    void SwingTrajectoryPlanner::cacheSwingTrajectory(size_t leg, scalar_t startTime, scalar_t finalTime,
+                                                      const Eigen::Vector3d& liftOff,
+                                                      const Eigen::Vector3d& touchDown,
+                                                      const BSpline& spline) {
+        if (leg >= cachedSwingTrajectories_.size()) {
+            return;
+        }
+
+        auto& cache = cachedSwingTrajectories_[leg];
+        auto match = std::find_if(cache.begin(), cache.end(), [&](const CachedSwingTrajectory& cached) {
+            return std::abs(cached.startTime - startTime) <= kSwingCacheTimeTolerance &&
+                   std::abs(cached.finalTime - finalTime) <= kSwingCacheTimeTolerance;
+        });
+
+        CachedSwingTrajectory cached;
+        cached.startTime = startTime;
+        cached.finalTime = finalTime;
+        cached.liftOff = liftOff;
+        cached.touchDown = touchDown;
+        cached.spline = spline;
+
+        if (match != cache.end()) {
+            *match = cached;
+        } else {
+            cache.push_back(cached);
+            if (cache.size() > kMaxCachedSwingsPerLeg) {
+                cache.erase(cache.begin());
+            }
+        }
     }
 
 
@@ -183,6 +253,100 @@ namespace ocs2::legged_robot {
                         touchDownHeightSequence[j][p], scaling * config_.touchDownVelocity));
                 } else {
                     // for a stance leg
+                    feetHeightTrajectories_[j].push_back(createStanceHeightBSpline(liftOffHeightSequence[j][p]));
+                }
+            }
+            feetHeightTrajectoriesEvents_[j] = eventTimes;
+        }
+    }
+
+    void SwingTrajectoryPlanner::updateCBF(
+        const ModeSchedule &modeSchedule,
+        const feet_array_t<scalar_array_t> &liftOffHeightSequence,
+        const feet_array_t<scalar_array_t> &touchDownHeightSequence,
+        const feet_array_t<std::vector<Eigen::Vector3d>> &liftOffPositionSequence,
+        const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence) {
+        scalar_array_t heightSequence(modeSchedule.modeSequence.size());
+        feet_array_t<scalar_array_t> maxHeightSequence;
+        for (size_t j = 0; j < numFeet_; j++) {
+            for (int p = 0; p < modeSchedule.modeSequence.size(); ++p) {
+                heightSequence[p] = std::max(liftOffHeightSequence[j][p], touchDownHeightSequence[j][p]);
+            }
+            maxHeightSequence[j] = heightSequence;
+        }
+        updateCBF(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, maxHeightSequence,
+                  liftOffPositionSequence, touchDownPositionSequence);
+    }
+
+    void SwingTrajectoryPlanner::updateCBF(
+        const ModeSchedule &modeSchedule,
+        const feet_array_t<scalar_array_t> &liftOffHeightSequence,
+        const feet_array_t<scalar_array_t> &touchDownHeightSequence,
+        const feet_array_t<scalar_array_t> &maxHeightSequence,
+        const feet_array_t<std::vector<Eigen::Vector3d>> &liftOffPositionSequence,
+        const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence) {
+        if (!isCbfUpdateEnabled()) {
+            update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, maxHeightSequence);
+            return;
+        }
+
+        const auto &modeSequence = modeSchedule.modeSequence;
+        const auto &eventTimes = modeSchedule.eventTimes;
+        const auto eesContactFlagStocks = extractContactFlags(modeSequence);
+
+        feet_array_t<std::vector<int> > startTimesIndices;
+        feet_array_t<std::vector<int> > finalTimesIndices;
+        for (size_t leg = 0; leg < numFeet_; leg++) {
+            std::tie(startTimesIndices[leg], finalTimesIndices[leg]) =
+                    updateFootSchedule(eesContactFlagStocks[leg]);
+        }
+
+        for (size_t j = 0; j < numFeet_; j++) {
+            feetHeightTrajectories_[j].clear();
+            feetHeightTrajectories_[j].reserve(modeSequence.size());
+            for (int p = 0; p < modeSequence.size(); ++p) {
+                if (!eesContactFlagStocks[j][p]) {
+                    const int swingStartIndex = startTimesIndices[j][p];
+                    const int swingFinalIndex = finalTimesIndices[j][p];
+                    checkThatIndicesAreValid(j, p, swingStartIndex, swingFinalIndex, modeSequence);
+
+                    const scalar_t swingStartTime = eventTimes[swingStartIndex];
+                    const scalar_t swingFinalTime = eventTimes[swingFinalIndex];
+                    const scalar_t scaling = swingTrajectoryScaling(swingStartTime, swingFinalTime,
+                                                                    config_.swingTimeScale);
+                    const scalar_t midHeight = maxHeightSequence[j][p] + scaling * config_.swingHeight;
+                    BSpline referenceSpline = createSwingHeightBSpline(
+                        swingStartTime, swingFinalTime,
+                        liftOffHeightSequence[j][p], scaling * config_.liftOffVelocity,
+                        midHeight,
+                        touchDownHeightSequence[j][p], scaling * config_.touchDownVelocity);
+
+                    BSpline selectedSpline = referenceSpline;
+                    if (j < liftOffPositionSequence.size() &&
+                        static_cast<size_t>(p) < liftOffPositionSequence[j].size() &&
+                        static_cast<size_t>(p) < touchDownPositionSequence[j].size()) {
+                        Eigen::Vector3d liftOff = liftOffPositionSequence[j][static_cast<size_t>(p)];
+                        Eigen::Vector3d touchDown = touchDownPositionSequence[j][static_cast<size_t>(p)];
+                        liftOff.z() = liftOffHeightSequence[j][p];
+                        touchDown.z() = touchDownHeightSequence[j][p];
+
+                        if (getCachedSwingTrajectory(j, swingStartTime, swingFinalTime, liftOff, touchDown,
+                                                     selectedSpline)) {
+                            // Reuse the already optimized swing to avoid terrain-noise induced replanning jitter.
+                        } else {
+                            const auto optimized = swingTrajectoryQpOptimizer_->optimizeSwingTrajectory(
+                                referenceSpline, swingStartTime, swingFinalTime, liftOff, touchDown);
+                            if (optimized.valid()) {
+                                selectedSpline = *optimized.bspline;
+                                if (optimized.optimizedByQp) {
+                                    cacheSwingTrajectory(j, swingStartTime, swingFinalTime,
+                                                         liftOff, touchDown, selectedSpline);
+                                }
+                            }
+                        }
+                    }
+                    feetHeightTrajectories_[j].push_back(selectedSpline);
+                } else {
                     feetHeightTrajectories_[j].push_back(createStanceHeightBSpline(liftOffHeightSequence[j][p]));
                 }
             }
@@ -305,6 +469,47 @@ namespace ocs2::legged_robot {
         loadData::loadPtreeValue(pt, config.touchDownVelocity, prefix + "touchDownVelocity", verbose);
         loadData::loadPtreeValue(pt, config.swingHeight, prefix + "swingHeight", verbose);
         loadData::loadPtreeValue(pt, config.swingTimeScale, prefix + "swingTimeScale", verbose);
+
+        auto loadOptional = [&](auto& value, const std::string& key) {
+            using ValueType = std::decay_t<decltype(value)>;
+            if (const auto loaded = pt.get_optional<ValueType>(prefix + key)) {
+                value = *loaded;
+                if (verbose) {
+                    std::cerr << prefix + key << ": " << value << std::endl;
+                }
+            }
+        };
+
+        loadOptional(config.useCbfUpdate, "useCbfUpdate");
+        loadOptional(config.cbfQpConfig.numControlPoints, "cbfNumControlPoints");
+        loadOptional(config.cbfQpConfig.numCurveSamples, "cbfNumCurveSamples");
+        loadOptional(config.cbfQpConfig.splineOrder, "cbfSplineOrder");
+        loadOptional(config.cbfQpConfig.controlPointTrackingWeight, "cbfControlPointTrackingWeight");
+        loadOptional(config.cbfQpConfig.positionTrackingWeight, "cbfPositionTrackingWeight");
+        loadOptional(config.cbfQpConfig.velocityTrackingWeight, "cbfVelocityTrackingWeight");
+        loadOptional(config.cbfQpConfig.accelerationTrackingWeight, "cbfAccelerationTrackingWeight");
+        loadOptional(config.cbfQpConfig.jerkSmoothnessWeight, "cbfJerkSmoothnessWeight");
+        loadOptional(config.cbfQpConfig.controlPointSmoothnessWeight, "cbfControlPointSmoothnessWeight");
+        loadOptional(config.cbfQpConfig.controlPointJerkWeight, "cbfControlPointJerkWeight");
+        loadOptional(config.cbfQpConfig.controlPointZMin, "cbfControlPointZMin");
+        loadOptional(config.cbfQpConfig.controlPointZMax, "cbfControlPointZMax");
+        loadOptional(config.cbfQpConfig.groundClearance, "cbfGroundClearance");
+        loadOptional(config.cbfQpConfig.collisionActivationMargin, "cbfCollisionActivationMargin");
+        loadOptional(config.cbfQpConfig.maxOptimizedHeightDrop, "cbfMaxOptimizedHeightDrop");
+        loadOptional(config.cbfQpConfig.maxOptimizedHeightDeviation, "cbfMaxOptimizedHeightDeviation");
+        loadOptional(config.cbfQpConfig.maxOptimizedJerkRatio, "cbfMaxOptimizedJerkRatio");
+        loadOptional(config.cbfQpConfig.enableCbfConstraint, "enableCbfConstraint");
+        loadOptional(config.cbfQpConfig.cbfGamma, "cbfGamma");
+        loadOptional(config.cbfQpConfig.cbfStartPhase, "cbfStartPhase");
+        loadOptional(config.cbfQpConfig.cbfEndPhase, "cbfEndPhase");
+        loadOptional(config.cbfQpConfig.maxTerrainConstraints, "cbfMaxTerrainConstraints");
+        loadOptional(config.cbfQpConfig.maxCbfConstraints, "cbfMaxCbfConstraints");
+        loadOptional(config.cbfQpConfig.qpMaxWorkingSetRecalculations, "cbfQpMaxWorkingSetRecalculations");
+        loadOptional(config.cbfQpConfig.liftPropagationWindow, "cbfLiftPropagationWindow");
+        loadOptional(config.cbfQpConfig.liftPropagationSigma, "cbfLiftPropagationSigma");
+        loadOptional(config.cbfQpConfig.elevationLayer, "cbfElevationLayer");
+        loadOptional(config.cbfQpConfig.verbose, "cbfVerbose");
+
         if (verbose) {
             std::cerr << " #### =============================================================================" <<
                     std::endl;
