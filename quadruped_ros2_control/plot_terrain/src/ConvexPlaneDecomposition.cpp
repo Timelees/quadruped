@@ -464,6 +464,7 @@ int main(int argc, char *argv[])
         // Run pipeline.对子图进行平面分解，获得地形平面区域
         planeDecompositionPipeline_->update(std::move(elevationMap), elevationLayer_);
         auto &planarTerrain = planeDecompositionPipeline_->getPlanarTerrain();
+        planarTerrain.gridMap.setTimestamp(nodeHandle->get_clock()->now().nanoseconds());
         if (publishToController_)
         {
           regionPublisher_->publish(toMessage(planarTerrain));

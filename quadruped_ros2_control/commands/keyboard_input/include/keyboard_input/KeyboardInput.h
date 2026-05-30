@@ -49,6 +49,7 @@ private:
 
     float sensitivity_left_ = 0.05;
     float sensitivity_right_ = 0.05;
+    float sensitivity_pitch_ = 0.20;
     termios old_tio_{}, new_tio_{};
 };
 

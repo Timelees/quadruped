@@ -28,6 +28,8 @@ plot_terrain_ConvexPlaneDecomposition:
       include_ransac_refinement: true                       # 是否启用RANSAC精化
       global_plane_fit_distance_error_threshold: 0.025      # [m] 点到平面的最大允许距离
       global_plane_fit_angle_error_threshold_degrees: 25.0  # [deg] 点法向量相对平面法向量的最大允许偏差
+      enable_edge_detection: true                           # 地形边缘检测
+      edge_normal_dot_threshold_degrees: 30.0               # [deg] 相邻法向夹角阈值
 
     ransac_plane_refinement:
       probability: 0.0005      # 错过最大候选形状的概率
@@ -42,7 +44,7 @@ plot_terrain_ConvexPlaneDecomposition:
     postprocessing:
       extracted_planes_height_offset: 0.01   # 平面高度补偿[m]
       nonplanar_height_offset: 0.02          # 非平面区域额外高度补偿[m]
-      nonplanar_horizontal_offset: 0         # 非平面区域水平偏移[pixels]
+      nonplanar_horizontal_offset: 0.0       # 非平面区域水平偏移[pixels]，须为浮点数
       smoothing_dilation_size: 0.3           # 膨胀核半宽[m]
       smoothing_box_kernel_size: 0.1         # 均值滤波核半宽[m]
       smoothing_gauss_kernel_size: 0.25      # 高斯滤波核半宽[m]
@@ -59,8 +61,8 @@ plot_terrain_ConvexPlaneDecomposition:
     adaptReferenceToTerrain: true
     debug: false
     
-    # ROS话题名称
-    pubTopicName: '/convex_plane_decomposition_ros/planar_terrain'
+    # ROS话题名称（须与 ocs2 控制器 PlanarTerrainReceiver 订阅名一致）
+    pubTopicName: 'planar_terrain'
     pubTopicNameRaw: '/elevation_map_raw'
     
     # 噪声参数 (用于测试鲁棒性，生产环境设为0)

@@ -18,6 +18,7 @@ namespace ocs2::legged_robot
     {
         // Hold each /cmd_vel sample for this many control cycles (~0.2 s at 500 Hz -> 100 cycles if divisor 5).
         constexpr int kCmdVelHoldCycleDivisor = 5;
+        constexpr scalar_t kMaxPitchAngle = 15.0 * 3.14159265358979323846 / 180.0;
     }
     TargetManager::TargetManager(CtrlInterfaces& ctrl_component,
                                  rclcpp_lifecycle::LifecycleNode::SharedPtr node,
@@ -49,14 +50,15 @@ namespace ocs2::legged_robot
     {
         // Body-frame command: linear (vx,vy,vz), yaw rate about base z (maps to state theta_base_z).
         vector_t cmdGoal = vector_t::Zero(6);
+        scalar_t pitch_target = 0.0;
 
         if (buffer_.readFromRT() == nullptr || twist_count <= 0)
         {
             // Body frame: vx 用前后上限，vy 用侧向上限。
             cmdGoal[0] = ctrl_component_.control_inputs_.ly * target_displacement_velocity_;   
             cmdGoal[1] = -ctrl_component_.control_inputs_.lx * target_lateral_velocity_;
-            cmdGoal[2] = ctrl_component_.control_inputs_.ry;
             cmdGoal[3] = -ctrl_component_.control_inputs_.rx * target_rotation_velocity_;
+            pitch_target = ctrl_component_.control_inputs_.ry * kMaxPitchAngle;
         }
         else
         {
@@ -106,16 +108,18 @@ namespace ocs2::legged_robot
             target(1) = currentPose(1) + cmd_vel_rot(1) * time_to_target_; // py
             target(2) = command_height_;    // pz
             target(3) = yaw_target;         // yaw
-            target(4) = 0;                  // roll
-            target(5) = 0;                  // pitch
+            target(4) = pitch_target;       // pitch
+            target(5) = 0;                  // roll
             return target;
         }();
 
         const scalar_t targetReachingTime = observation.time + time_to_target_;
         auto trajectories =
             targetPoseToTargetTrajectories(targetPose, observation, targetReachingTime);
-        trajectories.stateTrajectory[0].head(3) = cmd_vel_rot;
-        trajectories.stateTrajectory[1].head(3) = cmd_vel_rot;
+        for (auto& state : trajectories.stateTrajectory)
+        {
+            state.head(3) = cmd_vel_rot;
+        }
 
         referenceManagerPtr_->setTargetTrajectories(std::move(trajectories));
     }

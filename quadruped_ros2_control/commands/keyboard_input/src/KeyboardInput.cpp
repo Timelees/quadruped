@@ -139,11 +139,11 @@ void KeyboardInput::check_value(char key) {
             break;
         case 'i':
         case 'I':
-            inputs_.ry = min<float>(inputs_.ry + sensitivity_right_, 1.0);
+            inputs_.ry = min<float>(inputs_.ry + sensitivity_pitch_, 1.0);
             break;
         case 'k':
         case 'K':
-            inputs_.ry = max<float>(inputs_.ry - sensitivity_right_, -1.0);
+            inputs_.ry = max<float>(inputs_.ry - sensitivity_pitch_, -1.0);
             break;
         case 'l':
         case 'L':

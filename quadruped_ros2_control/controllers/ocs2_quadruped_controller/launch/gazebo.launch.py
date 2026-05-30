@@ -233,7 +233,6 @@ def generate_launch_description():
         description='package for robot description'
     )
 
-
     # robot initial position
     x_pos = DeclareLaunchArgument(
     'x',

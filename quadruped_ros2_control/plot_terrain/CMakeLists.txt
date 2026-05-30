@@ -22,11 +22,7 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(OpenCV REQUIRED)
 
 
-# Include directories
-include_directories(
-  include
-  ${EIGEN3_INCLUDE_DIRS}
-)
+include_directories(${EIGEN3_INCLUDE_DIRS})
 
 # Declare C++ executable
 add_executable(${PROJECT_NAME}_ConvexPlaneDecomposition
@@ -57,11 +53,6 @@ target_link_libraries(${PROJECT_NAME}_ConvexPlaneDecomposition
 # Install executable
 install(TARGETS ${PROJECT_NAME}_ConvexPlaneDecomposition
   DESTINATION lib/${PROJECT_NAME}
-)
-
-# Install include directory
-install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION include/${PROJECT_NAME}
 )
 
 # Install launch and config directories

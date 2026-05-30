@@ -6,6 +6,7 @@
 #define TARGETMANAGER_H
 
 
+#include <algorithm>
 #include <memory>
 #include <controller_common/CtrlInterfaces.h>
 #include <ocs2_mpc/SystemObservation.h>
@@ -34,18 +35,24 @@ namespace ocs2::legged_robot
                                                           const SystemObservation& observation,
                                                           const scalar_t& targetReachingTime)
         {
-            // desired time trajectory
-            const scalar_array_t timeTrajectory{observation.time, targetReachingTime};
-
-            // desired state trajectory
             vector_t currentPose = observation.state.segment<6>(6);
             currentPose(2) = command_height_;
-            vector_array_t stateTrajectory(2, vector_t::Zero(observation.state.size()));
+            const scalar_t trajectoryDuration = targetReachingTime - observation.time;
+            const scalar_t pitchResponseDuration = std::min(kPitchResponseTime, trajectoryDuration * scalar_t(0.5));
+            const scalar_t pitchReachingTime = observation.time + pitchResponseDuration;
+            const scalar_t alpha = pitchResponseDuration / trajectoryDuration;
+
+            vector_t pitchReachedPose = currentPose + alpha * (targetPose - currentPose);
+            pitchReachedPose(4) = targetPose(4);
+
+            const scalar_array_t timeTrajectory{observation.time, pitchReachingTime, targetReachingTime};
+            vector_array_t stateTrajectory(3, vector_t::Zero(observation.state.size()));
             stateTrajectory[0] << vector_t::Zero(6), currentPose, default_joint_state_;
-            stateTrajectory[1] << vector_t::Zero(6), targetPose, default_joint_state_;
+            stateTrajectory[1] << vector_t::Zero(6), pitchReachedPose, default_joint_state_;
+            stateTrajectory[2] << vector_t::Zero(6), targetPose, default_joint_state_;
 
             // desired input trajectory (just right dimensions, they are not used)
-            const vector_array_t inputTrajectory(2, vector_t::Zero(observation.input.size()));
+            const vector_array_t inputTrajectory(3, vector_t::Zero(observation.input.size()));
 
             return {timeTrajectory, stateTrajectory, inputTrajectory};
         }
@@ -69,6 +76,7 @@ namespace ocs2::legged_robot
         bool yaw_hold_initialized_{false};
         bool had_yaw_rate_command_{false};
         scalar_t yaw_hold_value_{0};
+        static constexpr scalar_t kPitchResponseTime = 0.25; // [s]
         static constexpr scalar_t kYawRateDeadzone = 0.02; // [rad/s], below = treat as no yaw command
     };
 }

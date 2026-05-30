@@ -4,6 +4,7 @@
 
 #include <utility>
 #include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <array>
 #include <ocs2_core/misc/Lookup.h>
@@ -164,11 +165,15 @@ namespace ocs2::legged_robot
              sin(yaw), cos(yaw), 0,
              0, 0, 1;  // clang-format on
             vector_t v = R.transpose() * normalVector;
-            centroidal_model::getBasePose(state, info_)(4) = atan(v.x() / v.z());   // 修改俯仰角
+            auto basePose = centroidal_model::getBasePose(state, info_);
+            const scalar_t terrainPitch = atan(v.x() / v.z());
+            if (std::abs(basePose(4)) < scalar_t(1e-6))
+            {
+                basePose(4) = terrainPitch;
+            }
 
             // Base Z Position
-            centroidal_model::getBasePose(state, info_)(2) =
-                map.atPosition("smooth_planar", pos2d) + comHeight_ / cos(centroidal_model::getBasePose(state, info_)(4));
+            basePose(2) = map.atPosition("smooth_planar", pos2d) + comHeight_ / cos(basePose(4));
 
             newTargetTrajectories.timeTrajectory.push_back(time);
             newTargetTrajectories.stateTrajectory.push_back(state);
