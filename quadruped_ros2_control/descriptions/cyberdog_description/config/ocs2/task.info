@@ -19,10 +19,10 @@ model_settings
 swing_trajectory_config
 {
   liftOffVelocity               0.04   // 离地速度 - 降低以减少冲击
-  touchDownVelocity            -0.08   // 触地速度 - 降低以减少落地冲击
+  touchDownVelocity            -0.04   // 触地速度 - 降低以减少落地冲击
   swingHeight                   0.085
-  swingTimeScale                0.15   // 摆动时间缩放因子
-  useCbfUpdate                  true  // true: 使用地形感知 CBF-QP 生成摆动轨迹; false: 保持当前 update
+  swingTimeScale                0.20   // 摆动时间缩放因子
+  useCbfUpdate                  false  // true: 使用地形感知 CBF-QP 生成摆动轨迹; false: 保持当前 update
   cbfNumCurveSamples            120
   cbfControlPointTrackingWeight 0.8
   cbfPositionTrackingWeight     0.8
