@@ -6,6 +6,7 @@
 
 #include <convex_plane_decomposition_ros/MessageConversion.h>
 #include <grid_map_ros/GridMapRosConverter.hpp>
+#include <grid_map_core/iterators/GridMapIterator.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -39,7 +40,7 @@ namespace ocs2::legged_robot
         heightFilterAlpha_ = std::max(0.0, std::min(1.0, heightFilterAlpha_));
 
         subscription_ = node_->create_subscription<convex_plane_decomposition_msgs::msg::PlanarTerrain>(
-            mapTopic, 10, [this](const convex_plane_decomposition_msgs::msg::PlanarTerrain msg)
+            mapTopic, 10, [this](const convex_plane_decomposition_msgs::msg::PlanarTerrain& msg)
             {
                 auto candidate = convex_plane_decomposition::PlanarTerrain(
                     convex_plane_decomposition::fromMessage(msg));
@@ -49,7 +50,6 @@ namespace ocs2::legged_robot
                     return;
                 }
 
-                std::lock_guard lock(mutex_);
                 const auto timestamp = candidate.gridMap.getTimestamp();
                 if (!acceptTimestamp(timestamp))
                 {
@@ -63,10 +63,18 @@ namespace ocs2::legged_robot
                 }
 
                 filteredTerrain_ = filterTerrain(candidate, centerJump);
-                updateSignedDistanceField(filteredTerrain_);
-                pendingTerrain_ = filteredTerrain_;
+                auto sdf = std::make_unique<grid_map::SignedDistanceField>();
+                // Preserve the stable baseline's SDF height range: the original
+                // foot-collision cost uses this field even with swing CBF disabled.
+                constexpr float heightMargin{0.1};
+                const auto& elevationData = filteredTerrain_.gridMap.get(sdfElevationLayer_);
+                const float maxValue{elevationData.maxCoeffOfFinites() + 3 * heightMargin};
+                sdf->calculateSignedDistanceField(filteredTerrain_.gridMap, sdfElevationLayer_, maxValue);
                 lastAcceptedTimestamp_ = timestamp;
                 hasFilteredTerrain_ = true;
+                std::lock_guard lock(mutex_);
+                pendingTerrain_ = filteredTerrain_;
+                pendingSdf_ = std::move(sdf);
                 updated_ = true;
             });
     }
@@ -75,11 +83,14 @@ namespace ocs2::legged_robot
                                              const vector_t& /*currentState*/,
                                              const ReferenceManagerInterface& /*referenceManager*/)
     {
+        std::lock_guard lock(mutex_);
         if (updated_)
         {
-            std::lock_guard lock(mutex_);
             updated_ = false;
-            *planarTerrainPtr_ = pendingTerrain_;
+            // Commit the matching map/SDF pair between solves; readers keep the
+            // same objects, and expensive construction stays in the callback.
+            std::swap(*planarTerrainPtr_, pendingTerrain_);
+            sdfPtr_->swap(*pendingSdf_);
         }
     }
 
@@ -211,32 +222,28 @@ namespace ocs2::legged_robot
         }
 
         auto filtered = candidate;
-        auto& filteredElevation = filtered.gridMap.get(sdfElevationLayer_);
-        const auto& previousElevation = filteredTerrain_.gridMap.get(sdfElevationLayer_);
-        const auto alpha = static_cast<float>(heightFilterAlpha_);
-        const auto beta = static_cast<float>(1.0 - heightFilterAlpha_);
-        filteredElevation = filteredElevation.binaryExpr(
-            previousElevation,
-            [alpha, beta](float current, float previous)
-            {
-                if (std::isfinite(current) && std::isfinite(previous))
-                {
-                    return alpha * current + beta * previous;
-                }
-                return std::isfinite(current) ? current : previous;
-            });
-
-        filtered.gridMap.setPosition(filteredTerrain_.gridMap.getPosition());
+        filterHeightLayer(filtered.gridMap, filteredTerrain_.gridMap, sdfElevationLayer_, heightFilterAlpha_);
         return filtered;
     }
 
-    void PlanarTerrainReceiver::updateSignedDistanceField(
-        const convex_plane_decomposition::PlanarTerrain& planarTerrain) const
+    void PlanarTerrainReceiver::filterHeightLayer(grid_map::GridMap& current,
+                                                  const grid_map::GridMap& previous,
+                                                  const std::string& layer, double alpha)
     {
-        constexpr float heightMargin{0.1};
-        const auto& elevationData = planarTerrain.gridMap.get(sdfElevationLayer_);
-        const float maxValue{elevationData.maxCoeffOfFinites() + 3 * heightMargin};
-        sdfPtr_->calculateSignedDistanceField(planarTerrain.gridMap, sdfElevationLayer_, maxValue);
+        for (grid_map::GridMapIterator it(current); !it.isPastEnd(); ++it) {
+            grid_map::Position world;
+            current.getPosition(*it, world);
+            if (!previous.isInside(world)) { continue; }
+            auto& height = current.at(layer, *it);
+            const float oldHeight = previous.atPosition(layer, world);
+            if (std::isfinite(height) && std::isfinite(oldHeight)) {
+                height = alpha * height + (1.0 - alpha) * oldHeight;
+            } else if (!std::isfinite(height)) {
+                height = oldHeight;
+            }
+        }
+        // Keep the candidate center and start index: its planar regions and all
+        // other layers already refer to this geometry.
     }
 
     double PlanarTerrainReceiver::getOrDeclareDoubleParameter(

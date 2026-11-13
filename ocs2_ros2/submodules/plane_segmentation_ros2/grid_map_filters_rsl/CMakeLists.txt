@@ -2,6 +2,10 @@
 cmake_minimum_required(VERSION 3.14)
 project(grid_map_filters_rsl)
 
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 add_compile_options(-Wall -Wextra -Wpedantic)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

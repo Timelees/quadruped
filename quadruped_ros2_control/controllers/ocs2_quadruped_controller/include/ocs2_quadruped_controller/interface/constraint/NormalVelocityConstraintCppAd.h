@@ -59,7 +59,7 @@ namespace ocs2::legged_robot {
 
         bool isActive(scalar_t time) const override;
 
-        size_t getNumConstraints(scalar_t time) const override { return 1; }
+        size_t getNumConstraints(scalar_t time) const override { return referenceManagerPtr_->getSwingTrajectoryPlanner()->isTerrainPlanningEnabled() ? 3 : 1; }
 
         vector_t getValue(scalar_t time, const vector_t &state, const vector_t &input,
                           const PreComputation &preComp) const override;

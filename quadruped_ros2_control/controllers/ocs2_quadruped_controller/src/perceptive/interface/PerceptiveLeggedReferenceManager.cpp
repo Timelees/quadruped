@@ -7,6 +7,7 @@
 #include <cmath>
 #include <iomanip>
 #include <array>
+#include <Eigen/QR>
 #include <ocs2_core/misc/Lookup.h>
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
@@ -85,6 +86,7 @@ namespace ocs2::legged_robot
     
     
     
+    namespace { constexpr double ikTolerance = 1e-3; constexpr int maxIterations = 32; }
     PerceptiveLeggedReferenceManager::PerceptiveLeggedReferenceManager(CentroidalModelInfo info,
                                                                        std::shared_ptr<GaitSchedule> gaitSchedulePtr,
                                                                        std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr,
@@ -100,6 +102,17 @@ namespace ocs2::legged_robot
           comHeight_(comHeight),
           footPlacementRelaxationConfig_(std::move(footPlacementRelaxationConfig))
     {
+    }
+
+    void PerceptiveLeggedReferenceManager::preSolverRun(scalar_t initTime, scalar_t finalTime,
+                                                       const vector_t& initState)
+    {
+        // ReferenceManager runs before solver synchronized modules. Commit terrain
+        // here so footholds, swing references and collision costs use one snapshot.
+        if (terrainReceiver_) {
+            terrainReceiver_->preSolverRun(initTime, finalTime, initState, *this);
+        }
+        SwitchedModelReferenceManager::preSolverRun(initTime, finalTime, initState);
     }
 
     void PerceptiveLeggedReferenceManager::modifyReferences(scalar_t initTime, scalar_t finalTime,
@@ -120,13 +133,12 @@ namespace ocs2::legged_robot
         {
             scalar_t time = initTime + static_cast<double>(i) * timeHorizon / (nodeNum - 1);
             vector_t state = targetTrajectories.getDesiredState(time);
-            vector_t input = targetTrajectories.getDesiredState(time);
+            vector_t input = targetTrajectories.getDesiredInput(time);
 
             const auto& map = convexRegionSelectorPtr_->getPlanarTerrainPtr()->gridMap;
             vector_t pos = centroidal_model::getBasePose(state, info_).head(3); // (x,y,z)
 
             // grid_map 的 atPosition() 越界会 throw std::out_of_range。
-            // ground_truth 模式下 base 的世界坐标更容易落在 map 外，必须做保护避免整个进程崩溃。
             const grid_map::Position pos2d(pos.x(), pos.y());
             if (!map.isInside(pos2d))
             {
@@ -181,15 +193,16 @@ namespace ocs2::legged_robot
         }
         targetTrajectories = newTargetTrajectories;
 
-        // Footstep — 使用 ConvexRegionSelector（凸多边形生长 + CBF 边缘惩罚）
+        // Footstep — 使用 ConvexRegionSelector（凸多边形生长）
         convexRegionSelectorPtr_->update(modeSchedule, initTime, initState, targetTrajectories);
 
         // Swing trajectory
-        updateSwingTrajectoryPlanner(initTime, initState, modeSchedule);
+        updateSwingTrajectoryPlanner(initTime, initState, modeSchedule, targetTrajectories);
     }
 
     void PerceptiveLeggedReferenceManager::updateSwingTrajectoryPlanner(scalar_t initTime, const vector_t& initState,
-                                                                        ModeSchedule& modeSchedule)
+                                                                        ModeSchedule& modeSchedule,
+                                                                        const TargetTrajectories& targets)
     {
         const auto contactFlagStocks = convexRegionSelectorPtr_->extractContactFlags(modeSchedule.modeSequence);
         feet_array_t<scalar_array_t> liftOffHeightSequence, touchDownHeightSequence;
@@ -218,30 +231,154 @@ namespace ocs2::legged_robot
             // std::cout << " updated based on projections\033[0m\n";
         }
 
-        if (swingTrajectoryPtr_->isCbfUpdateEnabled())
+        if (swingTrajectoryPtr_->isTerrainPlanningEnabled())
         {
+            // Workspace logging for diagnostics
+            static int workspaceLogCounter = 0;
+            const bool shouldLog = (workspaceLogCounter++ % 10 == 0);  // Log every 10th call
+
+            swingTrajectoryPtr_->setWorkspace([this, targets, initState, initTime, shouldLog](size_t leg, double time, const Eigen::Vector3d& position) {
+                try {
+                    auto bounds = swingHeightBounds(leg, swingNominalState(time, initTime, initState, targets), position);
+                    if (shouldLog && leg == 0) {
+                        std::cerr << "[Workspace] leg=" << leg << " t=" << time
+                                  << " pos=(" << position.x() << "," << position.y() << "," << position.z() << ")"
+                                  << " bounds=[" << bounds[0] << "," << bounds[1] << "]"
+                                  << " range=" << (bounds[1] - bounds[0]) << '\n';
+                    }
+                    return bounds;
+                } catch (const std::runtime_error& e) {
+                    if (shouldLog && leg == 0) {
+                        std::cerr << "[Workspace] IK failed: " << e.what() << '\n';
+                    }
+                    // IK failed for this query — return a wide default bound so the
+                    // QP can still solve without workspace constraints. The terrain
+                    // clearance constraints still provide safety.
+                    return Eigen::Vector2d(-1.0, 1.0);
+                }
+            });
             const auto [liftOff3d, touchDown3d] = getSwingPositions3d(contactFlagStocks, allProjections);
-            swingTrajectoryPtr_->updateCBF(modeSchedule, liftOffHeightSequence, touchDownHeightSequence,
-                                           liftOff3d, touchDown3d);
+            swingTrajectoryPtr_->updateTerrain(modeSchedule, liftOffHeightSequence, touchDownHeightSequence,
+                                           liftOff3d, touchDown3d, initTime, targets.timeTrajectory.back());
+            swingTrajectoryPtr_->setWorkspace({});
         }
         else
         {
-            swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
+            swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, initTime);
         }
     }
     
+    vector_t PerceptiveLeggedReferenceManager::swingNominalState(
+        scalar_t time, scalar_t initTime, const vector_t& initState, const TargetTrajectories& targets) const
+    {
+        vector_t state = targets.getDesiredState(time);
+        // Swing segments can end beyond the target horizon. getDesiredState()
+        // clamps there; continue the commanded translation instead of checking
+        // the landing foot against a body frozen before touchdown.
+        state.segment<3>(6) += std::max(0.0, time - targets.timeTrajectory.back()) * state.head<3>();
+        // Start the workspace at the measured body pose and approach the target
+        // over the prediction horizon instead of jumping to its commanded height.
+        const double progress = std::clamp((time - initTime) / (targets.timeTrajectory.back() - initTime), 0.0, 1.0);
+        state.segment<6>(6) += (1.0 - progress) *
+            (initState.segment<6>(6) - targets.getDesiredState(initTime).segment<6>(6));
+        return state;
+    }
+
+    bool PerceptiveLeggedReferenceManager::solveSwingIk(size_t leg, const vector3_t& desired, vector_t& state) const
+    {
+        const int firstJoint = state.size() - info_.actuatedDofNum + 3 * leg;
+        const vector3_t lower = jointLower_.segment<3>(3 * leg);
+        const vector3_t upper = jointUpper_.segment<3>(3 * leg);
+        for (int iteration = 0; iteration < maxIterations; ++iteration) {
+            const auto approximation = endEffectorKinematicsPtr_->getPositionLinearApproximation(state)[leg];
+            const vector3_t error = desired - approximation.f;
+            if (error.norm() < ikTolerance) { return true; }
+            const matrix3_t jacobian = approximation.dfdx.block<3, 3>(0, firstJoint);
+            const vector3_t delta = jacobian.colPivHouseholderQr().solve(error);
+            const vector3_t joints = state.segment<3>(firstJoint);
+            double step = 1.0;
+            while (step * delta.norm() > ikTolerance) {
+                state.segment<3>(firstJoint) = (joints + step * delta).cwiseMax(lower).cwiseMin(upper);
+                if ((desired - endEffectorKinematicsPtr_->getPosition(state)[leg]).squaredNorm() < error.squaredNorm()) { break; }
+                step *= 0.5;
+            }
+            if (step * delta.norm() <= ikTolerance) {
+                state.segment<3>(firstJoint) = joints;
+                break;
+            }
+        }
+        return (desired - endEffectorKinematicsPtr_->getPosition(state)[leg]).norm() < ikTolerance;
+    }
+
+    // Vertical section of the IK branch reached from the nominal leg posture.
+    // Bounds are in contact-surface coordinates, matching the height QP (foot center minus radius).
+    Eigen::Vector2d PerceptiveLeggedReferenceManager::swingHeightBounds(
+        size_t leg, const vector_t& nominalState, const Eigen::Vector3d& position) const
+    {
+        const Eigen::Vector2d xy = position.head<2>();
+        const int firstJoint = nominalState.size() - info_.actuatedDofNum + 3 * leg;
+        const vector3_t lower = jointLower_.segment<3>(3 * leg);
+        const vector3_t upper = jointUpper_.segment<3>(3 * leg);
+        const double radius = swingTrajectoryPtr_->getConfig().footRadius;
+        const auto nominalPosition = endEffectorKinematicsPtr_->getPosition(nominalState)[leg];
+        // Anchor the section to a reachable reference height before searching its
+        // boundaries. If that height is unreachable, solve XY with height free.
+        vector_t seedState = nominalState;
+        seedState.segment<3>(firstJoint) = seedState.segment<3>(firstJoint).cwiseMax(lower).cwiseMin(upper);
+        vector3_t desired = position;
+        desired.z() += radius;
+        const bool referenceReachable = solveSwingIk(leg, desired, seedState);
+        if (!referenceReachable) { seedState = nominalState; }
+        for (int iteration = 0; !referenceReachable && iteration < maxIterations; ++iteration) {
+            const auto approximation = endEffectorKinematicsPtr_->getPositionLinearApproximation(seedState)[leg];
+            const Eigen::Vector2d error = xy - approximation.f.head<2>();
+            if (error.norm() < ikTolerance) { break; }
+            const Eigen::Matrix<double, 2, 3> jacobian = approximation.dfdx.block<2, 3>(0, firstJoint);
+            const vector3_t delta = jacobian.completeOrthogonalDecomposition().solve(error);
+            seedState.segment<3>(firstJoint) = (seedState.segment<3>(firstJoint) + delta).cwiseMax(lower).cwiseMin(upper);
+        }
+        const vector3_t seedPosition = endEffectorKinematicsPtr_->getPosition(seedState)[leg];
+        if ((seedPosition.head<2>() - xy).norm() >= ikTolerance) {
+            throw std::runtime_error("Swing horizontal path IK failed: leg=" + std::to_string(leg) +
+                                     " xy=" + std::to_string(xy.x()) + "," + std::to_string(xy.y()) +
+                                     " residual=" + std::to_string((seedPosition.head<2>() - xy).norm()));
+        }
+        auto reachable = [&](double height, vector_t& state) {
+            const vector3_t desired(xy.x(), xy.y(), height + radius);
+            return solveSwingIk(leg, desired, state);
+        };
+        const double seed = seedPosition.z() - radius;
+        // A leg cannot reach farther vertically than its full displacement from the body.
+        const double span = 2.0 * (nominalPosition -
+            centroidal_model::getBasePose(nominalState, info_).head<3>()).norm();
+        Eigen::Vector2d bounds;
+        for (int side = 0; side < 2; ++side) {
+            double inside = seed;
+            double outside = seed + (side == 0 ? -span : span);
+            vector_t insideState = seedState;
+            // Resolve the boundary to the IK residual tolerance. Eight bisections
+            // left millimetres of artificial workspace loss at ground contact.
+            while (std::abs(outside - inside) > ikTolerance) {
+                const double midpoint = 0.5 * (inside + outside);
+                vector_t candidate = insideState;
+                if (reachable(midpoint, candidate)) { inside = midpoint; insideState = std::move(candidate); }
+                else { outside = midpoint; }
+            }
+            bounds[side] = inside;
+        }
+        return bounds;
+    }
+
     // 根据当前状态和接触标志修正投影的高度
     void PerceptiveLeggedReferenceManager::modifyProjections(scalar_t initTime, const vector_t& initState, size_t leg,
                                                              size_t initIndex,
                                                              const std::vector<bool>& contactFlagStocks,
-                                                             std::vector<
-                                                                 convex_plane_decomposition::PlanarTerrainProjection>&
-                                                             projections)
+                                                             std::vector< convex_plane_decomposition::PlanarTerrainProjection>& projections)
     {
         if (contactFlagStocks[initIndex])
         {
             lastLiftoffPos_[leg] = endEffectorKinematicsPtr_->getPosition(initState)[leg];
-            lastLiftoffPos_[leg].z() -= 0.019;
+            lastLiftoffPos_[leg].z() -= swingTrajectoryPtr_->getConfig().footRadius;
             for (int i = initIndex; i < projections.size(); ++i)
             {
                 if (!contactFlagStocks[i])

@@ -72,6 +72,9 @@ add_library(${PROJECT_NAME} SHARED
         src/interface/constraint/QuinticSplineCpg.cpp
         src/interface/constraint/BSpline.cpp
         src/interface/constraint/SwingTrajectoryPlanner.cpp
+        src/interface/constraint/PolynomialHull.cpp
+        src/interface/constraint/TerrainGeometry.cpp
+        src/interface/constraint/SwingCollisionCertifier.cpp
         src/interface/constraint/SwingTrajectoryQPOptimizer.cpp
         src/interface/initialization/LeggedRobotInitializer.cpp
         src/interface/SwitchedModelReferenceManager.cpp

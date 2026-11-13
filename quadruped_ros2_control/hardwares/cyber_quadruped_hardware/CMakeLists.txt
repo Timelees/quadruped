@@ -14,6 +14,7 @@ find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(lcm REQUIRED)
 
 # Create the hardware interface library
@@ -39,6 +40,15 @@ ament_target_dependencies(${PROJECT_NAME}
   rclcpp_lifecycle
 )
 
+add_executable(pointcloud_qos_relay
+  src/pointcloud_qos_relay.cpp
+)
+
+ament_target_dependencies(pointcloud_qos_relay
+  rclcpp
+  sensor_msgs
+)
+
 # Export hardware plugin
 pluginlib_export_plugin_description_file(hardware_interface cyber_quadruped_hardware.xml)
 
@@ -49,6 +59,11 @@ install(
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
   RUNTIME DESTINATION bin
+)
+
+install(
+  TARGETS pointcloud_qos_relay
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 install(
@@ -69,6 +84,7 @@ ament_export_dependencies(
   pluginlib
   rclcpp
   rclcpp_lifecycle
+  sensor_msgs
 )
 
 ament_package()

@@ -19,13 +19,14 @@
 #include <ocs2_legged_robot/common/Types.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematics.h>
 
-#include "log_save.h"
+namespace quadruped::logs { class LogSave; }
 
 namespace ocs2::legged_robot
 {
     class ConvexRegionSelector
     {
     public:
+        ~ConvexRegionSelector();
         struct FootholdScoreBreakdown
         {
             vector3_t candidateInWorld = vector3_t::Zero();
@@ -88,6 +89,18 @@ namespace ocs2::legged_robot
         private:
             const convex_plane_decomposition::PlanarTerrain* planarTerrainPtr_;
         };
+
+        // Own the plane: projections otherwise point into the map replaced each solve.
+        struct CommittedFoothold
+        {
+            scalar_t touchdownTime = 0.0;
+            scalar_t stanceEndTime = 0.0;
+            convex_plane_decomposition::PlanarRegion region;
+            convex_plane_decomposition::PlanarTerrainProjection projection;
+            convex_plane_decomposition::CgalPolygon2d polygon;
+            vector3_t nominal = vector3_t::Zero();
+        };
+        feet_array_t<std::unique_ptr<CommittedFoothold>> committedFootholds_;
 
         struct LockedFootholdRecord
         {

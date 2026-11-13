@@ -397,6 +397,10 @@ namespace ocs2::legged_robot
     void KalmanFilterEstimate::updateGroundTruth()
     {
         const size_t num_interfaces = ctrl_component_.odom_state_interface_.size();
+        if (num_interfaces < 6)
+        {
+            return;
+        }
 
         // Position (indices 0-2)
         gt_position_(0) = ctrl_component_.odom_state_interface_[0].get().get_value();
@@ -573,6 +577,11 @@ namespace ocs2::legged_robot
         loadData::loadPtreeValue(pt, foot_radius_, prefix + "footRadius", verbose);
         loadData::loadPtreeValue(pt, is_logger_enabled_, prefix + "is_enabled_logger", verbose);
         loadData::loadPtreeValue(pt, sim_mode_, prefix + "sim_mode", verbose);
+        if (node_->has_parameter("sim_mode"))
+        {
+            sim_mode_ = node_->get_parameter("sim_mode").as_bool();
+        }
+        ground_truth_enabled_ = sim_mode_;
         loadData::loadPtreeValue(pt, imu_process_noise_position_, prefix + "imuProcessNoisePosition", verbose);
         loadData::loadPtreeValue(pt, imu_process_noise_velocity_, prefix + "imuProcessNoiseVelocity", verbose);
         loadData::loadPtreeValue(pt, footProcessNoisePosition_, prefix + "footProcessNoisePosition", verbose);

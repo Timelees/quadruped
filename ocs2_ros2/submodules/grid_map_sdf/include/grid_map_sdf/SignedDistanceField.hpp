@@ -24,6 +24,9 @@ namespace grid_map
         SignedDistanceField();
         virtual ~SignedDistanceField();
 
+        // Exchange a completed field without rebuilding it on the solver thread.
+        void swap(SignedDistanceField& other);
+
         void calculateSignedDistanceField(
             const GridMap& gridMap, const std::string& layer,
             double heightClearance);

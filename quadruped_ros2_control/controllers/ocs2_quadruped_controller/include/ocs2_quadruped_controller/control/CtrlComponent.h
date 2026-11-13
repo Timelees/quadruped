@@ -50,6 +50,7 @@ namespace ocs2::legged_robot
         SystemObservation observation_;     // 当前系统观测值
         vector_t measured_rbd_state_;       // 测量到的刚体状态
         std::atomic_bool mpc_running_{};
+        std::atomic_bool mpc_failed_{};
 
         bool verbose_ = false;
 

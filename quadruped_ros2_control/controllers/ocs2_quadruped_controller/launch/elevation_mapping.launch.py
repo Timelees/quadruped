@@ -13,14 +13,14 @@ def launch_setup(context, *args, **kwargs):
     # Get the package share directory for controllers
     pkg_legged_controllers = get_package_share_directory('ocs2_quadruped_controller')
     use_sim_time = LaunchConfiguration('use_sim_time')
+    parameter_file = LaunchConfiguration('parameter_file')
 
     # Elevation mapping node
-    elevation_mapping_yaml = os.path.join(pkg_legged_controllers, 'config', 'elevation_mapping.yaml')
     elevation_mapping = Node(
         package='elevation_mapping',
         executable='elevation_mapping',
         name='elevation_mapping',
-        parameters=[elevation_mapping_yaml, {'use_sim_time': use_sim_time}],
+        parameters=[parameter_file, {'use_sim_time': use_sim_time}],
         output='screen',
         # arguments=['--ros-args', '--log-level', 'elevation_mapping:=debug']
     )
@@ -70,6 +70,15 @@ def generate_launch_description():
             'use_sim_time',
             default_value='true',
             description='Use simulation clock'
+        ),
+        DeclareLaunchArgument(
+            'parameter_file',
+            default_value=os.path.join(
+                get_package_share_directory('ocs2_quadruped_controller'),
+                'config',
+                'elevation_mapping.yaml',
+            ),
+            description='Elevation mapping parameter file'
         ),
 
         OpaqueFunction(function=launch_setup)

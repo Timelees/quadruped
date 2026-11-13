@@ -7,7 +7,7 @@ legged_robot_interface
 
 model_settings
 {
-  positionErrorGain             0.0     // 位置误差增益
+  positionErrorGain             0.0     // 保持原支撑/非地形规划 足端约束
   phaseTransitionStanceTime     0.1     // 相位转换时的站立时间
 
   verboseCppAd                  true    // 是否显示 C++ AD（自动微分）的详细信息
@@ -22,31 +22,27 @@ swing_trajectory_config
   touchDownVelocity            -0.04   // 触地速度 - 降低以减少落地冲击
   swingHeight                   0.085
   swingTimeScale                0.20   // 摆动时间缩放因子
-  useCbfUpdate                  false  // true: 使用地形感知 CBF-QP 生成摆动轨迹; false: 保持当前 update
-  cbfNumCurveSamples            120
-  cbfControlPointTrackingWeight 0.8
-  cbfPositionTrackingWeight     0.8
-  cbfVelocityTrackingWeight     0.35
-  cbfAccelerationTrackingWeight 0.2
-  cbfJerkSmoothnessWeight       0.08
-  cbfControlPointSmoothnessWeight 0.45
-  cbfControlPointJerkWeight     0.12
-  cbfGroundClearance            0.03
-  cbfCollisionActivationMargin  0.015
-  cbfMaxOptimizedHeightDrop     0.005
-  cbfMaxOptimizedHeightDeviation 0.08
-  cbfMaxOptimizedJerkRatio      2.0
-  cbfGamma                      3.0
-  cbfStartPhase                 0.18
-  cbfEndPhase                   0.82
-  cbfMaxTerrainConstraints      10
-  cbfMaxCbfConstraints          3
-  cbfQpMaxWorkingSetRecalculations 80
-  cbfLiftPropagationWindow      20
-  cbfLiftPropagationSigma       7.0
-  enableCbfConstraint           true
-  cbfElevationLayer             smooth_planar
-  cbfVerbose                    false
+  footRadius                    0.019  // 接触面到足端运动学球心的高度偏移 [m]
+  trackingWeight                25.0 // 完整三维摆动参考跟踪的二次代价
+  trackingPositionErrorGain     20.0 // 仅用于地形三维摆动跟踪 [1/s]
+  useTerrainPlanning            false
+  terrainGeometryMode           2    // 0: discrete ablation, 1: Bezier, 2: MINVO
+  terrainNumCurveSamples        60
+  terrainSubdivisionsPerSpan     4    // rounded up to a power of two
+  checkSwingReference           false // section 3.3 adaptive hull/prism certificate
+  verifySwingOutput             false // false permits uncertified ablation output only
+  collisionHullBasis            1    // 0: Bezier, 1: MINVO
+  collisionMaxDepth             10
+  collisionMaxSegments          4096
+  terrainControlPointTrackingWeight 0.8
+  terrainPositionTrackingWeight 0.8
+  terrainVelocityTrackingWeight 0.35
+  terrainAccelerationTrackingWeight 0.2
+  terrainJerkSmoothnessWeight    0.08
+  terrainGroundClearance         0.03 // C2 piecewise-quintic envelope, zero value/slope/curvature at contacts
+  terrainQpMaxWorkingSetRecalculations 200
+  terrainElevationLayer          elevation
+  terrainVerbose                 true
 }
 
 ; DDP settings
@@ -309,7 +305,8 @@ footPlacement
   swingActivationProgress       0.7     ; 摆动相进度阈值。只有在摆动后段才开始强制向 touchdown polygon 收敛。
 }
 
-; 落足点cbf约束
+
+; Legacy MPC foothold CBF (independent of swing terrain planning).
 footPlacementCbf
 {
   ; relaxed log barrier parameters
@@ -322,8 +319,6 @@ footPlacementCbf
 
 }
 
-
-
 ; Whole body control
 torqueLimitsTask
 {
@@ -332,14 +327,7 @@ torqueLimitsTask
    (2,0)  12.0     ; KFE
 }
 
-footPlacementCbfTask
-{
-  gamma                   1.0
-  xi                      5.0
-  relaxationDerivativeDt  0.02
-  maxRelaxationRate       0.5
-  maxRelaxationAccel      2.0
-}
+
 
 ; 摩擦椎硬约束，必须严格满足摩擦椎约束，否则求解不可达
 frictionConeTask

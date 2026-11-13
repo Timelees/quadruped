@@ -34,6 +34,10 @@ namespace ocs2::legged_robot
         {
         }
 
+        // Fuse only corresponding world cells; rolling-buffer indices are not coordinates.
+        static void filterHeightLayer(grid_map::GridMap& current, const grid_map::GridMap& previous,
+                                      const std::string& layer, double alpha);
+
     private:
         bool sanitizeElevationLayer(convex_plane_decomposition::PlanarTerrain& planarTerrain) const;
         bool acceptTimestamp(grid_map::Time timestamp) const;
@@ -43,7 +47,6 @@ namespace ocs2::legged_robot
         convex_plane_decomposition::PlanarTerrain filterTerrain(
             const convex_plane_decomposition::PlanarTerrain& candidate,
             double centerJump) const;
-        void updateSignedDistanceField(const convex_plane_decomposition::PlanarTerrain& planarTerrain) const;
         double getOrDeclareDoubleParameter(const std::string& name, double defaultValue) const;
 
         rclcpp_lifecycle::LifecycleNode::SharedPtr node_;
@@ -55,6 +58,7 @@ namespace ocs2::legged_robot
         std::atomic_bool updated_ = false;
 
         convex_plane_decomposition::PlanarTerrain pendingTerrain_;
+        std::unique_ptr<grid_map::SignedDistanceField> pendingSdf_;
         convex_plane_decomposition::PlanarTerrain filteredTerrain_;
         bool hasFilteredTerrain_ = false;
         grid_map::Time lastAcceptedTimestamp_ = 0;

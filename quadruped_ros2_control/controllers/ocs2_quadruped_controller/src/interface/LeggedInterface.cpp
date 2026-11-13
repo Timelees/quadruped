@@ -14,6 +14,7 @@
 #include <ocs2_core/misc/LoadData.h>
 #include <ocs2_core/misc/LoadStdVectorOfPair.h>
 #include <ocs2_core/soft_constraint/StateInputSoftConstraint.h>
+#include <ocs2_core/penalties/penalties/QuadraticPenalty.h>
 #include <ocs2_core/soft_constraint/StateSoftConstraint.h>
 #include <ocs2_legged_robot/dynamics/LeggedRobotDynamicsAD.h>
 #include <ocs2_oc/synchronized_module/SolverSynchronizedModule.h>
@@ -137,6 +138,11 @@ namespace ocs2::legged_robot
         RelaxedBarrierPenalty::Config barrierPenaltyConfig;
         std::tie(frictionCoefficient, barrierPenaltyConfig) = loadFrictionConeSettings(task_file, verbose);
 
+        const bool useSwingTracking = reference_manager_ptr_->getSwingTrajectoryPlanner()->isTerrainPlanningEnabled();
+        scalar_t swingTrackingWeight = 25.0;
+        if (useSwingTracking) {
+            loadData::loadCppDataType(task_file, "swing_trajectory_config.trackingWeight", swingTrackingWeight);
+        }
         for (size_t i = 0; i < centroidal_model_info_.numThreeDofContacts; i++)
         {
             const std::string& footName = model_settings_.contactNames3DoF[i];
@@ -162,9 +168,13 @@ namespace ocs2::legged_robot
             problem_ptr_->equalityConstraintPtr->add(footName + "_zeroVelocity",
                                                      getZeroVelocityConstraint(*eeKinematicsPtr, i));
             // 足端法向速度约束
-            problem_ptr_->equalityConstraintPtr->add(
-                footName + "_normalVelocity",
-                std::make_unique<NormalVelocityConstraintCppAd>(*reference_manager_ptr_, *eeKinematicsPtr, i));
+            auto swingTracking = std::make_unique<NormalVelocityConstraintCppAd>(*reference_manager_ptr_, *eeKinematicsPtr, i);
+            if (useSwingTracking) {
+                problem_ptr_->softConstraintPtr->add(footName + "_swingTracking",
+                    std::make_unique<StateInputSoftConstraint>(std::move(swingTracking), std::make_unique<QuadraticPenalty>(swingTrackingWeight)));
+            } else {
+                problem_ptr_->equalityConstraintPtr->add(footName + "_normalVelocity", std::move(swingTracking));
+            }
         }
 
         // Self-collision avoidance constraint 自碰撞约束

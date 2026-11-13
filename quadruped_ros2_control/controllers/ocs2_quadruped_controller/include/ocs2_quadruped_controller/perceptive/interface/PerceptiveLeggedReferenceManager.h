@@ -5,6 +5,7 @@
 #pragma once
 
 #include <memory>
+#include <ocs2_oc/synchronized_module/SolverSynchronizedModule.h>
 
 #include "ocs2_quadruped_controller/perceptive/interface/ConvexRegionSelector.h"
 
@@ -39,6 +40,17 @@ namespace ocs2::legged_robot
                                          FootPlacementRelaxationConfig footPlacementRelaxationConfig =
                                              FootPlacementRelaxationConfig());
 
+        void setJointLimits(vector_t lower, vector_t upper) {
+            jointLower_ = std::move(lower);
+            jointUpper_ = std::move(upper);
+        }
+
+        void setTerrainReceiver(std::shared_ptr<SolverSynchronizedModule> receiver) {
+            terrainReceiver_ = std::move(receiver);
+        }
+
+        void preSolverRun(scalar_t initTime, scalar_t finalTime, const vector_t& initState) override;
+
         const std::shared_ptr<ConvexRegionSelector>& getConvexRegionSelectorPtr() const { return convexRegionSelectorPtr_; }
 
         contact_flag_t getFootPlacementFlags(scalar_t time) const;
@@ -57,7 +69,7 @@ namespace ocs2::legged_robot
                               ModeSchedule& modeSchedule) override;
 
         virtual void updateSwingTrajectoryPlanner(scalar_t initTime, const vector_t& initState,
-                                                  ModeSchedule& modeSchedule);
+                                                  ModeSchedule& modeSchedule, const TargetTrajectories& targets);
 
         void modifyProjections(scalar_t initTime, const vector_t& initState, size_t leg, size_t initIndex,
                                const std::vector<bool>& contactFlagStocks,
@@ -75,10 +87,16 @@ namespace ocs2::legged_robot
             getSwingPositions3d(const feet_array_t<std::vector<bool>>& contactFlagStocks,
                                const feet_array_t<std::vector<convex_plane_decomposition::PlanarTerrainProjection>>& allProjections) const;
 
+        Eigen::Vector2d swingHeightBounds(size_t leg, const vector_t& state, const Eigen::Vector3d& position) const;
+        bool solveSwingIk(size_t leg, const vector3_t& desired, vector_t& state) const;
+        vector_t swingNominalState(scalar_t time, scalar_t initTime, const vector_t& initState,
+                                  const TargetTrajectories& targets) const;
+        vector_t jointLower_, jointUpper_;
         const CentroidalModelInfo info_;
         feet_array_t<vector3_t> lastLiftoffPos_;
 
         std::shared_ptr<ConvexRegionSelector> convexRegionSelectorPtr_;
+        std::shared_ptr<SolverSynchronizedModule> terrainReceiver_;
         std::unique_ptr<EndEffectorKinematics<scalar_t>> endEffectorKinematicsPtr_;
 
         scalar_t comHeight_;

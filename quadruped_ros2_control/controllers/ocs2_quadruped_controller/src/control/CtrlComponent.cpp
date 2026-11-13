@@ -134,7 +134,6 @@ namespace ocs2::legged_robot
         visualizer_->update(observation_);
         if (enable_perceptive_)
         {
-            footPlacementVisualizationPtr_->update(observation_);
             sphereVisualizationPtr_->update(observation_);
         }
 
@@ -228,7 +227,9 @@ namespace ocs2::legged_robot
                     node_, dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getPlanarTerrainPtr(),
                     dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getSignedDistanceFieldPtr(),
                     "planar_terrain", "smooth_planar");
-            mpc_->getSolverPtr()->addSynchronizedModule(planarTerrainReceiver);
+            auto& referenceManager = dynamic_cast<PerceptiveLeggedReferenceManager&>(
+                *legged_interface_->getReferenceManagerPtr());
+            referenceManager.setTerrainReceiver(planarTerrainReceiver);
         }
     }
 
@@ -253,14 +254,21 @@ namespace ocs2::legged_robot
                                 mpc_timer_.startTimer();
                                 mpc_mrt_interface_->advanceMpc();
                                 mpc_timer_.endTimer();
+                                if (enable_perceptive_) {
+                                    SystemObservation plannedObservation;
+                                    plannedObservation.time = mpc_->getSolverPtr()->getFinalTime() - mpc_->getTimeHorizon();
+                                    footPlacementVisualizationPtr_->update(plannedObservation);
+                                }
                             }
                         },
                         legged_interface_->mpcSettings().mpcDesiredFrequency_);
                 }
                 catch (const std::exception& e)
                 {
+                    mpc_failed_ = true;
+                    mpc_running_ = false;
                     controller_running_ = false;
-                    RCLCPP_WARN(node_->get_logger(), "[Ocs2 MPC thread] Error : %s", e.what());
+                    RCLCPP_ERROR(node_->get_logger(), "[Ocs2 MPC thread] Error : %s", e.what());
                 }
             } });
         setThreadPriority(legged_interface_->sqpSettings().threadPriority, mpc_thread_);

@@ -113,6 +113,25 @@ Eigen::MatrixXd BSpline::generateSplineBasis(const Eigen::VectorXd& pts) const {
     return generateSplineBasisInternal(pts, degree_, knots_);
 }
 
+Eigen::MatrixXd BSpline::generateSplineDerivativeBasis(const Eigen::VectorXd& pts, int order) const {
+    validateSplineData();
+    Eigen::MatrixXd mapping = Eigen::MatrixXd::Identity(x_.size(), x_.size());
+    Eigen::VectorXd knots = knots_;
+    int degree = degree_;
+    for (int k = 0; k < order; ++k) {
+        if (degree == 0) { return Eigen::MatrixXd::Zero(pts.size(), x_.size()); }
+        Eigen::MatrixXd next(mapping.rows() - 1, mapping.cols());
+        for (Eigen::Index i = 0; i < next.rows(); ++i) {
+            next.row(i) = degree / (knots[i + degree + 1] - knots[i + 1]) *
+                          (mapping.row(i + 1) - mapping.row(i));
+        }
+        mapping = std::move(next);
+        knots = knots.segment(1, knots.size() - 2).eval();
+        --degree;
+    }
+    return generateSplineBasisInternal(pts, degree, knots) * mapping;
+}
+
 Eigen::Vector3d BSpline::evaluateCurve(const Eigen::VectorXd& xControl,
                                        const Eigen::VectorXd& yControl,
                                        const Eigen::VectorXd& zControl,
@@ -163,7 +182,7 @@ Eigen::Vector3d BSpline::evaluateDerivative(int derivativeOrder, double t) const
         derivativeX = nextX;
         derivativeY = nextY;
         derivativeZ = nextZ;
-        derivativeKnots = derivativeKnots.segment(1, derivativeKnots.size() - 2);
+        derivativeKnots = derivativeKnots.segment(1, derivativeKnots.size() - 2).eval();
         --derivativeDegree;
     }
 
@@ -220,4 +239,11 @@ Eigen::VectorXd BSpline::interpolate(const Eigen::VectorXd& u) const {
     }
 
     return v;
+}
+
+Eigen::MatrixXd BSpline::getControlPoints() const {
+    validateSplineData();
+    Eigen::MatrixXd points(x_.size(), 3);
+    points << x_, y_, z_;
+    return points;
 }

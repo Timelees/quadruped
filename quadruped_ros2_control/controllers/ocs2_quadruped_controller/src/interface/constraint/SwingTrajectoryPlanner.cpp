@@ -34,6 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <iostream>
 #include <ocs2_core/misc/LoadData.h>
 #include <ocs2_core/misc/Lookup.h>
@@ -45,9 +46,6 @@ namespace ocs2::legged_robot {
         constexpr int kHeightSplineDegree = 5;
         constexpr int kSwingHeightControlPoints = 7;
         constexpr int kStanceHeightControlPoints = 6;
-        constexpr scalar_t kSwingCacheTimeTolerance = 0.02;
-        constexpr scalar_t kSwingCachePositionTolerance = 0.04;
-        constexpr size_t kMaxCachedSwingsPerLeg = 32;
 
         BSpline createHeightBSpline(const Eigen::VectorXd& zControlPoints, scalar_t startTime, scalar_t finalTime) {
             BSpline spline(kHeightSplineDegree);
@@ -57,7 +55,9 @@ namespace ocs2::legged_robot {
             return spline;
         }
 
-        BSpline createSwingHeightBSpline(scalar_t swingStartTime, scalar_t swingFinalTime,
+    } // namespace
+
+    BSpline createSwingHeightBSpline(scalar_t swingStartTime, scalar_t swingFinalTime,
                                          scalar_t liftOffHeight, scalar_t liftOffVelocity,
                                          scalar_t midHeight,
                                          scalar_t touchDownHeight, scalar_t touchDownVelocity) {
@@ -100,6 +100,23 @@ namespace ocs2::legged_robot {
             return spline;
         }
 
+    namespace {
+        // Reuse the last policy's complete swing once lift-off has occurred. The
+        // per-phase stock covers every swing in the horizon, so a later swing
+        // cannot overwrite the executing swing's cache.
+        const BSpline* executingSwing(const std::vector<BSpline>& previous,
+                                     scalar_t start, scalar_t end, scalar_t initTime) {
+            if (initTime < start || initTime >= end) { return nullptr; }
+            for (const auto& spline : previous) {
+                const auto& knots = spline.getKnots();
+                if (knots.size() && std::abs(knots[0] - start) < 1e-9 &&
+                    std::abs(knots[knots.size() - 1] - end) < 1e-9) {
+                    return &spline;
+                }
+            }
+            return nullptr;
+        }
+
         BSpline createStanceHeightBSpline(scalar_t height) {
             return createHeightBSpline(Eigen::VectorXd::Constant(kStanceHeightControlPoints, height), 0.0, 1.0);
         }
@@ -110,83 +127,32 @@ namespace ocs2::legged_robot {
     }
 
     void SwingTrajectoryPlanner::setTerrainInterface(std::shared_ptr<TerrainInterface> terrainInterface) {
-        for (auto& cache : cachedSwingTrajectories_) {
-            cache.clear();
-        }
-        if (!terrainInterface) {
-            swingTrajectoryQpOptimizer_.reset();
-            return;
-        }
+        auto qpConfig = config_.terrainQpConfig;
+        qpConfig.footRadius = config_.footRadius;
         swingTrajectoryQpOptimizer_ = std::make_shared<SwingTrajectoryQpOptimizer>(
-            config_.cbfQpConfig, std::move(terrainInterface));
+            std::move(qpConfig), std::move(terrainInterface));
     }
 
-    bool SwingTrajectoryPlanner::getCachedSwingTrajectory(size_t leg, scalar_t startTime, scalar_t finalTime,
-                                                          const Eigen::Vector3d& liftOff,
-                                                          const Eigen::Vector3d& touchDown,
-                                                          BSpline& spline) const {
-        if (leg >= cachedSwingTrajectories_.size()) {
-            return false;
-        }
-
-        const auto& cache = cachedSwingTrajectories_[leg];
-        const auto match = std::find_if(cache.begin(), cache.end(), [&](const CachedSwingTrajectory& cached) {
-            return std::abs(cached.startTime - startTime) <= kSwingCacheTimeTolerance &&
-                   std::abs(cached.finalTime - finalTime) <= kSwingCacheTimeTolerance &&
-                   (cached.liftOff - liftOff).norm() <= kSwingCachePositionTolerance &&
-                   (cached.touchDown - touchDown).norm() <= kSwingCachePositionTolerance;
-        });
-        if (match == cache.end()) {
-            return false;
-        }
-
-        spline = match->spline;
-        return true;
+    vector3_t SwingTrajectoryPlanner::getVelocityConstraint(size_t leg, scalar_t time) const {
+        const auto index = lookup::findIndexInTimeArray(feetHeightTrajectoriesEvents_[leg], time);
+        return feetHeightTrajectories_[leg][index].getVelocity(time);
     }
 
-    void SwingTrajectoryPlanner::cacheSwingTrajectory(size_t leg, scalar_t startTime, scalar_t finalTime,
-                                                      const Eigen::Vector3d& liftOff,
-                                                      const Eigen::Vector3d& touchDown,
-                                                      const BSpline& spline) {
-        if (leg >= cachedSwingTrajectories_.size()) {
-            return;
-        }
-
-        auto& cache = cachedSwingTrajectories_[leg];
-        auto match = std::find_if(cache.begin(), cache.end(), [&](const CachedSwingTrajectory& cached) {
-            return std::abs(cached.startTime - startTime) <= kSwingCacheTimeTolerance &&
-                   std::abs(cached.finalTime - finalTime) <= kSwingCacheTimeTolerance;
-        });
-
-        CachedSwingTrajectory cached;
-        cached.startTime = startTime;
-        cached.finalTime = finalTime;
-        cached.liftOff = liftOff;
-        cached.touchDown = touchDown;
-        cached.spline = spline;
-
-        if (match != cache.end()) {
-            *match = cached;
-        } else {
-            cache.push_back(cached);
-            if (cache.size() > kMaxCachedSwingsPerLeg) {
-                cache.erase(cache.begin());
-            }
-        }
+    vector3_t SwingTrajectoryPlanner::getPositionConstraint(size_t leg, scalar_t time) const {
+        const auto index = lookup::findIndexInTimeArray(feetHeightTrajectoriesEvents_[leg], time);
+        vector3_t position = feetHeightTrajectories_[leg][index].getPosition(time);
+        position.z() += config_.footRadius;
+        return position;
     }
-
 
     scalar_t SwingTrajectoryPlanner::getZvelocityConstraint(size_t leg, scalar_t time) const {
-        const auto index = lookup::findIndexInTimeArray(feetHeightTrajectoriesEvents_[leg], time);
-        return feetHeightTrajectories_[leg][index].getVelocity(time).z();
+        return getVelocityConstraint(leg, time).z();
     }
-
 
     scalar_t SwingTrajectoryPlanner::getZpositionConstraint(size_t leg, scalar_t time) const {
         const auto index = lookup::findIndexInTimeArray(feetHeightTrajectoriesEvents_[leg], time);
         return feetHeightTrajectories_[leg][index].getPosition(time).z();
     }
-
 
     void SwingTrajectoryPlanner::update(const ModeSchedule &modeSchedule, scalar_t terrainHeight) {
         const scalar_array_t terrainHeightSequence(modeSchedule.modeSequence.size(), terrainHeight);
@@ -200,7 +166,8 @@ namespace ocs2::legged_robot {
 
     void SwingTrajectoryPlanner::update(const ModeSchedule &modeSchedule,
                                         const feet_array_t<scalar_array_t> &liftOffHeightSequence,
-                                        const feet_array_t<scalar_array_t> &touchDownHeightSequence) {
+                                        const feet_array_t<scalar_array_t> &touchDownHeightSequence,
+                                        scalar_t initTime) {
         scalar_array_t heightSequence(modeSchedule.modeSequence.size());
         feet_array_t<scalar_array_t> maxHeightSequence;
         for (size_t j = 0; j < numFeet_; j++) {
@@ -209,14 +176,15 @@ namespace ocs2::legged_robot {
             }
             maxHeightSequence[j] = heightSequence;
         }
-        update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, maxHeightSequence);
+        update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, maxHeightSequence, initTime);
     }
 
 
     void SwingTrajectoryPlanner::update(const ModeSchedule &modeSchedule,
                                         const feet_array_t<scalar_array_t> &liftOffHeightSequence,
                                         const feet_array_t<scalar_array_t> &touchDownHeightSequence,
-                                        const feet_array_t<scalar_array_t> &maxHeightSequence) {
+                                        const feet_array_t<scalar_array_t> &maxHeightSequence,
+                                        scalar_t initTime) {
         const auto &modeSequence = modeSchedule.modeSequence;
         const auto &eventTimes = modeSchedule.eventTimes;
 
@@ -230,6 +198,7 @@ namespace ocs2::legged_robot {
         }
 
         for (size_t j = 0; j < numFeet_; j++) {
+            const auto previous = std::move(feetHeightTrajectories_[j]);
             feetHeightTrajectories_[j].clear();
             feetHeightTrajectories_[j].reserve(modeSequence.size());
             for (int p = 0; p < modeSequence.size(); ++p) {
@@ -241,6 +210,10 @@ namespace ocs2::legged_robot {
 
                     const scalar_t swingStartTime = eventTimes[swingStartIndex];
                     const scalar_t swingFinalTime = eventTimes[swingFinalIndex];
+                    if (const auto* frozen = executingSwing(previous, swingStartTime, swingFinalTime, initTime)) {
+                        feetHeightTrajectories_[j].push_back(*frozen);
+                        continue;
+                    }
 
                     const scalar_t scaling = swingTrajectoryScaling(swingStartTime, swingFinalTime,
                                                                     config_.swingTimeScale);
@@ -260,12 +233,13 @@ namespace ocs2::legged_robot {
         }
     }
 
-    void SwingTrajectoryPlanner::updateCBF(
+    void SwingTrajectoryPlanner::updateTerrain(
         const ModeSchedule &modeSchedule,
         const feet_array_t<scalar_array_t> &liftOffHeightSequence,
         const feet_array_t<scalar_array_t> &touchDownHeightSequence,
         const feet_array_t<std::vector<Eigen::Vector3d>> &liftOffPositionSequence,
-        const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence) {
+        const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence,
+        scalar_t initTime, scalar_t finalTime) {
         scalar_array_t heightSequence(modeSchedule.modeSequence.size());
         feet_array_t<scalar_array_t> maxHeightSequence;
         for (size_t j = 0; j < numFeet_; j++) {
@@ -274,20 +248,24 @@ namespace ocs2::legged_robot {
             }
             maxHeightSequence[j] = heightSequence;
         }
-        updateCBF(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, maxHeightSequence,
-                  liftOffPositionSequence, touchDownPositionSequence);
+        updateTerrain(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, maxHeightSequence,
+                  liftOffPositionSequence, touchDownPositionSequence, initTime, finalTime);
     }
 
-    void SwingTrajectoryPlanner::updateCBF(
+    void SwingTrajectoryPlanner::updateTerrain(
         const ModeSchedule &modeSchedule,
         const feet_array_t<scalar_array_t> &liftOffHeightSequence,
         const feet_array_t<scalar_array_t> &touchDownHeightSequence,
         const feet_array_t<scalar_array_t> &maxHeightSequence,
         const feet_array_t<std::vector<Eigen::Vector3d>> &liftOffPositionSequence,
-        const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence) {
-        if (!isCbfUpdateEnabled()) {
-            update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, maxHeightSequence);
+        const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence,
+        scalar_t initTime, scalar_t finalTime) {
+        if (!config_.useTerrainPlanning) {
+            update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, maxHeightSequence, initTime);
             return;
+        }
+        if (!swingTrajectoryQpOptimizer_) {
+            throw std::logic_error("Swing terrain-QP is enabled without a terrain interface.");
         }
 
         const auto &modeSequence = modeSchedule.modeSequence;
@@ -302,9 +280,15 @@ namespace ocs2::legged_robot {
         }
 
         for (size_t j = 0; j < numFeet_; j++) {
+            const auto previous = std::move(feetHeightTrajectories_[j]);
             feetHeightTrajectories_[j].clear();
             feetHeightTrajectories_[j].reserve(modeSequence.size());
             for (int p = 0; p < modeSequence.size(); ++p) {
+                // 同一次更新中，连续非接触模式属于同一完整摆动段，只求解一次。
+                if (p > 0 && !eesContactFlagStocks[j][p] && !eesContactFlagStocks[j][p - 1]) {
+                    feetHeightTrajectories_[j].push_back(feetHeightTrajectories_[j].back());
+                    continue;
+                }
                 if (!eesContactFlagStocks[j][p]) {
                     const int swingStartIndex = startTimesIndices[j][p];
                     const int swingFinalIndex = finalTimesIndices[j][p];
@@ -312,6 +296,10 @@ namespace ocs2::legged_robot {
 
                     const scalar_t swingStartTime = eventTimes[swingStartIndex];
                     const scalar_t swingFinalTime = eventTimes[swingFinalIndex];
+                    if (const auto* frozen = executingSwing(previous, swingStartTime, swingFinalTime, initTime)) {
+                        feetHeightTrajectories_[j].push_back(*frozen);
+                        continue;
+                    }
                     const scalar_t scaling = swingTrajectoryScaling(swingStartTime, swingFinalTime,
                                                                     config_.swingTimeScale);
                     const scalar_t midHeight = maxHeightSequence[j][p] + scaling * config_.swingHeight;
@@ -321,31 +309,41 @@ namespace ocs2::legged_robot {
                         midHeight,
                         touchDownHeightSequence[j][p], scaling * config_.touchDownVelocity);
 
-                    BSpline selectedSpline = referenceSpline;
-                    if (j < liftOffPositionSequence.size() &&
-                        static_cast<size_t>(p) < liftOffPositionSequence[j].size() &&
-                        static_cast<size_t>(p) < touchDownPositionSequence[j].size()) {
-                        Eigen::Vector3d liftOff = liftOffPositionSequence[j][static_cast<size_t>(p)];
-                        Eigen::Vector3d touchDown = touchDownPositionSequence[j][static_cast<size_t>(p)];
-                        liftOff.z() = liftOffHeightSequence[j][p];
-                        touchDown.z() = touchDownHeightSequence[j][p];
-
-                        if (getCachedSwingTrajectory(j, swingStartTime, swingFinalTime, liftOff, touchDown,
-                                                     selectedSpline)) {
-                            // Reuse the already optimized swing to avoid terrain-noise induced replanning jitter.
-                        } else {
-                            const auto optimized = swingTrajectoryQpOptimizer_->optimizeSwingTrajectory(
-                                referenceSpline, swingStartTime, swingFinalTime, liftOff, touchDown);
-                            if (optimized.valid()) {
-                                selectedSpline = *optimized.bspline;
-                                if (optimized.optimizedByQp) {
-                                    cacheSwingTrajectory(j, swingStartTime, swingFinalTime,
-                                                         liftOff, touchDown, selectedSpline);
-                                }
-                            }
-                        }
+                    if (swingFinalTime < initTime || swingStartTime > finalTime) {
+                        // OCS2 keeps padding modes outside the policy horizon. They need no QP.
+                        feetHeightTrajectories_[j].push_back(referenceSpline);
+                        continue;
                     }
-                    feetHeightTrajectories_[j].push_back(selectedSpline);
+                    Eigen::Vector3d liftOff = liftOffPositionSequence[j].at(static_cast<size_t>(p));
+                    Eigen::Vector3d touchDown = touchDownPositionSequence[j].at(static_cast<size_t>(p));
+                    liftOff.z() = liftOffHeightSequence[j][p];
+                    touchDown.z() = touchDownHeightSequence[j][p];
+                    const auto optimizationStart = std::chrono::steady_clock::now();
+                    const auto optimized = swingTrajectoryQpOptimizer_->optimizeSwingTrajectory(
+                        referenceSpline, swingStartTime, swingFinalTime, liftOff, touchDown,
+                        workspace_ ? SwingTrajectoryQpOptimizer::HeightBounds([&, j](double t, const Eigen::Vector3d& position) {
+                            return workspace_(j, t, position);
+                        }) : SwingTrajectoryQpOptimizer::HeightBounds{});
+                    if (config_.terrainQpConfig.verbose) {
+                        std::cerr << "Swing planning ms=" << std::chrono::duration<double, std::milli>(
+                            std::chrono::steady_clock::now() - optimizationStart).count() << '\n';
+                    }
+                    if (!optimized.valid()) {
+                        // guardrail: QP infeasible or output certification failed.
+                        // Fall back to the reference spline rather than aborting the
+                        // controller — the reference is the pre-terrain-plan baseline
+                        // and is always available.
+                        if (config_.terrainQpConfig.verbose) {
+                            std::cerr << "Swing terrain-QP fallback for leg " << j
+                                      << " at " << std::to_string(initTime) << " in ["
+                                      << std::to_string(swingStartTime) << ", "
+                                      << std::to_string(swingFinalTime) << "].\n";
+                        }
+                        feetHeightTrajectories_[j].push_back(referenceSpline);
+                    } else {
+                        feetHeightTrajectories_[j].push_back(*optimized.bspline);
+
+                    }
                 } else {
                     feetHeightTrajectories_[j].push_back(createStanceHeightBSpline(liftOffHeightSequence[j][p]));
                 }
@@ -480,35 +478,35 @@ namespace ocs2::legged_robot {
             }
         };
 
-        loadOptional(config.useCbfUpdate, "useCbfUpdate");
-        loadOptional(config.cbfQpConfig.numControlPoints, "cbfNumControlPoints");
-        loadOptional(config.cbfQpConfig.numCurveSamples, "cbfNumCurveSamples");
-        loadOptional(config.cbfQpConfig.splineOrder, "cbfSplineOrder");
-        loadOptional(config.cbfQpConfig.controlPointTrackingWeight, "cbfControlPointTrackingWeight");
-        loadOptional(config.cbfQpConfig.positionTrackingWeight, "cbfPositionTrackingWeight");
-        loadOptional(config.cbfQpConfig.velocityTrackingWeight, "cbfVelocityTrackingWeight");
-        loadOptional(config.cbfQpConfig.accelerationTrackingWeight, "cbfAccelerationTrackingWeight");
-        loadOptional(config.cbfQpConfig.jerkSmoothnessWeight, "cbfJerkSmoothnessWeight");
-        loadOptional(config.cbfQpConfig.controlPointSmoothnessWeight, "cbfControlPointSmoothnessWeight");
-        loadOptional(config.cbfQpConfig.controlPointJerkWeight, "cbfControlPointJerkWeight");
-        loadOptional(config.cbfQpConfig.controlPointZMin, "cbfControlPointZMin");
-        loadOptional(config.cbfQpConfig.controlPointZMax, "cbfControlPointZMax");
-        loadOptional(config.cbfQpConfig.groundClearance, "cbfGroundClearance");
-        loadOptional(config.cbfQpConfig.collisionActivationMargin, "cbfCollisionActivationMargin");
-        loadOptional(config.cbfQpConfig.maxOptimizedHeightDrop, "cbfMaxOptimizedHeightDrop");
-        loadOptional(config.cbfQpConfig.maxOptimizedHeightDeviation, "cbfMaxOptimizedHeightDeviation");
-        loadOptional(config.cbfQpConfig.maxOptimizedJerkRatio, "cbfMaxOptimizedJerkRatio");
-        loadOptional(config.cbfQpConfig.enableCbfConstraint, "enableCbfConstraint");
-        loadOptional(config.cbfQpConfig.cbfGamma, "cbfGamma");
-        loadOptional(config.cbfQpConfig.cbfStartPhase, "cbfStartPhase");
-        loadOptional(config.cbfQpConfig.cbfEndPhase, "cbfEndPhase");
-        loadOptional(config.cbfQpConfig.maxTerrainConstraints, "cbfMaxTerrainConstraints");
-        loadOptional(config.cbfQpConfig.maxCbfConstraints, "cbfMaxCbfConstraints");
-        loadOptional(config.cbfQpConfig.qpMaxWorkingSetRecalculations, "cbfQpMaxWorkingSetRecalculations");
-        loadOptional(config.cbfQpConfig.liftPropagationWindow, "cbfLiftPropagationWindow");
-        loadOptional(config.cbfQpConfig.liftPropagationSigma, "cbfLiftPropagationSigma");
-        loadOptional(config.cbfQpConfig.elevationLayer, "cbfElevationLayer");
-        loadOptional(config.cbfQpConfig.verbose, "cbfVerbose");
+        loadOptional(config.useTerrainPlanning, "useTerrainPlanning");
+        loadOptional(config.footRadius, "footRadius");
+        loadOptional(config.trackingPositionErrorGain, "trackingPositionErrorGain");
+        loadOptional(config.terrainQpConfig.numControlPoints, "terrainNumControlPoints");
+        loadOptional(config.terrainQpConfig.numCurveSamples, "terrainNumCurveSamples");
+        loadOptional(config.terrainQpConfig.controlPointTrackingWeight, "terrainControlPointTrackingWeight");
+        loadOptional(config.terrainQpConfig.positionTrackingWeight, "terrainPositionTrackingWeight");
+        loadOptional(config.terrainQpConfig.velocityTrackingWeight, "terrainVelocityTrackingWeight");
+        loadOptional(config.terrainQpConfig.accelerationTrackingWeight, "terrainAccelerationTrackingWeight");
+        loadOptional(config.terrainQpConfig.jerkSmoothnessWeight, "terrainJerkSmoothnessWeight");
+        loadOptional(config.terrainQpConfig.groundClearance, "terrainGroundClearance");
+        loadOptional(config.terrainQpConfig.qpMaxWorkingSetRecalculations, "terrainQpMaxWorkingSetRecalculations");
+        loadOptional(config.terrainQpConfig.hessianRegularization, "terrainHessianRegularization");
+        loadOptional(config.terrainQpConfig.elevationLayer, "terrainElevationLayer");
+        loadOptional(config.terrainQpConfig.verbose, "terrainVerbose");
+        int geometryMode=static_cast<int>(config.terrainQpConfig.geometryMode);
+        int hullBasis=static_cast<int>(config.terrainQpConfig.collisionCheck.basis);
+        loadOptional(geometryMode, "terrainGeometryMode");
+        loadOptional(hullBasis, "collisionHullBasis");
+        if(geometryMode<0 || geometryMode>2 || hullBasis<0 || hullBasis>1) {
+            throw std::invalid_argument("Invalid terrain geometry/hull mode.");
+        }
+        config.terrainQpConfig.geometryMode=static_cast<SwingGeometryMode>(geometryMode);
+        config.terrainQpConfig.collisionCheck.basis=static_cast<HullBasis>(hullBasis);
+        loadOptional(config.terrainQpConfig.subdivisionsPerSpan, "terrainSubdivisionsPerSpan");
+        loadOptional(config.terrainQpConfig.checkReference, "checkSwingReference");
+        loadOptional(config.terrainQpConfig.verifyOutput, "verifySwingOutput");
+        loadOptional(config.terrainQpConfig.collisionCheck.maxDepth, "collisionMaxDepth");
+        loadOptional(config.terrainQpConfig.collisionCheck.maxSegments, "collisionMaxSegments");
 
         if (verbose) {
             std::cerr << " #### =============================================================================" <<

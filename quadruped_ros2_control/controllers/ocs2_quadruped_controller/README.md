@@ -3,6 +3,10 @@
 This is a ros2-control controller based on [legged_control](https://github.com/qiayuanl/legged_control)
 and [ocs2_ros2](https://github.com/legubiao/ocs2_ros2).
 
+摆动相地形避障：[MINVO 规划实现与配置](docs/minvo_planning_implementation.md)，[对照实验与图表](docs/minvo_planning_results_2026-11-11.md)。
+
+高程场景可视化：[独立 minvo_test 包、配置和三维 RViz 查看](../../test/src/minvo_test/README.md)。
+
 Tested environment:
 
 * Ubuntu 24.04

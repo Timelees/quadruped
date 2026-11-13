@@ -67,8 +67,8 @@ namespace ocs2::legged_robot
                                                               bool verbose);
 
         std::unique_ptr<StateInputCost> getFootPlacementCbfConstraint(size_t contactPointIndex,
-                                                                      const std::string& taskFile,
-                                                                      const std::string& prefix,
-                                                                      bool verbose);
+                                                                   const std::string& taskFile,
+                                                                   const std::string& prefix,
+                                                                   bool verbose);
     };
 } // namespace ocs2::legged_robot

@@ -29,6 +29,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <limits>
 #include <memory>
 
 #include <ocs2_core/reference/ModeSchedule.h>
@@ -39,6 +40,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ocs2_quadruped_controller/interface/constraint/SwingTrajectoryQPOptimizer.h"
 
 namespace ocs2::legged_robot {
+    // Shared by the online planner and scene experiments; midHeight is the curve height at mid-time.
+    BSpline createSwingHeightBSpline(scalar_t swingStartTime, scalar_t swingFinalTime,
+                                    scalar_t liftOffHeight, scalar_t liftOffVelocity,
+                                    scalar_t midHeight, scalar_t touchDownHeight,
+                                    scalar_t touchDownVelocity);
+
     class SwingTrajectoryPlanner {
     public:
         struct Config {
@@ -46,9 +53,11 @@ namespace ocs2::legged_robot {
             scalar_t touchDownVelocity = 0.0;
             scalar_t swingHeight = 0.1;
             scalar_t swingTimeScale = 0.15;
+            scalar_t footRadius = 0.019; // preserve the original perceptive liftoff offset [m]
+            scalar_t trackingPositionErrorGain = 20.0; // Terrain 3D tracking only; stance keeps model_settings gain
             // swing phases shorter than this time will be scaled down in height and velocity
-            bool useCbfUpdate = false;
-            SwingTrajectoryQpConfig cbfQpConfig;
+            bool useTerrainPlanning = false;
+            SwingTrajectoryQpConfig terrainQpConfig;
         };
 
         SwingTrajectoryPlanner(Config config, size_t numFeet);
@@ -56,42 +65,45 @@ namespace ocs2::legged_robot {
         void update(const ModeSchedule &modeSchedule, scalar_t terrainHeight);
 
         void update(const ModeSchedule &modeSchedule, const feet_array_t<scalar_array_t> &liftOffHeightSequence,
-                    const feet_array_t<scalar_array_t> &touchDownHeightSequence);
+                    const feet_array_t<scalar_array_t> &touchDownHeightSequence,
+                    scalar_t initTime = -std::numeric_limits<scalar_t>::infinity());
 
         void update(const ModeSchedule &modeSchedule, const feet_array_t<scalar_array_t> &liftOffHeightSequence,
                     const feet_array_t<scalar_array_t> &touchDownHeightSequence,
-                    const feet_array_t<scalar_array_t> &maxHeightSequence);
+                    const feet_array_t<scalar_array_t> &maxHeightSequence,
+                    scalar_t initTime = -std::numeric_limits<scalar_t>::infinity());
 
-        void updateCBF(const ModeSchedule &modeSchedule,
+        void updateTerrain(const ModeSchedule &modeSchedule,
                        const feet_array_t<scalar_array_t> &liftOffHeightSequence,
                        const feet_array_t<scalar_array_t> &touchDownHeightSequence,
                        const feet_array_t<std::vector<Eigen::Vector3d>> &liftOffPositionSequence,
-                       const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence);
+                       const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence,
+                       scalar_t initTime = 0.0,
+                       scalar_t finalTime = std::numeric_limits<scalar_t>::infinity());
 
-        void updateCBF(const ModeSchedule &modeSchedule,
+        void updateTerrain(const ModeSchedule &modeSchedule,
                        const feet_array_t<scalar_array_t> &liftOffHeightSequence,
                        const feet_array_t<scalar_array_t> &touchDownHeightSequence,
                        const feet_array_t<scalar_array_t> &maxHeightSequence,
                        const feet_array_t<std::vector<Eigen::Vector3d>> &liftOffPositionSequence,
-                       const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence);
+                       const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence,
+                       scalar_t initTime = 0.0,
+                       scalar_t finalTime = std::numeric_limits<scalar_t>::infinity());
 
         void setTerrainInterface(std::shared_ptr<TerrainInterface> terrainInterface);
-        bool isCbfUpdateEnabled() const { return config_.useCbfUpdate && static_cast<bool>(swingTrajectoryQpOptimizer_); }
+        using Workspace = std::function<Eigen::Vector2d(size_t, double, const Eigen::Vector3d&)>;
+        void setWorkspace(Workspace workspace) { workspace_ = std::move(workspace); }
+        bool isTerrainPlanningEnabled() const { return config_.useTerrainPlanning; }
         const Config& getConfig() const { return config_; }
+
+        vector3_t getVelocityConstraint(size_t leg, scalar_t time) const;
+        vector3_t getPositionConstraint(size_t leg, scalar_t time) const;
 
         scalar_t getZvelocityConstraint(size_t leg, scalar_t time) const;
 
         scalar_t getZpositionConstraint(size_t leg, scalar_t time) const;
 
     private:
-        struct CachedSwingTrajectory {
-            scalar_t startTime = 0.0;
-            scalar_t finalTime = 0.0;
-            Eigen::Vector3d liftOff = Eigen::Vector3d::Zero();
-            Eigen::Vector3d touchDown = Eigen::Vector3d::Zero();
-            BSpline spline;
-        };
-
         feet_array_t<std::vector<bool> > extractContactFlags(const std::vector<size_t> &phaseIDsStock) const;
         static std::pair<int, int> findIndex(size_t index, const std::vector<bool> &contactFlagStock);
         static std::pair<std::vector<int>, std::vector<int> > updateFootSchedule(
@@ -99,13 +111,7 @@ namespace ocs2::legged_robot {
         static void checkThatIndicesAreValid(int leg, int index, int startIndex, int finalIndex,
                                              const std::vector<size_t> &phaseIDsStock);
         static scalar_t swingTrajectoryScaling(scalar_t startTime, scalar_t finalTime, scalar_t swingTimeScale);
-        bool getCachedSwingTrajectory(size_t leg, scalar_t startTime, scalar_t finalTime,
-                                      const Eigen::Vector3d& liftOff, const Eigen::Vector3d& touchDown,
-                                      BSpline& spline) const;
-        void cacheSwingTrajectory(size_t leg, scalar_t startTime, scalar_t finalTime,
-                                  const Eigen::Vector3d& liftOff, const Eigen::Vector3d& touchDown,
-                                  const BSpline& spline);
-
+        Workspace workspace_;
         const Config config_;
         const size_t numFeet_;
 
@@ -113,7 +119,6 @@ namespace ocs2::legged_robot {
 
         feet_array_t<std::vector<BSpline> > feetHeightTrajectories_;
         feet_array_t<std::vector<scalar_t> > feetHeightTrajectoriesEvents_;
-        feet_array_t<std::vector<CachedSwingTrajectory> > cachedSwingTrajectories_;
     };
 
     SwingTrajectoryPlanner::Config loadSwingTrajectorySettings(const std::string &fileName,

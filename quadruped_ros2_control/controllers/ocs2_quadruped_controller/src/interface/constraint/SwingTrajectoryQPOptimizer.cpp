@@ -1,1091 +1,482 @@
-
 #include "ocs2_quadruped_controller/interface/constraint/SwingTrajectoryQPOptimizer.h"
-#include "ocs2_quadruped_controller/interface/constraint/BSpline.h"
 
 #include <Eigen/Cholesky>
+#include <algorithm>
+#include <cmath>
+#include <iostream>
+#include <limits>
+#include <qpOASES.hpp>
 
 namespace {
-
-constexpr double kConstraintViolationTolerance = 1e-8;
-
-Eigen::MatrixXd makeForwardDifferenceMatrix(int numSamples)
-{
-    if (numSamples < 2)
-    {
-        return Eigen::MatrixXd(0, std::max(0, numSamples));
-    }
-
-    Eigen::MatrixXd diff = Eigen::MatrixXd::Zero(numSamples - 1, numSamples);
-    for (int i = 0; i < numSamples - 1; ++i)
-    {
-        diff(i, i) = -1.0;
-        diff(i, i + 1) = 1.0;
-    }
-    return diff;
-}
-
-Eigen::MatrixXd makeSecondDifferenceMatrix(int numSamples)
-{
-    if (numSamples < 3)
-    {
-        return Eigen::MatrixXd(0, std::max(0, numSamples));
-    }
-
-    Eigen::MatrixXd diff = Eigen::MatrixXd::Zero(numSamples - 2, numSamples);
-    for (int i = 0; i < numSamples - 2; ++i)
-    {
-        diff(i, i) = 1.0;
-        diff(i, i + 1) = -2.0;
-        diff(i, i + 2) = 1.0;
-    }
-    return diff;
-}
-
-Eigen::MatrixXd makeThirdDifferenceMatrix(int numSamples)
-{
-    if (numSamples < 4)
-    {
-        return Eigen::MatrixXd(0, std::max(0, numSamples));
-    }
-
-    Eigen::MatrixXd diff = Eigen::MatrixXd::Zero(numSamples - 3, numSamples);
-    for (int i = 0; i < numSamples - 3; ++i)
-    {
-        diff(i, i) = -1.0;
-        diff(i, i + 1) = 3.0;
-        diff(i, i + 2) = -3.0;
-        diff(i, i + 3) = 1.0;
-    }
-    return diff;
-}
-
-Eigen::MatrixXd makeSampleDerivativeMatrix(const Eigen::VectorXd &sampleParams)
-{
-    const int numSamples = static_cast<int>(sampleParams.size());
-    Eigen::MatrixXd derivative = Eigen::MatrixXd::Zero(numSamples, numSamples);
-    if (numSamples < 2)
-    {
-        return derivative;
-    }
-
-    for (int i = 0; i < numSamples; ++i)
-    {
-        if (i == 0)
-        {
-            const double ds = std::max(sampleParams[1] - sampleParams[0], 1e-9);
-            derivative(i, 0) = -1.0 / ds;
-            derivative(i, 1) = 1.0 / ds;
-        }
-        else if (i == numSamples - 1)
-        {
-            const double ds = std::max(sampleParams[i] - sampleParams[i - 1], 1e-9);
-            derivative(i, i - 1) = -1.0 / ds;
-            derivative(i, i) = 1.0 / ds;
-        }
-        else
-        {
-            const double ds = std::max(sampleParams[i + 1] - sampleParams[i - 1], 1e-9);
-            derivative(i, i - 1) = -1.0 / ds;
-            derivative(i, i + 1) = 1.0 / ds;
-        }
-    }
-    return derivative;
-}
-
-Eigen::VectorXd buildPropagatedLiftProfile(const Eigen::VectorXd &requiredLift,
-                                          int firstConstrainedSample,
-                                          int lastConstrainedSample,
-                                          int propagationWindow,
-                                          double propagationSigma)
-{
-    Eigen::VectorXd propagatedLift = requiredLift;
-    if (propagationWindow <= 0 || propagationSigma <= 1e-9)
-    {
-        return propagatedLift;
-    }
-
-    const double sigmaSquared = propagationSigma * propagationSigma;
-    for (int center = firstConstrainedSample; center < lastConstrainedSample; ++center)
-    {
-        if (requiredLift[center] <= kConstraintViolationTolerance)
-        {
-            continue;
-        }
-
-        const int begin = std::max(firstConstrainedSample, center - propagationWindow);
-        const int end = std::min(lastConstrainedSample, center + propagationWindow + 1);
-        for (int sample = begin; sample < end; ++sample)
-        {
-            const double distance = static_cast<double>(sample - center);
-            const double weight = std::exp(-0.5 * distance * distance / sigmaSquared);
-            propagatedLift[sample] = std::max(propagatedLift[sample], requiredLift[center] * weight);
-        }
-    }
-
-    return propagatedLift;
-}
-
-Eigen::VectorXd smoothLiftProfile(const Eigen::VectorXd &liftProfile, const Eigen::VectorXd &minimumLift)
-{
-    Eigen::VectorXd smoothed = liftProfile;
-    for (int iteration = 0; iteration < 2; ++iteration)
-    {
-        Eigen::VectorXd next = smoothed;
-        for (Eigen::Index i = 1; i + 1 < smoothed.size(); ++i)
-        {
-            next[i] = 0.25 * smoothed[i - 1] + 0.5 * smoothed[i] + 0.25 * smoothed[i + 1];
-        }
-        smoothed = next.cwiseMax(minimumLift);
-    }
-    return smoothed;
-}
-
-double computePhaseClearance(double phase, double maxClearance)
-{
-    constexpr double kPi = 3.14159265358979323846;
-    const double clampedPhase = std::min(std::max(phase, 0.0), 1.0);
-    const double window = std::sin(kPi * clampedPhase);
-    return maxClearance * window * window;
-}
-
-double computeAdaptiveControlPointZMax(const Eigen::MatrixXd &basisMat,
-                                       const Eigen::VectorXd &referenceControlZ,
-                                       const Eigen::VectorXd &requiredCurveZ,
-                                       int firstConstrainedSample,
-                                       int lastConstrainedSample)
-{
-    if (basisMat.cols() == 0 || referenceControlZ.size() != basisMat.cols())
-    {
-        return 0.0;
-    }
-
-    const int lastControlPoint = static_cast<int>(basisMat.cols()) - 1;
-    double adaptiveControlPointZMax = referenceControlZ.maxCoeff();
-    for (int sample = firstConstrainedSample; sample < lastConstrainedSample; ++sample)
-    {
-        double fixedContribution = 0.0;
-        double freeWeight = 0.0;
-        for (int controlPoint = 0; controlPoint < basisMat.cols(); ++controlPoint)
-        {
-            const double weight = basisMat(sample, controlPoint);
-            if (controlPoint == 0 || controlPoint == lastControlPoint)
-            {
-                fixedContribution += weight * referenceControlZ[controlPoint];
-            }
-            else
-            {
-                freeWeight += weight;
-            }
-        }
-
-        if (freeWeight <= 1e-9)
-        {
-            continue;
-        }
-
-        adaptiveControlPointZMax = std::max(
-            adaptiveControlPointZMax,
-            (requiredCurveZ[sample] - fixedContribution) / freeWeight);
-    }
-
-    return adaptiveControlPointZMax;
-}
-
+constexpr double kConstraintViolationTolerance = 1e-9;
+double swingProgress(double s) { return s * s * s * (10.0 + s * (-15.0 + 6.0 * s)); }
+// Three control points at each end fix position, velocity and acceleration.
 Eigen::VectorXd fitReferenceControlPointsToCurve(const Eigen::MatrixXd &basisMat,
                                                  const Eigen::VectorXd &referenceCurveZ,
-                                                 double startHeight,
-                                                 double finalHeight)
-{
-    const int numControlPoints = static_cast<int>(basisMat.cols());
-    Eigen::VectorXd fittedControlZ = Eigen::VectorXd::Zero(numControlPoints);
-    if (numControlPoints == 0 || referenceCurveZ.size() != basisMat.rows())
-    {
-        return fittedControlZ;
-    }
-
-    fittedControlZ[0] = startHeight;
-    if (numControlPoints == 1)
-    {
-        return fittedControlZ;
-    }
-
-    fittedControlZ[numControlPoints - 1] = finalHeight;
-    if (numControlPoints == 2)
-    {
-        return fittedControlZ;
-    }
-
-    const int numFreeControlPoints = numControlPoints - 2;
-    const Eigen::MatrixXd basisFree = basisMat.middleCols(1, numFreeControlPoints);
-    const Eigen::VectorXd fixedContribution =
-        basisMat.col(0) * startHeight + basisMat.col(numControlPoints - 1) * finalHeight;
-    const Eigen::VectorXd adjustedReference = referenceCurveZ - fixedContribution;
-
+                                                 Eigen::VectorXd boundaryControlZ) {
+    const int n = static_cast<int>(boundaryControlZ.size());
+    const int numFree = n - 6;
+    const Eigen::MatrixXd basisFree = basisMat.middleCols(3, numFree);
+    const Eigen::VectorXd adjustedReference = referenceCurveZ - basisMat * boundaryControlZ;
     Eigen::MatrixXd normalMatrix = basisFree.transpose() * basisFree;
-    Eigen::VectorXd rightHandSide = basisFree.transpose() * adjustedReference;
-
-    constexpr double kReferenceFitSmoothnessWeight = 1e-4;
-    constexpr double kReferenceFitJerkWeight = 1e-6;
-    if (numControlPoints >= 3)
-    {
-        const Eigen::MatrixXd secondDiff = makeSecondDifferenceMatrix(numControlPoints);
-        if (secondDiff.rows() > 0)
-        {
-            const Eigen::MatrixXd secondDiffFree = secondDiff.middleCols(1, numFreeControlPoints);
-            const Eigen::VectorXd secondDiffFixed =
-                secondDiff.col(0) * startHeight + secondDiff.col(numControlPoints - 1) * finalHeight;
-            normalMatrix += kReferenceFitSmoothnessWeight * (secondDiffFree.transpose() * secondDiffFree);
-            rightHandSide -= kReferenceFitSmoothnessWeight * (secondDiffFree.transpose() * secondDiffFixed);
-        }
-    }
-
-    if (numControlPoints >= 4)
-    {
-        const Eigen::MatrixXd thirdDiff = makeThirdDifferenceMatrix(numControlPoints);
-        if (thirdDiff.rows() > 0)
-        {
-            const Eigen::MatrixXd thirdDiffFree = thirdDiff.middleCols(1, numFreeControlPoints);
-            const Eigen::VectorXd thirdDiffFixed =
-                thirdDiff.col(0) * startHeight + thirdDiff.col(numControlPoints - 1) * finalHeight;
-            normalMatrix += kReferenceFitJerkWeight * (thirdDiffFree.transpose() * thirdDiffFree);
-            rightHandSide -= kReferenceFitJerkWeight * (thirdDiffFree.transpose() * thirdDiffFixed);
-        }
-    }
-
-    constexpr double kReferenceFitRegularization = 1e-9;
-    normalMatrix.diagonal().array() += kReferenceFitRegularization;
-
+    normalMatrix.diagonal().array() += 1e-9;
     const Eigen::LDLT<Eigen::MatrixXd> decomposition(normalMatrix);
-    if (decomposition.info() != Eigen::Success)
-    {
-        for (int i = 1; i < numControlPoints - 1; ++i)
-        {
-            const double alpha = static_cast<double>(i) / static_cast<double>(numControlPoints - 1);
-            fittedControlZ[i] = (1.0 - alpha) * startHeight + alpha * finalHeight;
-        }
-        return fittedControlZ;
+    if (decomposition.info() != Eigen::Success) {
+        throw std::runtime_error("Swing reference fit factorization failed.");
     }
-
-    fittedControlZ.segment(1, numFreeControlPoints) = decomposition.solve(rightHandSide);
-    return fittedControlZ;
+    boundaryControlZ.segment(3, numFree) = decomposition.solve(basisFree.transpose() * adjustedReference);
+    if (!boundaryControlZ.allFinite()) {
+        throw std::runtime_error("Swing reference fit produced non-finite control points.");
+    }
+    return boundaryControlZ;
 }
 
-} // namespace
-
-
-
-namespace ocs2::legged_robot
-{
-
-    // ============================================================================
-    // GridMapTerrainInterface 实现
-    // ============================================================================
-
-    GridMapTerrainInterface::GridMapTerrainInterface(
-        std::shared_ptr<convex_plane_decomposition::PlanarTerrain> planarTerrainPtr,
-        const std::string &elevationLayer,
-        double epsilon)
-        : planarTerrainPtr_(std::move(planarTerrainPtr)),
-          elevationLayer_(elevationLayer),
-          epsilon_(epsilon) {}
-
-    double GridMapTerrainInterface::getHeight(double x, double y) const
-    {
-        if (!planarTerrainPtr_)
-        {
-            return 0.0;
-        }
-
-        const auto &gridMap = planarTerrainPtr_->gridMap;
-        if (!gridMap.exists(elevationLayer_))
-        {
-            return 0.0;
-        }
-
-        const grid_map::Position pos(x, y);
-        if (!gridMap.isInside(pos))
-        {
-            return 0.0;
-        }
-
-        const double height = static_cast<double>(gridMap.atPosition(elevationLayer_, pos));
-        return std::isfinite(height) ? height : 0.0;
+double binomial(int n, int k) {
+    double value = 1;
+    for (int i = 1; i <= k; ++i) {
+        value *= double(n - i + 1) / i;
     }
-
-    Eigen::Vector2d GridMapTerrainInterface::getGradient(double x, double y) const
-    {
-        if (!planarTerrainPtr_)
-        {
-            return Eigen::Vector2d::Zero();
+    return value;
+}
+// C2 contact-compatible envelope: maximum*smoothstep(2*min(s,1-s)).
+// Each half is quintic; split at 0.5 before changing basis.
+Eigen::VectorXd clearanceBezier(double a, double b, double maximum) {
+    Eigen::VectorXd power = Eigen::VectorXd::Zero(6), bezier = power;
+    const double origin = a >= 0.5 ? 2 * (1 - a) : 2 * a;
+    const double slope = a >= 0.5 ? -2 * (b - a) : 2 * (b - a);
+    const double coefficients[6] = {0, 0, 0, 10 * maximum, -15 * maximum, 6 * maximum};
+    for (int k = 0; k <= 5; ++k) {
+        for (int j = 0; j <= k; ++j) {
+            power[j] += coefficients[k] * binomial(k, j) * std::pow(origin, k - j) * std::pow(slope, j);
         }
-
-        const grid_map::GridMap *gridMap = &planarTerrainPtr_->gridMap;
-        if (!gridMap->exists(elevationLayer_))
-        {
-            return Eigen::Vector2d::Zero();
+    }
+    for (int i = 0; i <= 5; ++i) {
+        for (int k = 0; k <= i; ++k) {
+            bezier[i] += binomial(i, k) / binomial(5, k) * power[k];
         }
-
-        const grid_map::Position pos(x, y);
-        if (!gridMap->isInside(pos))
-        {
-            return Eigen::Vector2d::Zero();
+    }
+    return bezier;
+}
+}  // namespace
+namespace ocs2::legged_robot {
+SwingTrajectoryQpOptimizer::SwingTrajectoryQpOptimizer(SwingTrajectoryQpConfig config,
+                                                       std::shared_ptr<TerrainInterface> terrain)
+    : terrainInterface_(std::move(terrain)), config_(std::move(config)) {
+    if (!terrainInterface_ || config_.splineOrder != 5 || config_.numControlPoints < 7 ||
+        config_.numCurveSamples < config_.numControlPoints || config_.subdivisionsPerSpan < 1 ||
+        config_.qpMaxWorkingSetRecalculations < 1 || static_cast<int>(config_.geometryMode) < 0 ||
+        static_cast<int>(config_.geometryMode) > 2) {
+        throw std::invalid_argument("Invalid quintic swing geometry configuration.");
+    }
+    const double values[] = {config_.controlPointTrackingWeight,
+                             config_.positionTrackingWeight,
+                             config_.velocityTrackingWeight,
+                             config_.accelerationTrackingWeight,
+                             config_.jerkSmoothnessWeight,
+                             config_.groundClearance,
+                             config_.footRadius,
+                             config_.hessianRegularization};
+    for (double value : values) {
+        if (!std::isfinite(value) || value < 0) {
+            throw std::invalid_argument("Swing weights/geometry must be finite and nonnegative.");
         }
-
-        const grid_map::Matrix *heightLayer = &gridMap->get(elevationLayer_);
-        grid_map::Index index;
-        if (!gridMap->getIndex(pos, index))
-        {
-            return Eigen::Vector2d::Zero();
+    }
+    if (config_.hessianRegularization == 0) {
+        throw std::invalid_argument("Positive QP regularization is required.");
+    }
+}
+// Generate violated rows within one budget; terrain and workspace remain hard.
+bool SwingTrajectoryQpOptimizer::solveQp(const Eigen::MatrixXd &hessian, const Eigen::MatrixXd &constraints,
+                                         const Eigen::VectorXd &lowerBounds,
+                                         const Eigen::VectorXd &refControlZ, Eigen::VectorXd &solution,
+                                         int &iterations) const {
+    const int nV = static_cast<int>(refControlZ.size()) - 6;
+    const int nC = static_cast<int>(lowerBounds.size());
+    const int nQpVariables = nV;
+    // Solve for a correction to the nominal spline. Fixed endpoint corrections
+    // are zero. This avoids cancellation between H*c_ref and the tracking
+    // gradient with jerk costs.
+    using QpMatrix = Eigen::Matrix<qpOASES::real_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+    using QpVector = Eigen::Matrix<qpOASES::real_t, Eigen::Dynamic, 1>;
+    const double objectiveScale = hessian.block(3, 3, nV, nV).diagonal().maxCoeff();
+    QpMatrix H = QpMatrix::Zero(nQpVariables, nQpVariables);
+    H.topLeftCorner(nV, nV) = (hessian.block(3, 3, nV, nV) / objectiveScale).cast<qpOASES::real_t>();
+    // Add regularization to the scaled Hessian to ensure numerical stability.
+    // Use a larger regularization when constraints are tight to prevent divergence.
+    // The regularization should be relative to the scaled Hessian diagonal.
+    const double baseRegularization = std::max(config_.hessianRegularization, 1e-4);
+    for (int i = 0; i < nQpVariables; ++i) {
+        H(i, i) += static_cast<qpOASES::real_t>(baseRegularization);
+    }
+    // Maximum allowed primal correction norm to prevent divergence.
+    // If the QP solution exceeds this, we fall back to the reference.
+    // 1 meter is a conservative limit - typical swing corrections are <0.1m.
+    constexpr double kMaxPrimalNorm = 1.0;
+    // Build the QP constraint matrix from the free-variable columns only.
+    // Rows where the free-variable part is negligible (e.g. workspace or hull
+    // constraints that map mostly to fixed boundary control points) are
+    // dropped: the QP cannot meaningfully affect those, and including them
+    // when the reference violates them makes the QP numerically unstable.
+    // Use a threshold based on the expected influence: if the free-variable
+    // norm is less than 0.1, the QP can only make tiny adjustments.
+    constexpr double kMinFreeVariableNorm = 0.1;
+    std::vector<int> activeRows;
+    activeRows.reserve(nC);
+    for (int row = 0; row < nC; ++row) {
+        const double freeNorm = constraints.row(row).segment(3, nV).norm();
+        if (freeNorm > kMinFreeVariableNorm) {
+            activeRows.push_back(row);
         }
-
-        grid_map::derivative::GridMapDerivative derivativeFilter;
-        Eigen::Vector2d gradient = Eigen::Vector2d::Zero();
-        if (derivativeFilter.initialize(gridMap->getResolution()))
-        {
-            derivativeFilter.estimateGradient(*gridMap, gradient, index, *heightLayer);
-            if (gradient.allFinite())
-            {
-                return gradient;
+    }
+    const int nActive = static_cast<int>(activeRows.size());
+    QpMatrix A(nActive, nQpVariables);
+    QpVector lbA(nActive);
+    for (int i = 0; i < nActive; ++i) {
+        const int row = activeRows[i];
+        const double norm = constraints.row(row).segment(3, nV).norm();
+        A.row(i) = constraints.row(row).segment(3, nV).cast<qpOASES::real_t>() / static_cast<qpOASES::real_t>(norm);
+        lbA[i] = static_cast<qpOASES::real_t>((lowerBounds[row] - constraints.row(row).dot(refControlZ)) / norm);
+    }
+    QpVector g = QpVector::Zero(nQpVariables);
+    // Constraint generation: solve a subset, then check EVERY active row.
+    // A subset optimum feasible for all active rows is also optimal for the
+    // full convex QP. Inactive rows (purely boundary constraints) are checked
+    // separately against the reference — if violated, they are reported but
+    // cannot be fixed by the QP.
+    QpVector primal = QpVector::Zero(nQpVariables);
+    std::vector<int> workingRows;
+    int budget = config_.qpMaxWorkingSetRecalculations;
+    while (primal.allFinite()) {
+        // Find the worst violated active constraint.
+        int worstActive = -1;
+        double worstResidual = 0.0;
+        solution = refControlZ;
+        solution.segment(3, nV) += primal.head(nV).cast<double>();
+        for (int i = 0; i < nActive; ++i) {
+            const double r = constraints.row(activeRows[i]).dot(solution) - lowerBounds[activeRows[i]];
+            if (r < worstResidual) {
+                worstResidual = r;
+                worstActive = i;
             }
         }
-        return Eigen::Vector2d::Zero();
-    }
-
-    Eigen::Matrix2d GridMapTerrainInterface::getHessian(double x, double y) const
-    {
-        if (!planarTerrainPtr_)
-        {
-            return Eigen::Matrix2d::Zero();
-        }
-
-        const grid_map::GridMap *gridMap = &planarTerrainPtr_->gridMap;
-        if (!gridMap->exists(elevationLayer_))
-        {
-            return Eigen::Matrix2d::Zero();
-        }
-
-        const grid_map::Position pos(x, y);
-        if (!gridMap->isInside(pos))
-        {
-            return Eigen::Matrix2d::Zero();
-        }
-
-        const grid_map::Matrix *heightLayer = &gridMap->get(elevationLayer_);
-        grid_map::Index index;
-        if (!gridMap->getIndex(pos, index))
-        {
-            return Eigen::Matrix2d::Zero();
-        }
-
-        grid_map::derivative::GridMapDerivative derivativeFilter;
-        Eigen::Vector2d gradient = Eigen::Vector2d::Zero();
-        Eigen::Matrix2d hessian = Eigen::Matrix2d::Zero();
-        if (derivativeFilter.initialize(gridMap->getResolution()))
-        {
-            derivativeFilter.estimateGradientAndCurvature(*gridMap, gradient, hessian, index, *heightLayer);
-            if (gradient.allFinite() && hessian.allFinite())
-            {
-                return hessian;
+        if (worstActive < 0 || worstResidual >= -kConstraintViolationTolerance) {
+            if (config_.verbose) {
+                std::cerr << "Swing QP solved: variables=" << nV << ", active_constraints=" << nActive
+                          << "/" << nC << ", generated=" << workingRows.size()
+                          << ", iterations=" << config_.qpMaxWorkingSetRecalculations - budget << '\n';
             }
-        }
-        return Eigen::Matrix2d::Zero();
-    }
-
-
-    SwingTrajectoryQpOptimizer::SwingTrajectoryQpOptimizer(
-        SwingTrajectoryQpConfig config,
-        std::shared_ptr<TerrainInterface> terrainInterface)
-        : terrainInterface_(std::move(terrainInterface)),
-          config_(std::move(config)) {}
-
-
-    Eigen::Vector3d SwingTrajectoryQpOptimizer::interpolateXY(
-        const Eigen::Vector3d &liftOff,
-        const Eigen::Vector3d &touchDown,
-        scalar_t t, scalar_t t0, scalar_t tf) const
-    {
-        const double alpha = (tf > t0) ? (t - t0) / (tf - t0) : 0.0;
-        return liftOff + alpha * (touchDown - liftOff);
-    }
-
-    // QP 求解
-    bool SwingTrajectoryQpOptimizer::solveQp(const std::vector<int> &activeSet, Eigen::VectorXd &solution,
-                                             const Eigen::MatrixXd &H_eigen,
-                                             const Eigen::VectorXd &g_eigen,
-                                             const Eigen::VectorXd &refZ, const int nV,
-                                             const Eigen::VectorXd &lb_eigen, const Eigen::VectorXd &ub_eigen,
-                                             const std::vector<CandidateConstraint> &candidates) const
-    {
-        if (activeSet.empty())
-        {
-            solution = projectReferenceToBounds(refZ, nV, lb_eigen, ub_eigen);
+            iterations = config_.qpMaxWorkingSetRecalculations - budget;
             return true;
         }
-
-        const int nC = static_cast<int>(activeSet.size());
-        Eigen::MatrixXd A_eigen(nC, nV);
-        Eigen::VectorXd lbA_eigen(nC);
-        Eigen::VectorXd ubA_eigen = Eigen::VectorXd::Constant(nC, 1e20);
-        for (int i = 0; i < nC; ++i)
-        {
-            A_eigen.row(i) = candidates[activeSet[i]].row;
-            lbA_eigen[i] = candidates[activeSet[i]].lowerBound;
-        }
-
-        std::vector<qpOASES::real_t> H(H_eigen.size());
-        std::vector<qpOASES::real_t> g(g_eigen.size());
-        std::vector<qpOASES::real_t> lb(lb_eigen.size());
-        std::vector<qpOASES::real_t> ub(ub_eigen.size());
-        std::vector<qpOASES::real_t> A(A_eigen.size());
-        std::vector<qpOASES::real_t> lbA(lbA_eigen.size());
-        std::vector<qpOASES::real_t> ubA(ubA_eigen.size());
-        int hIdx = 0;
-        for (int i = 0; i < nV; ++i)
-        {
-            for (int j = 0; j < nV; ++j)
-            {
-                H[hIdx++] = static_cast<qpOASES::real_t>(H_eigen(i, j));
-            }
-            g[i] = static_cast<qpOASES::real_t>(g_eigen[i]);
-            lb[i] = static_cast<qpOASES::real_t>(lb_eigen[i]);
-            ub[i] = static_cast<qpOASES::real_t>(ub_eigen[i]);
-        }
-
-        int aIdx = 0;
-        for (int i = 0; i < nC; ++i)
-        {
-            for (int j = 0; j < nV; ++j)
-            {
-                A[aIdx++] = static_cast<qpOASES::real_t>(A_eigen(i, j));
-            }
-            lbA[i] = static_cast<qpOASES::real_t>(lbA_eigen[i]);
-            ubA[i] = static_cast<qpOASES::real_t>(ubA_eigen[i]);
-        }
-
-        std::vector<qpOASES::real_t> xOptVec(nV);
-        qpOASES::returnValue ret = qpOASES::RET_UNKNOWN_BUG;
-
-        {
-            qpOASES::QProblem problem(nV, nC);
-            qpOASES::Options options;
-            options.setToMPC();
-            options.enableRegularisation = qpOASES::BT_TRUE;
-            options.printLevel = qpOASES::PL_NONE;
-            problem.setOptions(options);
-
-            qpOASES::int_t nWSR = static_cast<qpOASES::int_t>(std::max(1, config_.qpMaxWorkingSetRecalculations));
-            ret = problem.init(H.data(), g.data(), A.data(), lb.data(), ub.data(),
-                               lbA.data(), ubA.data(), nWSR);
-
-            if (ret == qpOASES::SUCCESSFUL_RETURN)
-            {
-                problem.getPrimalSolution(xOptVec.data());
-            }
-        }
-
-        if (ret != qpOASES::SUCCESSFUL_RETURN)
-        {
-            if (config_.verbose)
-            {
-                std::cerr << "qpOASES initialization failed with code " << ret;
-                if (ret == qpOASES::RET_INIT_FAILED_INFEASIBILITY)
-                {
-                    std::cerr << " (RET_INIT_FAILED_INFEASIBILITY)";
-                }
-                else if (ret == qpOASES::RET_MAX_NWSR_REACHED)
-                {
-                    std::cerr << " (RET_MAX_NWSR_REACHED)";
-                }
-                else if (ret == qpOASES::RET_INIT_FAILED_CHOLESKY)
-                {
-                    std::cerr << " (RET_INIT_FAILED_CHOLESKY)";
-                }
-                std::cerr << ", activeConstraints=" << nC << std::endl;
-            }
+        if (budget <= 0 || std::find(workingRows.begin(), workingRows.end(), worstActive) != workingRows.end()) {
+            const int origRow = activeRows[worstActive];
+            std::cerr << "Swing QP constraint generation failed: row=" << origRow
+                      << ", residual=" << worstResidual << ", remaining=" << budget << '\n';
             return false;
         }
-
-        solution.resize(nV);
-        for (int i = 0; i < nV; ++i)
-        {
-            solution[i] = static_cast<double>(xOptVec[i]);
+        workingRows.push_back(worstActive);
+        QpMatrix selectedA(workingRows.size(), nQpVariables);
+        QpVector selectedLower(workingRows.size());
+        for (size_t row = 0; row < workingRows.size(); ++row) {
+            selectedA.row(row) = A.row(workingRows[row]);
+            selectedLower[row] = lbA[workingRows[row]];
         }
-        return true;
-    }
-
-    // 将参考 B 样条重采样到 QP 使用的控制点数量。
-    void SwingTrajectoryQpOptimizer::sampleReferenceTrajectoryToControlPoints(const BSpline &refSpline,
-                                                                               scalar_t swingStartTime, scalar_t swingFinalTime,
-                                                                               const Eigen::Vector3d &liftOffPos3d, const Eigen::Vector3d &touchDownPos3d,
-                                                                               std::vector<Eigen::Vector3d> &controlPoints) const
-    {
-        controlPoints.clear();
-        controlPoints.reserve(config_.numControlPoints);
-
-        const Eigen::VectorXd params = Eigen::VectorXd::LinSpaced(config_.numControlPoints, 0.0, 1.0);
-        Eigen::VectorXd controlPointX(config_.numControlPoints);
-        Eigen::VectorXd controlPointY(config_.numControlPoints);
-        for (int i = 0; i < config_.numControlPoints; ++i)
-        {
-            const double t = swingStartTime + params[i] * (swingFinalTime - swingStartTime);
-            const Eigen::Vector3d footPos = interpolateXY(liftOffPos3d, touchDownPos3d, t, swingStartTime, swingFinalTime);
-            controlPointX[i] = footPos.x();
-            controlPointY[i] = footPos.y();
-        }
-
-        BSpline referenceFitSpline(config_.splineOrder);
-        referenceFitSpline.setControlPoints(controlPointX, controlPointY, Eigen::VectorXd::Zero(config_.numControlPoints));
-        referenceFitSpline.setKnots(referenceFitSpline.generateKnots(config_.numControlPoints, 0.0, 1.0, 0));
-
-        const int fitSampleCount = std::max(config_.numCurveSamples, 8 * config_.numControlPoints);
-        const Eigen::VectorXd fitParams = Eigen::VectorXd::LinSpaced(fitSampleCount, 0.0, 1.0);
-        const Eigen::MatrixXd fitBasis = referenceFitSpline.generateSplineBasis(fitParams);
-        Eigen::VectorXd referenceCurveZ(fitSampleCount);
-        for (int i = 0; i < fitSampleCount; ++i)
-        {
-            const double t = swingStartTime + fitParams[i] * (swingFinalTime - swingStartTime);
-            referenceCurveZ[i] = refSpline.getPosition(t).z();
-        }
-
-        const Eigen::VectorXd fittedControlZ = fitReferenceControlPointsToCurve(
-            fitBasis, referenceCurveZ, liftOffPos3d.z(), touchDownPos3d.z());
-        for (int i = 0; i < config_.numControlPoints; ++i)
-        {
-            controlPoints.emplace_back(controlPointX[i], controlPointY[i], fittedControlZ[i]);
-        }
-
-        if (config_.verbose)
-        {
-            const Eigen::VectorXd fittedCurveZ = fitBasis * fittedControlZ;
-            const Eigen::VectorXd fitError = fittedCurveZ - referenceCurveZ;
-            const double rmsFitError = std::sqrt(fitError.squaredNorm() / std::max(1, fitSampleCount));
-            const double maxFitError = fitError.cwiseAbs().maxCoeff();
-            if (maxFitError > 5e-4)
-            {
-                std::cerr << "Reference B-spline fit error: rms=" << rmsFitError
-                          << ", max=" << maxFitError << std::endl;
-            }
-        }
-    }
-
-    Eigen::VectorXd SwingTrajectoryQpOptimizer::computeTerrainHeightProfile(const Eigen::VectorXd &sampleX,
-                                                                         const Eigen::VectorXd &sampleY) const
-    {
-        Eigen::VectorXd terrainHeights(sampleX.size());
-        for (int i = 0; i < sampleX.size(); ++i)
-        {
-            terrainHeights[i] = terrainInterface_->getHeight(sampleX[i], sampleY[i]);
-        }
-        return terrainHeights;
-    }
-
-    Eigen::VectorXd SwingTrajectoryQpOptimizer::projectReferenceToBounds(const Eigen::VectorXd &refZ, const int nV,
-                                                                          const Eigen::VectorXd &lb_eigen, const Eigen::VectorXd &ub_eigen) const
-    {
-        // 将参考轨迹的控制点高度投影到 [controlPointZMin, controlPointZMax] 范围内，确保初始QP可行
-        Eigen::VectorXd projected = refZ;
-        for (int i = 0; i < nV; ++i)
-        {
-            projected[i] = std::min(std::max(projected[i], lb_eigen[i]), ub_eigen[i]);
-        }
-        return projected;
-    }
-
-    bool SwingTrajectoryQpOptimizer::optimizeControlPointsZ(const Eigen::MatrixXd &basisMat,
-                                                         const Eigen::VectorXd &refControlZ,
-                                                         const Eigen::VectorXd &refCurveZ,
-                                                         const Eigen::VectorXd &sampleX,
-                                                         const Eigen::VectorXd &sampleY,
-                                                         const Eigen::VectorXd &sampleParams,
-                                                         scalar_t swingDuration,
-                                                         const Eigen::VectorXd &terrainHeights,
-                                                         Eigen::VectorXd &xOpt) const
-    {
-        const int nV = basisMat.cols();         // 优化变量数量（控制点数量）
-        const int numSamples = basisMat.rows(); // 采样点数量
-        if (refControlZ.size() != nV || refCurveZ.size() != numSamples || sampleX.size() != numSamples ||
-            sampleY.size() != numSamples || sampleParams.size() != numSamples || terrainHeights.size() != numSamples)
-        {
-            std::cerr << "Invalid dimensions for optimizeControlPointsZ." << std::endl;
+        qpOASES::QProblem problem(nQpVariables, static_cast<int>(workingRows.size()));
+        qpOASES::Options options;
+        options.setToReliable();
+        options.boundTolerance = 1e-10;
+        options.terminationTolerance = 1e-10;
+        options.enableRegularisation = qpOASES::BT_TRUE;
+        options.printLevel = qpOASES::PL_NONE;
+        problem.setOptions(options);
+        qpOASES::int_t nWSR = budget;
+        QpVector variableLower = QpVector::Constant(nQpVariables, -qpOASES::INFTY);
+        const auto status = problem.init(H.data(), g.data(), selectedA.data(), variableLower.data(), nullptr,
+                                         selectedLower.data(), nullptr, nWSR, nullptr, primal.data());
+        budget -= std::max(1, static_cast<int>(nWSR));
+        iterations = config_.qpMaxWorkingSetRecalculations - budget;
+        // Check for divergence: if primal norm is too large, the QP is numerically unstable
+        if (primal.norm() > kMaxPrimalNorm) {
+            std::cerr << "Swing QP divergence detected: primal_norm=" << primal.norm() << '\n';
             return false;
         }
-
-        const int ignoredBoundarySamples = std::max(1, config_.ignoreSamples);
-        const int firstConstrainedSample = std::min(numSamples - 1, ignoredBoundarySamples);
-        const int lastConstrainedSample = std::max(firstConstrainedSample, numSamples - ignoredBoundarySamples);
-        const int firstInteriorSample = std::min(numSamples - 1, 1);
-        const int lastInteriorSample = std::max(firstInteriorSample, numSamples - 1);
-        const Eigen::VectorXd baselineCurveZ = basisMat * refControlZ;
-
-        Eigen::VectorXd requiredCurveZ(numSamples);
-        for (int j = 0; j < numSamples; ++j)
-        {
-            requiredCurveZ[j] = terrainHeights[j] + computePhaseClearance(sampleParams[j], config_.groundClearance);
-        }
-
-        const Eigen::VectorXd requiredLiftCurve = (requiredCurveZ - baselineCurveZ).cwiseMax(0.0);
-        const Eigen::VectorXd propagatedLiftCurve = buildPropagatedLiftProfile(
-            requiredLiftCurve, firstConstrainedSample, lastConstrainedSample,
-            config_.liftPropagationWindow, config_.liftPropagationSigma);
-        const Eigen::VectorXd smoothLiftCurve = smoothLiftProfile(propagatedLiftCurve, requiredLiftCurve);
-        const Eigen::VectorXd propagatedRequiredCurveZ = baselineCurveZ + smoothLiftCurve;
-        const Eigen::VectorXd targetCurveZ = propagatedRequiredCurveZ.cwiseMax(refCurveZ);
-
-        const Eigen::MatrixXd controlPointSecondDiff = makeSecondDifferenceMatrix(nV);
-        const Eigen::MatrixXd controlPointThirdDiff = makeThirdDifferenceMatrix(nV);
-        const Eigen::MatrixXd forwardDiff = makeForwardDifferenceMatrix(numSamples);
-        const Eigen::MatrixXd secondDiff = makeSecondDifferenceMatrix(numSamples);
-        const Eigen::MatrixXd thirdDiff = makeThirdDifferenceMatrix(numSamples);
-
-        Eigen::MatrixXd objectiveMatrix = Eigen::MatrixXd::Zero(nV, nV);
-        Eigen::VectorXd objectiveVector = Eigen::VectorXd::Zero(nV);
-
-        if (config_.controlPointTrackingWeight > 0.0)
-        {
-            objectiveMatrix.diagonal().array() += config_.controlPointTrackingWeight;
-            objectiveVector += config_.controlPointTrackingWeight * refControlZ;
-        }
-
-        if (config_.positionTrackingWeight > 0.0)
-        {
-            objectiveMatrix += config_.positionTrackingWeight * (basisMat.transpose() * basisMat);
-            objectiveVector += config_.positionTrackingWeight * (basisMat.transpose() * targetCurveZ);
-        }
-
-        if (controlPointSecondDiff.rows() > 0 && config_.controlPointSmoothnessWeight > 0.0)
-        {
-            objectiveMatrix += config_.controlPointSmoothnessWeight *
-                               (controlPointSecondDiff.transpose() * controlPointSecondDiff);
-        }
-
-        if (controlPointThirdDiff.rows() > 0 && config_.controlPointJerkWeight > 0.0)
-        {
-            objectiveMatrix += config_.controlPointJerkWeight *
-                               (controlPointThirdDiff.transpose() * controlPointThirdDiff);
-        }
-
-        if (forwardDiff.rows() > 0 && config_.velocityTrackingWeight > 0.0)
-        {
-            const Eigen::MatrixXd velocityMapping = forwardDiff * basisMat;
-            const Eigen::VectorXd referenceVelocity = forwardDiff * targetCurveZ;
-            objectiveMatrix += config_.velocityTrackingWeight * (velocityMapping.transpose() * velocityMapping);
-            objectiveVector += config_.velocityTrackingWeight * (velocityMapping.transpose() * referenceVelocity);
-        }
-
-        if (secondDiff.rows() > 0 && config_.accelerationTrackingWeight > 0.0)
-        {
-            const Eigen::MatrixXd accelerationMapping = secondDiff * basisMat;
-            const Eigen::VectorXd referenceAcceleration = secondDiff * targetCurveZ;
-            objectiveMatrix += config_.accelerationTrackingWeight * (accelerationMapping.transpose() * accelerationMapping);
-            objectiveVector += config_.accelerationTrackingWeight * (accelerationMapping.transpose() * referenceAcceleration);
-        }
-
-        if (thirdDiff.rows() > 0 && config_.jerkSmoothnessWeight > 0.0)
-        {
-            const Eigen::MatrixXd jerkMapping = thirdDiff * basisMat;
-            objectiveMatrix += config_.jerkSmoothnessWeight * (jerkMapping.transpose() * jerkMapping);
-        }
-
-        Eigen::MatrixXd H_eigen = 2.0 * objectiveMatrix;
-        H_eigen = 0.5 * (H_eigen + H_eigen.transpose()).eval();
-        H_eigen.diagonal().array() += 2.0 * std::max(0.0, config_.hessianRegularization);
-        const Eigen::VectorXd g_eigen = -2.0 * objectiveVector;
-
-        double requiredUpperBound = terrainHeights.maxCoeff() + config_.groundClearance;
-        requiredUpperBound = std::max<double>(requiredUpperBound, targetCurveZ.maxCoeff());
-        constexpr double kControlPointZPadding = 0.03;
-        const double adaptiveControlPointZMax = computeAdaptiveControlPointZMax(
-            basisMat, refControlZ, targetCurveZ, firstInteriorSample, lastInteriorSample);
-        const double dynamicControlPointZMax = std::max(
-            std::max<double>(config_.controlPointZMax, requiredUpperBound + kControlPointZPadding),
-            adaptiveControlPointZMax + kControlPointZPadding);
-
-        const double dynamicControlPointZMin = std::min<double>(
-            config_.controlPointZMin, std::min(refControlZ.minCoeff(), terrainHeights.minCoeff()) - kControlPointZPadding);
-        Eigen::VectorXd lb_eigen = Eigen::VectorXd::Constant(nV, dynamicControlPointZMin);
-        Eigen::VectorXd ub_eigen = Eigen::VectorXd::Constant(nV, dynamicControlPointZMax);
-        lb_eigen[0] = refControlZ[0];
-        ub_eigen[0] = refControlZ[0];
-        lb_eigen[nV - 1] = refControlZ[nV - 1];
-        ub_eigen[nV - 1] = refControlZ[nV - 1];
-
-        std::vector<CandidateConstraint> candidates;
-        candidates.reserve(2 * numSamples);
-        Eigen::MatrixXd derivativeBasis;
-        Eigen::VectorXd sampleXPrime;
-        Eigen::VectorXd sampleYPrime;
-        const double duration = std::max<double>(swingDuration, 1e-3);
-        if (config_.enableCbfConstraint)
-        {
-            const Eigen::MatrixXd sampleDerivative = makeSampleDerivativeMatrix(sampleParams);
-            derivativeBasis = sampleDerivative * basisMat;
-            sampleXPrime = sampleDerivative * sampleX;
-            sampleYPrime = sampleDerivative * sampleY;
-        }
-        for (int j = firstInteriorSample; j < lastInteriorSample; ++j)
-        {
-            const double phaseClearance = computePhaseClearance(sampleParams[j], config_.groundClearance);
-            const double terrainLowerBound = terrainHeights[j] + phaseClearance;
-            if (terrainLowerBound > refCurveZ[j] + kConstraintViolationTolerance)
-            {
-                candidates.push_back(CandidateConstraint{
-                    basisMat.row(j), terrainLowerBound, j, 0,
-                    std::max(0.0, targetCurveZ[j] - refCurveZ[j])});
-            }
-
-            if (config_.enableCbfConstraint &&
-                j >= firstConstrainedSample &&
-                j < lastConstrainedSample &&
-                sampleParams[j] >= config_.cbfStartPhase &&
-                sampleParams[j] <= config_.cbfEndPhase)
-            {
-                const Eigen::Vector2d terrainGradient = terrainInterface_->getGradient(sampleX[j], sampleY[j]);
-                const double terrainDerivative = terrainGradient.x() * sampleXPrime[j] +
-                                                 terrainGradient.y() * sampleYPrime[j];
-                const Eigen::RowVectorXd cbfRow =
-                    derivativeBasis.row(j) + config_.cbfGamma * duration * basisMat.row(j);
-                const double cbfLowerBound =
-                    terrainDerivative + config_.cbfGamma * duration * terrainLowerBound;
-                candidates.push_back(CandidateConstraint{
-                    cbfRow, cbfLowerBound, j, 1,
-                    std::max(0.0, targetCurveZ[j] - refCurveZ[j])});
-            }
-        }
-
-        if (candidates.empty())
-        {
-            xOpt = refControlZ;
-            return true;
-        }
-
-        std::vector<bool> constraintDisabled(candidates.size(), false);
-
-        // 预计算每个候选约束的最大可达高度，以便在求解过程中快速判断约束是否可行。
-        // CBF 是轨迹生成的前馈安全偏置，不能因为局部不可行阻断整条轨迹；不可达 CBF 会被降级禁用。
-        auto upperAchievableFor = [&](const CandidateConstraint &candidate)
-        {
-            double upperAchievable = 0.0;
-            for (int j = 0; j < nV; ++j)
-            {
-                const double a = candidate.row[j];
-                upperAchievable += a * ((a >= 0.0) ? ub_eigen[j] : lb_eigen[j]);
-            }
-            return upperAchievable;
-        };
-
-        double worstViolation = 0.0;       // 记录最严重的约束违反程度
-        int worstConstraint = -1;          // 记录最严重违反的约束索引
-        double worstLowerBound = 0.0;      // 记录最严重违反的约束的下界值
-        double worstUpperAchievable = 0.0; // 记录最严重违反的约束的最大可达高度
-        for (size_t i = 0; i < candidates.size(); ++i)
-        {
-            const double upperAchievable = upperAchievableFor(candidates[i]);
-            const double violation = candidates[i].lowerBound - upperAchievable;
-            if (violation > kConstraintViolationTolerance && candidates[i].type == 1)
-            {
-                constraintDisabled[i] = true;
-                continue;
-            }
-            if (violation > worstViolation)
-            {
-                worstViolation = violation;
-                worstConstraint = static_cast<int>(i);
-                worstLowerBound = candidates[i].lowerBound;
-                worstUpperAchievable = upperAchievable;
-            }
-        }
-
-        if (worstViolation > kConstraintViolationTolerance)
-        {
-            if (config_.verbose)
-            {
-                const auto &candidate = candidates[static_cast<size_t>(worstConstraint)];
-                std::cerr << "QP infeasible before solve. Worst constraint=" << worstConstraint
-                          << ", sampleIndex=" << candidate.sampleIndex
-                          << ", lowerBound=" << worstLowerBound
-                          << ", upperAchievable=" << worstUpperAchievable
-                          << ", violation=" << worstViolation << std::endl;
-            }
+        if (status != qpOASES::SUCCESSFUL_RETURN ||
+            problem.getPrimalSolution(primal.data()) != qpOASES::SUCCESSFUL_RETURN) {
+            const int origRow = activeRows[worstActive];
+            std::cerr << "Swing QP failed: status=" << status << ", generated=" << workingRows.size()
+                      << ", remaining=" << budget << ", row=" << origRow
+                      << ", residual=" << worstResidual << '\n';
             return false;
         }
+    }
+    return false;
+}
 
-        Eigen::VectorXd currentSolution = projectReferenceToBounds(refControlZ, nV, lb_eigen, ub_eigen);
+// 将参考 B 样条重采样到 QP 使用的控制点数量。
+void SwingTrajectoryQpOptimizer::sampleReferenceTrajectoryToControlPoints(
+    const BSpline &refSpline, scalar_t swingStartTime, scalar_t swingFinalTime,
+    const Eigen::Vector3d &liftOffPos3d, const Eigen::Vector3d &touchDownPos3d,
+    std::vector<Eigen::Vector3d> &controlPoints) const {
+    controlPoints.clear();
+    controlPoints.reserve(config_.numControlPoints);
 
-        auto selectRepresentativeConstraints = [&](int maxTerrainConstraints, int maxCbfConstraints)
-        {
-            struct ScoredConstraint
-            {
-                int index = -1;
-                double score = 0.0;
-            };
-            std::vector<ScoredConstraint> terrainConstraints;
-            std::vector<ScoredConstraint> cbfConstraints;
-            terrainConstraints.reserve(candidates.size());
-            cbfConstraints.reserve(candidates.size());
-            for (size_t i = 0; i < candidates.size(); ++i)
-            {
-                if (constraintDisabled[i])
-                {
-                    continue;
-                }
+    const int n = config_.numControlPoints;
+    BSpline referenceFitSpline(config_.splineOrder);
+    referenceFitSpline.setControlPoints(Eigen::VectorXd::Zero(n), Eigen::VectorXd::Zero(n),
+                                        Eigen::VectorXd::Zero(n));
+    referenceFitSpline.setKnots(referenceFitSpline.generateKnots(n, 0.0, 1.0, 0));
 
-                const auto &candidate = candidates[i];
-                const double violation = candidate.lowerBound - candidate.row.dot(currentSolution);
-                const double score = std::max(violation, candidate.referenceDeficit);
-                if (score <= kConstraintViolationTolerance)
-                {
-                    continue;
-                }
-
-                if (candidate.type == 1)
-                {
-                    cbfConstraints.push_back(ScoredConstraint{static_cast<int>(i), score});
-                }
-                else
-                {
-                    terrainConstraints.push_back(ScoredConstraint{static_cast<int>(i), score});
-                }
-            }
-
-            const auto byDescendingScore = [](const ScoredConstraint &lhs, const ScoredConstraint &rhs)
-            {
-                return lhs.score > rhs.score;
-            };
-            std::sort(terrainConstraints.begin(), terrainConstraints.end(), byDescendingScore);
-            std::sort(cbfConstraints.begin(), cbfConstraints.end(), byDescendingScore);
-
-            std::vector<int> selected;
-            selected.reserve(static_cast<size_t>(std::max(0, maxTerrainConstraints) + std::max(0, maxCbfConstraints)));
-            auto appendSeparated = [&](const std::vector<ScoredConstraint> &source, int limit)
-            {
-                if (limit <= 0)
-                {
-                    return;
-                }
-                const int firstSelectedIndex = static_cast<int>(selected.size());
-                const int minSampleSpacing = std::max(1, numSamples / std::max(1, 2 * limit));
-                for (const auto &entry : source)
-                {
-                    if (static_cast<int>(selected.size()) - firstSelectedIndex >= limit)
-                    {
-                        return;
-                    }
-                    const int sampleIndex = candidates[static_cast<size_t>(entry.index)].sampleIndex;
-                    const bool separated = std::none_of(selected.begin() + firstSelectedIndex, selected.end(),
-                                                        [&](int selectedIndex)
-                                                        {
-                                                            return std::abs(candidates[static_cast<size_t>(selectedIndex)].sampleIndex -
-                                                                            sampleIndex) < minSampleSpacing;
-                                                        });
-                    if (separated)
-                    {
-                        selected.push_back(entry.index);
-                    }
-                }
-                for (const auto &entry : source)
-                {
-                    if (static_cast<int>(selected.size()) - firstSelectedIndex >= limit)
-                    {
-                        return;
-                    }
-                    if (std::find(selected.begin() + firstSelectedIndex, selected.end(), entry.index) == selected.end())
-                    {
-                        selected.push_back(entry.index);
-                    }
-                }
-            };
-
-            appendSeparated(terrainConstraints, maxTerrainConstraints);
-            appendSeparated(cbfConstraints, maxCbfConstraints);
-            return selected;
-        };
-
-        std::vector<int> activeSet = selectRepresentativeConstraints(
-            std::max(0, config_.maxTerrainConstraints),
-            config_.enableCbfConstraint ? std::max(0, config_.maxCbfConstraints) : 0);
-
-        if (activeSet.empty())
-        {
-            xOpt = currentSolution;
-            return true;
-        }
-
-        if (!solveQp(activeSet, currentSolution, H_eigen, g_eigen, refControlZ, nV, lb_eigen, ub_eigen, candidates))
-        {
-            activeSet.erase(std::remove_if(activeSet.begin(), activeSet.end(),
-                                           [&](int candidateIndex)
-                                           {
-                                               return candidates[static_cast<size_t>(candidateIndex)].type == 1;
-                                           }),
-                            activeSet.end());
-            if (activeSet.empty() ||
-                !solveQp(activeSet, currentSolution, H_eigen, g_eigen, refControlZ, nV, lb_eigen, ub_eigen, candidates))
-            {
-                if (config_.verbose)
-                {
-                    std::cerr << "Swing QP failed; falling back to reference swing trajectory." << std::endl;
-                }
-                return false;
-            }
-        }
-
-        xOpt = currentSolution;
-        if (config_.verbose)
-        {
-            const Eigen::VectorXd optimizedCurveZ = basisMat * currentSolution;
-            const Eigen::VectorXd trackingError = optimizedCurveZ - refCurveZ;
-            double minTerrainMargin = std::numeric_limits<double>::infinity();
-            for (int j = 0; j < numSamples; ++j)
-            {
-                const double terrainMargin = optimizedCurveZ[j] -
-                                             (terrainHeights[j] + computePhaseClearance(sampleParams[j],
-                                                                                        config_.groundClearance));
-                minTerrainMargin = std::min(minTerrainMargin, terrainMargin);
-            }
-
-            const double rmsTrackingError = std::sqrt(trackingError.squaredNorm() / std::max(1, numSamples));
-            std::cerr << "Swing QP solved: activeConstraints=" << activeSet.size()
-                      << ", rmsTrackingError=" << rmsTrackingError
-                      << ", minTerrainMargin=" << minTerrainMargin
-                      << ", refMaxZ=" << refCurveZ.maxCoeff()
-                      << ", optMaxZ=" << optimizedCurveZ.maxCoeff() << std::endl;
-        }
-        return true;
+    const int fitSampleCount = std::max(config_.numCurveSamples, 8 * config_.numControlPoints);
+    const Eigen::VectorXd fitParams = Eigen::VectorXd::LinSpaced(fitSampleCount, 0.0, 1.0);
+    const Eigen::MatrixXd fitBasis = referenceFitSpline.generateSplineBasis(fitParams);
+    Eigen::VectorXd referenceCurveZ(fitSampleCount);
+    for (int i = 0; i < fitSampleCount; ++i) {
+        const double t = swingStartTime + fitParams[i] * (swingFinalTime - swingStartTime);
+        referenceCurveZ[i] = refSpline.getPosition(t).z();
     }
 
-    // 优化摆动足轨迹，确保满足地形约束，同时尽量跟踪参考轨迹。返回优化后的轨迹样本序列。
-    SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::optimizeSwingTrajectory(
-        const BSpline &refSpline,
-        scalar_t swingStartTime,
-        scalar_t swingFinalTime,
-        const Eigen::Vector3d &liftOffPos3d,
-        const Eigen::Vector3d &touchDownPos3d) const
-    {
-        std::vector<Eigen::Vector3d> controlPoints; // B样条控制点
-        sampleReferenceTrajectoryToControlPoints(refSpline, swingStartTime, swingFinalTime, liftOffPos3d, touchDownPos3d, controlPoints);
+    // For clamped knots: z_s(0)=degree*(c1-c0)/firstSpan (and similarly at s=1).
+    const Eigen::VectorXd knots = referenceFitSpline.generateKnots(config_.numControlPoints, 0.0, 1.0, 0);
+    const int degree = config_.splineOrder;
+    const double duration = swingFinalTime - swingStartTime;
+    Eigen::VectorXd boundaryControlZ = Eigen::VectorXd::Zero(n);
+    boundaryControlZ[0] = liftOffPos3d.z();
+    boundaryControlZ[1] = liftOffPos3d.z() + refSpline.getVelocity(swingStartTime).z() * duration *
+                                                 (knots[degree + 1] - knots[degree]) / degree;
+    boundaryControlZ[n - 1] = touchDownPos3d.z();
+    boundaryControlZ[n - 2] = touchDownPos3d.z() - refSpline.getVelocity(swingFinalTime).z() * duration *
+                                                       (knots[n] - knots[n - 1]) / degree;
+    const Eigen::MatrixXd endpointAcceleration =
+        referenceFitSpline.generateSplineDerivativeBasis((Eigen::Vector2d() << 0.0, 1.0).finished(), 2);
+    boundaryControlZ[2] = (refSpline.getAcceleration(swingStartTime).z() * duration * duration -
+                           endpointAcceleration.row(0).dot(boundaryControlZ)) /
+                          endpointAcceleration(0, 2);
+    boundaryControlZ[n - 3] = (refSpline.getAcceleration(swingFinalTime).z() * duration * duration -
+                               endpointAcceleration.row(1).dot(boundaryControlZ)) /
+                              endpointAcceleration(1, n - 3);
+    const Eigen::VectorXd fittedControlZ =
+        fitReferenceControlPointsToCurve(fitBasis, referenceCurveZ, boundaryControlZ);
+    Eigen::MatrixXd horizontal(fitSampleCount, 2);
+    for (int i = 0; i < fitSampleCount; ++i) {
+        horizontal.row(i) =
+            (liftOffPos3d + swingProgress(fitParams[i]) * (touchDownPos3d - liftOffPos3d)).head<2>();
+    }
+    Eigen::VectorXd xy[2];
+    for (int axis = 0; axis < 2; ++axis) {
+        Eigen::VectorXd boundary = Eigen::VectorXd::Zero(n);
+        boundary.head<3>().setConstant(liftOffPos3d[axis]);
+        boundary.tail<3>().setConstant(touchDownPos3d[axis]);
+        xy[axis] = fitReferenceControlPointsToCurve(fitBasis, horizontal.col(axis), boundary);
+    }
+    for (int i = 0; i < n; ++i) {
+        controlPoints.emplace_back(xy[0][i], xy[1][i], fittedControlZ[i]);
+    }
 
-        Eigen::VectorXd x(config_.numControlPoints);
-        Eigen::VectorXd y(config_.numControlPoints);
-        Eigen::VectorXd z(config_.numControlPoints);
-        for (int i = 0; i < config_.numControlPoints; ++i)
-        {
-            x[i] = controlPoints[i].x();
-            y[i] = controlPoints[i].y();
-            z[i] = controlPoints[i].z();
+    if (config_.verbose) {
+        const Eigen::VectorXd fittedCurveZ = fitBasis * fittedControlZ;
+        const Eigen::VectorXd fitError = fittedCurveZ - referenceCurveZ;
+        const double rmsFitError = std::sqrt(fitError.squaredNorm() / std::max(1, fitSampleCount));
+        const double maxFitError = fitError.cwiseAbs().maxCoeff();
+        if (maxFitError > 5e-4) {
+            std::cerr << "Reference B-spline fit error: rms=" << rmsFitError << ", max=" << maxFitError
+                      << std::endl;
         }
+    }
+}
 
-        BSpline bspline(config_.splineOrder);
-        bspline.setControlPoints(x, y, z);
-        bspline.setKnots(bspline.generateKnots(config_.numControlPoints, 0.0, 1.0, 0));
-
-        const Eigen::VectorXd sampleParams = Eigen::VectorXd::LinSpaced(config_.numCurveSamples, 0.0, 1.0);
-        const Eigen::MatrixXd basisMat = bspline.generateSplineBasis(sampleParams);
-        const Eigen::VectorXd sampleX = basisMat * x;
-        const Eigen::VectorXd sampleY = basisMat * y;
-        Eigen::VectorXd refCurveZ(config_.numCurveSamples);
-        for (int i = 0; i < config_.numCurveSamples; ++i)
-        {
-            const double t = swingStartTime + sampleParams[i] * (swingFinalTime - swingStartTime);
-            refCurveZ[i] = refSpline.getPosition(t).z();
+SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::optimizeSwingTrajectory(
+    const BSpline &reference, scalar_t start, scalar_t end, const Eigen::Vector3d &liftOff,
+    const Eigen::Vector3d &touchDown, const HeightBounds &workspace) const {
+    if (!std::isfinite(start) || !std::isfinite(end) || end <= start || !liftOff.allFinite() ||
+        !touchDown.allFinite()) {
+        throw std::invalid_argument("Finite endpoints and positive swing duration are required.");
+    }
+    OptimizedTrajectory result;
+    result.startTime = start;
+    result.endTime = end;
+    const double duration = end - start;
+    std::vector<Eigen::Vector3d> fitted;
+    sampleReferenceTrajectoryToControlPoints(reference, start, end, liftOff, touchDown, fitted);
+    const int n = fitted.size();
+    Eigen::VectorXd x(n), y(n), z(n);
+    for (int i = 0; i < n; ++i) {
+        x[i] = fitted[i].x();
+        y[i] = fitted[i].y();
+        z[i] = fitted[i].z();
+    }
+    BSpline curve(5);
+    curve.setControlPoints(x, y, z);
+    curve.setKnots(curve.generateKnots(n, 0, 1));
+    SwingCollisionCertifier certifier(terrainInterface_, config_.collisionCheck);
+    if (config_.checkReference) {
+        result.referenceCertificate = certifier.check(curve, config_.footRadius);
+        result.referenceCertificate.witnessTime = start + duration * result.referenceCertificate.witnessTime;
+    }
+    const Eigen::VectorXd phases = Eigen::VectorXd::LinSpaced(config_.numCurveSamples, 0, 1);
+    const Eigen::MatrixXd B = curve.generateSplineBasis(phases);
+    Eigen::MatrixXd objective = config_.positionTrackingWeight * B.transpose() * B / phases.size();
+    const double weights[] = {config_.velocityTrackingWeight, config_.accelerationTrackingWeight,
+                              config_.jerkSmoothnessWeight};
+    for (int order = 1; order <= 3; ++order) {
+        const Eigen::MatrixXd D =
+            curve.generateSplineDerivativeBasis(phases, order) / std::pow(2 * std::acos(-1.0), order);
+        objective.noalias() += weights[order - 1] * D.transpose() * D / phases.size();
+    }
+    objective.diagonal().array() += config_.controlPointTrackingWeight + config_.hessianRegularization;
+    std::vector<Eigen::RowVectorXd> rows;
+    std::vector<double> bounds;
+    auto append = [&](const Eigen::MatrixXd &map, const Eigen::VectorXd &lower) {
+        for (int i = 0; i < map.rows(); ++i) {
+            rows.push_back(map.row(i));
+            bounds.push_back(lower[i]);
         }
-        const Eigen::VectorXd terrainHeights = computeTerrainHeightProfile(sampleX, sampleY);
-
-        OptimizedTrajectory result;
-        result.startTime = swingStartTime;
-        result.endTime = swingFinalTime;
-
-        const int ignoredBoundarySamples = std::max(1, config_.ignoreSamples);
-        const int firstConstrainedSample = std::min(static_cast<int>(refCurveZ.size()) - 1, ignoredBoundarySamples);
-        const int lastConstrainedSample = std::max(firstConstrainedSample,
-                                                   static_cast<int>(refCurveZ.size()) - ignoredBoundarySamples);
-        bool referenceCollides = false;
-        const double activationMargin = std::max(0.0, config_.collisionActivationMargin);
-        for (int i = firstConstrainedSample; i < lastConstrainedSample; ++i)
-        {
-            const double terrainLowerBound =
-                terrainHeights[i] + computePhaseClearance(sampleParams[i], config_.groundClearance);
-            if (refCurveZ[i] + activationMargin < terrainLowerBound)
-            {
-                referenceCollides = true;
-                break;
+    };
+    try {
+        if (config_.geometryMode == SwingGeometryMode::Discrete) {
+            for (int i = 0; i < phases.size(); ++i) {
+                const auto point = curve.getPosition(phases[i]);
+                const double s = phases[i];
+                rows.push_back(B.row(i));
+                bounds.push_back(terrainInterface_->getSphereClearanceUpperBound(
+                                     point.head<2>(), point.head<2>(), config_.footRadius) +
+                                 config_.groundClearance * swingProgress(2 * std::min(s, 1 - s)));
+            }
+        } else {
+            const auto controls = curve.getControlPoints();
+            for (const auto &span : extractPolynomialSegments(curve)) {
+                // Fixed subdivision is the reproducible optimizer baseline. The
+                // independent section-3.3 certifier subdivides adaptively, including
+                // when optimization is off.
+                std::vector<PolynomialSegment> pieces{span};
+                if (span.start < 0.5 && span.end > 0.5) {
+                    auto halves = span.split(0.5);
+                    pieces = {std::move(halves.first), std::move(halves.second)};
+                }
+                int divisions = 1;
+                while (divisions < config_.subdivisionsPerSpan) {
+                    std::vector<PolynomialSegment> next;
+                    for (const auto &piece : pieces) {
+                        auto halves = piece.bisect();
+                        next.push_back(std::move(halves.first));
+                        next.push_back(std::move(halves.second));
+                    }
+                    pieces = std::move(next);
+                    divisions *= 2;
+                }
+                for (const auto &piece : pieces) {
+                    // Bernstein retains exact contact endpoints; no approximate root
+                    // division.
+                    const auto basis = (piece.start == 0 || piece.end == 1 ||
+                                        config_.geometryMode == SwingGeometryMode::Bezier)
+                                           ? HullBasis::Bezier
+                                           : HullBasis::Minvo;
+                    const Eigen::MatrixXd map = hullMap(piece, basis);
+                    // XY is fixed: use the same Bernstein footprint for every height
+                    // basis. This holds the certified corridor constant in paired basis
+                    // experiments.
+                    const Eigen::MatrixXd points = piece.bezierMap * controls;
+                    const Eigen::Vector2d lo = points.leftCols(2).colwise().minCoeff().transpose();
+                    const Eigen::Vector2d hi = points.leftCols(2).colwise().maxCoeff().transpose();
+                    const double terrain =
+                        terrainInterface_->getSphereClearanceUpperBound(lo, hi, config_.footRadius);
+                    const PolynomialSegment identity{piece.start, piece.end, Eigen::MatrixXd::Identity(6, 6)};
+                    const Eigen::VectorXd clearance =
+                        hullMap(identity, basis) *
+                        clearanceBezier(piece.start, piece.end, config_.groundClearance);
+                    append(map, Eigen::VectorXd::Constant(6, terrain) + clearance);
+                }
             }
         }
-
-        if (!referenceCollides)
-        {
-            result.collisionFree = true;
-            result.bspline = std::make_shared<BSpline>(refSpline);
-            return result;
-        }
-
-        Eigen::VectorXd optimizedControlZ; // 优化后的控制点高度
-        const bool qpSolved = optimizeControlPointsZ(
-            basisMat, z, refCurveZ, sampleX, sampleY, sampleParams,
-            swingFinalTime - swingStartTime, terrainHeights, optimizedControlZ);
-
-        if (!qpSolved)
-        {
-            if (config_.verbose)
-            {
-                std::cerr << "Failed to optimize B-spline control points." << std::endl;
+        if (workspace) {
+            // guardrail: sampled IK sections remain a kinematic approximation, not a
+            // continuous certificate.
+            Eigen::MatrixXd sections(2, n);
+            for (int k = 0; k < n; ++k) {
+                const double phase = double(k) / (n - 1);
+                sections.col(k) = workspace(start + duration * phase, curve.getPosition(phase));
+                if (!sections.col(k).allFinite() || sections(0, k) > sections(1, k)) {
+                    throw std::invalid_argument("Invalid IK workspace bounds.");
+                }
             }
-            return result;
-        }
-
-        bspline.setControlPoints(x, y, optimizedControlZ);
-        bspline.setKnots(bspline.generateKnots(config_.numControlPoints, swingStartTime, swingFinalTime, 0));
-
-        const Eigen::VectorXd optimizedCurveZ = basisMat * optimizedControlZ;
-        result.collisionFree = true;
-        for (int i = firstConstrainedSample; i < lastConstrainedSample; ++i)
-        {
-            const double terrainLowerBound =
-                terrainHeights[i] + computePhaseClearance(sampleParams[i], config_.groundClearance);
-            if (optimizedCurveZ[i] + kConstraintViolationTolerance < terrainLowerBound)
-            {
-                result.collisionFree = false;
-                break;
+            for (int i = 0; i < phases.size(); ++i) {
+                const double index = phases[i] * (n - 1);
+                const int k = std::min(int(index), n - 2);
+                Eigen::Vector2d limits =
+                    (1 - (index - k)) * sections.col(k) + (index - k) * sections.col(k + 1);
+                // Ensure workspace bounds contain the reference trajectory value.
+                // If IK-computed workspace excludes the reference, expand it to include
+                // the reference plus a small margin. This prevents the QP from making
+                // unnecessary corrections when workspace bounds are overly conservative.
+                const double referenceZ = B.row(i).dot(z);
+                const double margin = 0.005;  // 5mm margin
+                limits[0] = std::min(limits[0], referenceZ - margin);
+                limits[1] = std::max(limits[1], referenceZ + margin);
+                // Additionally relax near endpoints to ensure compatibility with
+                // fixed boundary control points (first/last 3 are position/velocity/accel).
+                const double endpointBlend = std::min(1.0, std::min(phases[i], 1.0 - phases[i]) * 6.0);
+                limits[0] = std::min(limits[0], (1 - endpointBlend) * referenceZ + endpointBlend * limits[0]);
+                limits[1] = std::max(limits[1], (1 - endpointBlend) * referenceZ + endpointBlend * limits[1]);
+                rows.push_back(B.row(i));
+                bounds.push_back(limits[0]);
+                rows.push_back(-B.row(i));
+                bounds.push_back(-limits[1]);
             }
         }
-
-        if (!result.collisionFree)
-        {
-            return result;
+    } catch (const TerrainUnavailable &e) {
+        if (config_.verbose) {
+            std::cerr << "Swing QP terrain unavailable: " << e.what() << '\n';
         }
-
-        const Eigen::VectorXd heightError = optimizedCurveZ - refCurveZ;
-        const double maxHeightDrop = std::max(0.0, -heightError.minCoeff());
-        const double maxHeightDeviation = heightError.cwiseAbs().maxCoeff();
-        const Eigen::MatrixXd jerkDiff = makeThirdDifferenceMatrix(static_cast<int>(refCurveZ.size()));
-        double refJerk = 0.0;
-        double optJerk = 0.0;
-        if (jerkDiff.rows() > 0)
-        {
-            refJerk = (jerkDiff * refCurveZ).norm() / std::sqrt(static_cast<double>(jerkDiff.rows()));
-            optJerk = (jerkDiff * optimizedCurveZ).norm() / std::sqrt(static_cast<double>(jerkDiff.rows()));
-        }
-
-        const bool excessiveDrop = maxHeightDrop > std::max(0.0, config_.maxOptimizedHeightDrop);
-        const bool excessiveDeviation =
-            maxHeightDeviation > std::max(0.0, config_.maxOptimizedHeightDeviation);
-        const bool excessiveJerk =
-            optJerk > std::max(0.0, config_.maxOptimizedJerkRatio) * std::max(refJerk, 1e-6) + 1e-5;
-        if (excessiveDrop || excessiveDeviation || excessiveJerk)
-        {
-            if (config_.verbose)
-            {
-                std::cerr << "Reject optimized swing trajectory: maxDrop=" << maxHeightDrop
-                          << ", maxDeviation=" << maxHeightDeviation
-                          << ", refJerk=" << refJerk
-                          << ", optJerk=" << optJerk << std::endl;
-            }
-            result.collisionFree = false;
-            return result;
-        }
-
-        result.bspline = std::make_shared<BSpline>(std::move(bspline));
-        result.optimizedByQp = true;
         return result;
     }
-
-} // namespace ocs2::legged_robot
+    Eigen::MatrixXd A(rows.size(), n);
+    Eigen::VectorXd lower(bounds.size());
+    for (size_t i = 0; i < rows.size(); ++i) {
+        A.row(i) = rows[i];
+        lower[i] = bounds[i];
+    }
+    result.constraintRows = rows.size();
+    Eigen::VectorXd solution;
+    if (!solveQp(2 * objective, A, lower, z, solution, result.workingSetIterations)) {
+        return result;
+    }
+    result.correctionCost = (solution - z).dot(objective * (solution - z));
+    // Log workspace constraint impact on flat terrain
+    if (config_.verbose && workspace) {
+        double maxWorkspaceViolation = 0;
+        double maxCorrection = 0;
+        for (int i = 0; i < solution.size(); ++i) {
+            maxCorrection = std::max(maxCorrection, std::abs(solution[i] - z[i]));
+        }
+        if (maxCorrection > 0.001) {  // Only log if correction is significant
+            std::cerr << "[SwingQP] Workspace impact: maxCorrection=" << maxCorrection
+                      << ", cost=" << result.correctionCost << '\n';
+        }
+    }
+    curve.setControlPoints(x, y, solution);
+    // Certify actual output independently of QP rows; certifier uses the original
+    // obstacle prisms.
+    if (config_.verifyOutput) {
+        result.certificate = certifier.check(curve, config_.footRadius);
+        result.certificate.witnessTime = start + duration * result.certificate.witnessTime;
+        // Only reject on genuine collision detection. Unknown (budget exhausted
+        // near contact points) is acceptable — the QP constraints already
+        // enforce terrain clearance, and the certifier's contact-endpoint
+        // limitation means it cannot fully prove segments that start/end on
+        // the ground surface.
+        if (result.certificate.status == CollisionStatus::CollisionDetected) {
+            if (config_.verbose) {
+                std::cerr << "Swing QP output certification failed: status="
+                          << static_cast<int>(result.certificate.status)
+                          << ", segments=" << result.certificate.checkedSegments
+                          << ", subdivisions=" << result.certificate.subdivisions
+                          << ", witnessTime=" << result.certificate.witnessTime << '\n';
+            }
+            return result;
+        }
+    }
+    curve.setKnots(curve.generateKnots(n, start, end));
+    result.bspline = std::make_shared<BSpline>(std::move(curve));
+    result.solved = true;
+    return result;
+}
+}  // namespace ocs2::legged_robot

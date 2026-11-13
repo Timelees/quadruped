@@ -1,0 +1,44 @@
+{
+  "Discrete": {
+    "cases": 27,
+    "solved": 27,
+    "independently_certified": 14,
+    "sampled_collisions": 13,
+    "worst_clearance_m": -0.0836372075022,
+    "median_ms": 1.034597,
+    "p95_ms": 1.3224192,
+    "p99_ms": 1.354452,
+    "max_ms": 1.833675
+  },
+  "Bezier": {
+    "cases": 27,
+    "solved": 27,
+    "independently_certified": 27,
+    "sampled_collisions": 0,
+    "worst_clearance_m": 0.0,
+    "median_ms": 1.148356,
+    "p95_ms": 1.4301111,
+    "p99_ms": 1.48761344,
+    "max_ms": 1.790401
+  },
+  "MINVO": {
+    "cases": 27,
+    "solved": 27,
+    "independently_certified": 27,
+    "sampled_collisions": 0,
+    "worst_clearance_m": 0.0,
+    "median_ms": 1.146187,
+    "p95_ms": 1.4473703999999998,
+    "p99_ms": 1.5992842999999992,
+    "max_ms": 1.674411
+  },
+  "paired_MINVO_vs_Bezier": {
+    "median_objective_reduction_percent": -0.9454200695201002,
+    "max_objective_reduction_percent": -0.27818985604385166,
+    "strictly_lower_objective_cases": 0,
+    "common_solved_cases": 27,
+    "median_rms_reduction_percent": -0.664422700020038,
+    "max_rms_reduction_percent": -0.2887008546163534,
+    "strictly_lower_rms_cases": 0
+  }
+}

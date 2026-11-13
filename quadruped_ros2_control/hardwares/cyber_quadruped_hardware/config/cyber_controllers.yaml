@@ -29,14 +29,10 @@ ocs2_quadruped_controller:
     robot_pkg: "cyberdog_description"
     
     # 增大刚度kp以提高位置跟踪精度  
-    default_hip_kp: 50.0    # hip 侧摆电机
-    default_thigh_kp: 50.0  # thigh 大腿电机
-    default_calf_kp: 50.0   # calf 小腿电机
+    default_kp: 50.0   
 
     # 增大阻尼kd以减少振荡和漂移
-    default_hip_kd: 1.0
-    default_thigh_kd: 1.0
-    default_calf_kd: 1.0
+    default_kd: 1.5
 
 
     feet_force_threshold: 3.0
@@ -92,6 +88,33 @@ ocs2_quadruped_controller:
       - linear_acceleration.x
       - linear_acceleration.y
       - linear_acceleration.z
+      - orientation_covariance.0
+      - orientation_covariance.1
+      - orientation_covariance.2
+      - orientation_covariance.3
+      - orientation_covariance.4
+      - orientation_covariance.5
+      - orientation_covariance.6
+      - orientation_covariance.7
+      - orientation_covariance.8
+      - angular_velocity_covariance.0
+      - angular_velocity_covariance.1
+      - angular_velocity_covariance.2
+      - angular_velocity_covariance.3
+      - angular_velocity_covariance.4
+      - angular_velocity_covariance.5
+      - angular_velocity_covariance.6
+      - angular_velocity_covariance.7
+      - angular_velocity_covariance.8
+      - linear_acceleration_covariance.0
+      - linear_acceleration_covariance.1
+      - linear_acceleration_covariance.2
+      - linear_acceleration_covariance.3
+      - linear_acceleration_covariance.4
+      - linear_acceleration_covariance.5
+      - linear_acceleration_covariance.6
+      - linear_acceleration_covariance.7
+      - linear_acceleration_covariance.8
 
     
 

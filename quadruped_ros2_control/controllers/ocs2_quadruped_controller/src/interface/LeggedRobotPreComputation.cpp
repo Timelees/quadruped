@@ -73,6 +73,14 @@ namespace ocs2::legged_robot {
         // lambda to set config for normal velocity constraints
         auto eeNormalVelConConfig = [&](size_t footIndex) {
             EndEffectorLinearConstraint::Config config;
+            if (swingTrajectoryPlannerPtr_->isTerrainPlanningEnabled()) {
+                const scalar_t gain = swingTrajectoryPlannerPtr_->getConfig().trackingPositionErrorGain;
+                config.Av = matrix_t::Identity(3, 3);
+                config.Ax = gain * matrix_t::Identity(3, 3);
+                config.b = -swingTrajectoryPlannerPtr_->getVelocityConstraint(footIndex, t)
+                           - gain * swingTrajectoryPlannerPtr_->getPositionConstraint(footIndex, t);
+                return config;
+            }
             // 设置速度约束
             config.b = (vector_t(1) << -swingTrajectoryPlannerPtr_->getZvelocityConstraint(footIndex, t)).
                     finished();
@@ -86,7 +94,7 @@ namespace ocs2::legged_robot {
             return config;
         };
         // 法向速度约束配置
-        if (request.contains(Request::Constraint)) {
+        if (request.containsAny(Request::Constraint + Request::SoftConstraint)) {
             for (size_t i = 0; i < info_.numThreeDofContacts; i++) {
                 eeNormalVelConConfigs_[i] = eeNormalVelConConfig(i);
             }

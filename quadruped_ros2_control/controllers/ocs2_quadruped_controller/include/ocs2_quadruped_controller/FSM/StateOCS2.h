@@ -47,6 +47,7 @@ namespace ocs2::legged_robot
         std::shared_ptr<WbcBase> wbc_;
         std::shared_ptr<SafetyChecker> safety_checker_;
         benchmark::RepeatedTimer wbc_timer_;
+        scalar_t last_visualization_time_ = 0.0;
 
         double default_kp_ = 0;
         double default_kd_ = 6;

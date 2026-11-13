@@ -91,8 +91,11 @@ namespace ocs2::legged_robot
         }
 
         // Visualization
-        ctrl_component_->visualizer_->update(ctrl_component_->mpc_mrt_interface_->getPolicy(),
-                                             ctrl_component_->mpc_mrt_interface_->getCommand());
+        if (ctrl_component_->observation_.time - last_visualization_time_ >= 0.02) {
+            last_visualization_time_ = ctrl_component_->observation_.time;
+            ctrl_component_->visualizer_->update(ctrl_component_->mpc_mrt_interface_->getPolicy(),
+                                                 ctrl_component_->mpc_mrt_interface_->getCommand());
+        }
         
     }
 
@@ -103,6 +106,9 @@ namespace ocs2::legged_robot
 
     FSMStateName StateOCS2::checkChange()
     {
+        if (ctrl_component_->mpc_failed_) {
+            return FSMStateName::PASSIVE;
+        }
         // Safety check, if failed, stop the controller
         if (!safety_checker_->check(ctrl_component_->observation_, optimized_state_, optimized_input_))
         {

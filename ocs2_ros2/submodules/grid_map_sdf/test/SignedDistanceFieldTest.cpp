@@ -15,6 +15,29 @@
 using namespace std;  // NOLINT
 using namespace grid_map;  // NOLINT
 
+TEST(SignedDistanceField, SwapCompletedFields)
+{
+  GridMap map({"layer"});
+  map.setGeometry(Length(1.0, 1.0), 0.05, Position(0.0, 0.0));
+  map["layer"].setConstant(0.0);
+  SignedDistanceField active;
+  active.calculateSignedDistanceField(map, "layer", 0.3);
+
+  map.setPosition(Position(0.2, 0.1));
+  map["layer"].setConstant(0.1);
+  SignedDistanceField pending;
+  pending.calculateSignedDistanceField(map, "layer", 0.3);
+  const Position3 query(0.2, 0.1, 0.2);
+  const double oldDistance = active.getDistanceAt(query);
+  const double newDistance = pending.getDistanceAt(query);
+  const Vector3 newGradient = pending.getDistanceGradientAt(query);
+
+  active.swap(pending);
+  EXPECT_DOUBLE_EQ(active.getDistanceAt(query), newDistance);
+  EXPECT_DOUBLE_EQ(pending.getDistanceAt(query), oldDistance);
+  EXPECT_TRUE(active.getDistanceGradientAt(query).isApprox(newGradient));
+}
+
 TEST(SignedDistanceField, EmptyMap)
 {
   GridMap map({"layer"});

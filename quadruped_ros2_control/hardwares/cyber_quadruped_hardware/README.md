@@ -22,73 +22,6 @@ route -n
 sudo route add -net 224.0.0.0 netmask 240.0.0.0 dev enp49s0
 ```
 
-## 架构概述
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          实机部署架构                                         │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌─────────────────┐                                                       │
-│   │   CyberDog      │                                                       │
-│   │   底层控制器     │ ◄──── LCM UDP 多播通信 ────►                           │
-│   │   (运行在机载)   │                              │                        │
-│   └─────────────────┘                              │                        │
-│                                                    ▼                        │
-│   ┌──────────────────────────────────────────────────────────────────┐     │
-│   │                    cyber_quadruped_hardware                       │     │
-│   │  ┌─────────────────────────────────────────────────────────────┐ │     │
-│   │  │ CyberSystem (hardware_interface::SystemInterface)           │ │     │
-│   │  │                                                             │ │     │
-│   │  │  ┌─────────────┐     ┌──────────────┐     ┌─────────────┐  │ │     │
-│   │  │  │ LCM 接收线程 │     │ 数据转换层   │     │ LCM 发送    │  │ │     │
-│   │  │  │ spi_data    │────►│ RobotState  │     │ motor_ctrl  │  │ │     │
-│   │  │  │ state_est   │     │ MotorCmd    │────►│             │  │ │     │
-│   │  │  └─────────────┘     └──────────────┘     └─────────────┘  │ │     │
-│   │  │          │                   │                    ▲        │ │     │
-│   │  │          ▼                   ▼                    │        │ │     │
-│   │  │  ┌───────────────────────────────────────────────────────┐ │ │     │
-│   │  │  │     StateInterface          CommandInterface          │ │ │     │
-│   │  │  │  - position (12 joints)    - position_cmd             │ │ │     │
-│   │  │  │  - velocity (12 joints)    - velocity_cmd             │ │ │     │
-│   │  │  │  - effort (12 joints)      - effort_cmd               │ │ │     │
-│   │  │  │  - imu (10 values)         - kp_cmd, kd_cmd           │ │ │     │
-│   │  │  └───────────────────────────────────────────────────────┘ │ │     │
-│   │  └─────────────────────────────────────────────────────────────┘ │     │
-│   └──────────────────────────────────────────────────────────────────┘     │
-│                                        │                                    │
-│                           export_state/command_interfaces                   │
-│                                        ▼                                    │
-│   ┌──────────────────────────────────────────────────────────────────┐     │
-│   │                      Controller Manager                          │     │
-│   │  ┌──────────────────────────────────────────────────────────┐   │     │
-│   │  │                   Resource Manager                        │   │     │
-│   │  │   管理所有 StateInterface / CommandInterface              │   │     │
-│   │  └──────────────────────────────────────────────────────────┘   │     │
-│   │                              │                                   │     │
-│   │              ┌───────────────┴───────────────┐                  │     │
-│   │              ▼                               ▼                  │     │
-│   │  ┌─────────────────────┐     ┌─────────────────────────────┐   │     │
-│   │  │ JointStateBroadcaster │   │ Ocs2QuadrupedController     │   │     │
-│   │  │ (发布 /joint_states)  │   │ (OCS2 MPC + WBC 控制算法)   │   │     │
-│   │  └─────────────────────┘     └─────────────────────────────┘   │     │
-│   └──────────────────────────────────────────────────────────────────┘     │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-## 数据流
-
-### 读取数据 (read)
-```
-CyberDog 底层 → LCM → handleMotorData/handleRobotState → robot_state_ → joints_[i].position/velocity/effort → StateInterface → Controller
-```
-
-### 写入命令 (write)
-```
-Controller → CommandInterface → joints_[i].xxx_cmd → motor_cmd_ → sendMotorCommand() → LCM → CyberDog 底层
-```
-
 ## 文件结构
 
 ```
@@ -114,7 +47,7 @@ cyber_quadruped_hardware/
 
 ```bash
 cd ~/Code/quadruped_control_ws
-colcon build --packages-select cyber_quadruped_hardware
+colcon build --packages-up-to cyber_quadruped_hardware --symlink-install
 source install/setup.bash
 ```
 
@@ -153,36 +86,38 @@ source install/setup.bash
 
 ```bash
 # 确保 CyberDog 底层已启动并正在发送 LCM 数据
-
-# 启动控制系统
-ros2 launch cyber_quadruped_hardware cyber_bringup.launch.py \
-    robot_description_package:=your_robot_description \
-    robot_description_file:=your_robot.urdf.xacro
-
-# （可选）启动 RViz
-ros2 launch cyber_quadruped_hardware cyber_bringup.launch.py use_rviz:=true
+ros2 launch cyber_quadruped_hardware cyber_bringup.launch.py
 ```
 
-## 关节顺序
+## 感知模式的启动
 
-实机 SDK 的关节顺序（与 `joint_sign_` 数组对应）：
+机器人实机部分需要开启/cyberdog_1/camera/depth/color/points话题
 
-| Index | 关节名 | 位置 | 符号 |
-|-------|--------|------|------|
-| 0 | FR_hip_joint | 右前髋横摆 | +1 |
-| 1 | FR_thigh_joint | 右前大腿 | -1 |
-| 2 | FR_calf_joint | 右前小腿 | -1 |
-| 3 | FL_hip_joint | 左前髋横摆 | +1 |
-| 4 | FL_thigh_joint | 左前大腿 | -1 |
-| 5 | FL_calf_joint | 左前小腿 | -1 |
-| 6 | RR_hip_joint | 右后髋横摆 | +1 |
-| 7 | RR_thigh_joint | 右后大腿 | -1 |
-| 8 | RR_calf_joint | 右后小腿 | -1 |
-| 9 | RL_hip_joint | 左后髋横摆 | +1 |
-| 10 | RL_thigh_joint | 左后大腿 | -1 |
-| 11 | RL_calf_joint | 左后小腿 | -1 |
+```
+ros2 lifecycle set /cyberdog_1/camera/camera_align configure
+ros2 lifecycle set /cyberdog_1/camera/camera_align activate
 
-**注意**: `joint_sign_` 用于处理实机关节方向与 URDF 模型的差异。
+ros2 service call /cyberdog_1/camera/realsense_frame_service   std_srvs/srv/SetBool "{data: true}"
+
+```
+
+## 实机话题收取
+
+要获取实机的话题数据，需要执行以下
+
+```
+### ROS2 ###
+source /opt/ros/humble/setup.bash
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export CYCLONEDDS_URI=file:///home/lee/.cyclonedds.xml		# 更改为实际的路径
+export ROS_DOMAIN_ID=42
+```
+
+注意：键盘控制的节点启动终端也要执行上述内容，否则无法控制
+
+
+
+
 
 ## LCM 通信
 
@@ -194,46 +129,6 @@ ros2 launch cyber_quadruped_hardware cyber_bringup.launch.py use_rviz:=true
 ### 发布的话题
 - `motor_ctrl` (端口 7667): 电机控制命令
 
-### 网络配置
-LCM 使用 UDP 多播：`udpm://239.255.76.67:PORT?ttl=255`
 
-确保网络接口支持多播，且防火墙允许 UDP 端口 7667 和 7669。
 
-## 对比 Gazebo 仿真
 
-| 功能 | Gazebo (gz_quadruped_hardware) | 实机 (cyber_quadruped_hardware) |
-|------|--------------------------------|--------------------------------|
-| 通信方式 | Gazebo ECM 组件 | LCM UDP 多播 |
-| 数据读取 | `sim::components::JointPosition` | LCM 回调 `handleMotorData` |
-| 命令发送 | `sim::components::JointForceCmd` | LCM `publish("motor_ctrl")` |
-| 更新触发 | Gazebo 仿真步 | Controller Manager 周期 |
-
-## 安全注意事项
-
-1. **通信超时检测**: 如果 `err_flag & 0x02` 表示通信丢失，将发送零命令
-2. **电机错误检测**: 检查 `motor_flags` 的错误位
-3. **急停**: 出错时自动发送零命令
-4. **关节限位**: 在控制器层面处理，硬件接口不做限位检查
-
-## 调试
-
-```bash
-# 查看可用控制器
-ros2 control list_controllers
-
-# 查看硬件接口状态
-ros2 control list_hardware_interfaces
-
-# 查看关节状态
-ros2 topic echo /joint_states
-
-# 切换控制器
-ros2 control switch_controllers --start ocs2_quadruped_controller --stop ...
-```
-
-## TODO
-
-- [ ] 添加足端力传感器接口
-- [ ] 添加更完善的错误恢复机制
-- [ ] 支持配置文件动态加载 LCM 参数
-- [ ] 添加数据记录功能

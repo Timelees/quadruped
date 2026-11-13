@@ -62,6 +62,7 @@ bool SensorProcessorBase::readParameters(std::string& inputSourceName) {
   nodeHandle_->declare_parameter(inputSourceName + ".sensor_processor.ignore_points_below", rclcpp::ParameterValue(-std::numeric_limits<double>::infinity()));
   nodeHandle_->declare_parameter(inputSourceName + ".sensor_processor.apply_voxelgrid_filter", rclcpp::ParameterValue(false));
   nodeHandle_->declare_parameter(inputSourceName + ".sensor_processor.voxelgrid_filter_size", rclcpp::ParameterValue(0.0));
+  nodeHandle_->declare_parameter(inputSourceName + ".sensor_processor.sensor_max_range", rclcpp::ParameterValue(std::numeric_limits<double>::infinity()));
 
   nodeHandle_->declare_parameter(inputSourceName + ".sensor_processor.ignore_points_inside_min_x", 0.0);
   nodeHandle_->declare_parameter(inputSourceName + ".sensor_processor.ignore_points_inside_max_x", 0.0);
@@ -82,6 +83,7 @@ bool SensorProcessorBase::readParameters(std::string& inputSourceName) {
 
   nodeHandle_->get_parameter(inputSourceName + ".sensor_processor.apply_voxelgrid_filter", parameters.applyVoxelGridFilter_);
   nodeHandle_->get_parameter(inputSourceName + ".sensor_processor.voxelgrid_filter_size", sensorParameters_["voxelgrid_filter_size"]);
+  nodeHandle_->get_parameter(inputSourceName + ".sensor_processor.sensor_max_range", parameters.sensorMaxRange_);
 
   parameters_.setData(parameters);
   return true;

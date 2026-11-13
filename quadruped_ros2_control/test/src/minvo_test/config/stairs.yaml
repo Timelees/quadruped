@@ -1,0 +1,78 @@
+# Metres; z is snapped to the local support plane. Normal Cyberdog swing reference.
+# Rise 0.10 m: gazebo.launch.py default stair10cm.sdf; tread depth 0.15 m.
+frame: odom
+foot_radius: 0.019
+map:
+  length:
+  - 1.05
+  - 0.7
+  center:
+  - 0.36
+  - 0.0
+  resolution: 0.005
+reference:
+  swing_height: 0.085
+  swing_time_scale: 0.2
+  lift_off_velocity: 0.04
+  touch_down_velocity: -0.04
+optimizer:
+  samples: 60
+  control_points: 15
+  clearance: 0.005
+  subdivisions: 4
+obstacles:
+- - 0.12
+  - 0.27
+  - -0.25
+  - 0.25
+  - 0.1
+- - 0.27
+  - 0.42
+  - -0.25
+  - 0.25
+  - 0.2
+- - 0.42
+  - 0.57
+  - -0.25
+  - 0.25
+  - 0.3
+crossing_bands: []
+swings:
+- start:
+  - 0.095
+  - 0.1
+  - 0
+  goal:
+  - 0.245
+  - 0.1
+  - 0
+  duration: 0.3
+- start:
+  - 0.245
+  - 0.1
+  - 0
+  goal:
+  - 0.395
+  - 0.1
+  - 0
+  duration: 0.3
+- start:
+  - 0.395
+  - 0.1
+  - 0
+  goal:
+  - 0.545
+  - 0.1
+  - 0
+  duration: 0.3
+visualization:
+  height_range:
+  - 0
+  - 0.3
+  colors:
+  - [0, 0, 128]
+  - [0, 0, 255]
+  - [0, 128, 255]
+  - [0, 255, 255]
+  - [128, 255, 128]
+  - [255, 255, 0]

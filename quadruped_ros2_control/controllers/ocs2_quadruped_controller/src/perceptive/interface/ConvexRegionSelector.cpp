@@ -3,6 +3,7 @@
 //
 
 #include <ocs2_quadruped_controller/perceptive/interface/ConvexRegionSelector.h>
+#include "log_save.h"
 
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include <ocs2_core/misc/Lookup.h>
@@ -21,6 +22,7 @@
 
 namespace ocs2::legged_robot
 {
+    ConvexRegionSelector::~ConvexRegionSelector() = default;
     namespace
     {
         constexpr scalar_t kFootholdCandidateDuplicateTolerance = 1e-4;
@@ -645,6 +647,41 @@ namespace ocs2::legged_robot
     void ConvexRegionSelector::update(const ModeSchedule& modeSchedule, scalar_t initTime, const vector_t& initState,
                                       TargetTrajectories& targetTrajectories)
     {
+        // Commit the last planned touchdown when lift-off occurs, before replacing
+        // the map that owns its region pointer. Keep its region through stance too.
+        feet_array_t<std::unique_ptr<CommittedFoothold>> retiredFootholds;
+        const auto flags = extractContactFlags(modeSchedule.modeSequence);
+        const size_t currentPhase = lookup::findIndexInTimeArray(modeSchedule.eventTimes, initTime);
+        for (size_t leg = 0; leg < info_.numThreeDofContacts; ++leg) {
+            auto& committed = committedFootholds_[leg];
+            if (committed && initTime >= committed->stanceEndTime) {
+                retiredFootholds[leg] = std::move(committed);
+            }
+            if (currentPhase >= flags[leg].size() || flags[leg][currentPhase]) { continue; }
+            size_t touchdownPhase = currentPhase;
+            while (touchdownPhase < flags[leg].size() && !flags[leg][touchdownPhase]) { ++touchdownPhase; }
+            if (touchdownPhase >= flags[leg].size() || touchdownPhase == 0) { continue; }
+            const scalar_t touchdown = modeSchedule.eventTimes[touchdownPhase - 1];
+            if (committed && std::abs(committed->touchdownTime - touchdown) < 1e-9) { continue; }
+            if (timeEvents_[leg].empty() || feetProjections_[leg].empty()) { continue; }
+            const size_t oldPhase = lookup::findIndexInTimeArray(timeEvents_[leg],
+                std::nextafter(touchdown, std::numeric_limits<scalar_t>::infinity()));
+            if (oldPhase >= feetProjections_[leg].size()) { continue; }
+            const auto projection = feetProjections_[leg][oldPhase];
+            if (!projection.regionPtr || convexPolygons_[leg][oldPhase].size() < 3) { continue; }
+            auto next = std::make_unique<CommittedFoothold>();
+            next->touchdownTime = touchdown;
+            size_t stanceEndPhase = touchdownPhase;
+            while (stanceEndPhase < flags[leg].size() && flags[leg][stanceEndPhase]) { ++stanceEndPhase; }
+            next->stanceEndTime = stanceEndPhase - 1 < modeSchedule.eventTimes.size()
+                ? modeSchedule.eventTimes[stanceEndPhase - 1] : std::numeric_limits<scalar_t>::infinity();
+            next->region = *projection.regionPtr;
+            next->projection = projection;
+            next->projection.regionPtr = &next->region;
+            next->polygon = convexPolygons_[leg][oldPhase];
+            next->nominal = nominalFootholds_[leg][oldPhase];
+            committed = std::move(next);
+        }
         planarTerrain_ = *planarTerrainPtr_;
         feet_array_t<std::vector<LockedFootholdRecord>> currentSelectedFootholdsByTime;
         feet_array_t<std::vector<int>> phaseEventIndices;
@@ -883,6 +920,13 @@ namespace ocs2::legged_robot
                 feetProjections_[leg][i] = selectedProjection;
                 convexPolygons_[leg][i] = jointEvent.safetyPolygon;
                 nominalFootholds_[leg][i] = jointEvent.nominalFoothold;
+                const auto& committed = committedFootholds_[leg];
+                if (committed && std::abs(jointEvent.standStartTime - committed->touchdownTime) < 1e-9) {
+                    feetProjections_[leg][i] = committed->projection;
+                    convexPolygons_[leg][i] = committed->polygon;
+                    nominalFootholds_[leg][i] = committed->nominal;
+                    selectedFoothold = committed->projection.positionInWorld;
+                }
 
                 if (i == 0 || phaseEventIndices[leg][i - 1] != eventIndex)
                 {

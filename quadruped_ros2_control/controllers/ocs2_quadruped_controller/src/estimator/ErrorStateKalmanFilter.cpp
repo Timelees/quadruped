@@ -319,8 +319,11 @@ namespace ocs2::legged_robot
             sta_observer_.update(dt, xHat_, dynamics, gating);
         }
 
-        // 更新 Ground Truth 数据
-        updateGroundTruth();
+        if (sim_mode_)
+        {
+            // 从 odom_state_interface_ 读取 Gazebo 真值，用于仿真日志对比。
+            updateGroundTruth();
+        }
 
         // 日志记录
         static int log_counter = 0;
@@ -408,7 +411,10 @@ namespace ocs2::legged_robot
         odom.child_frame_id = "base";
         publishMsgs(odom);
 
-        publishGroundTruth(time);
+        if (sim_mode_)
+        {
+            publishGroundTruth(time);
+        }
 
         return rbd_state_;
     }
@@ -1123,6 +1129,11 @@ namespace ocs2::legged_robot
         }
         loadData::loadPtreeValue(pt, is_logger_enabled_, prefix + "is_enabled_logger", verbose);
         loadData::loadPtreeValue(pt, sim_mode_, prefix + "sim_mode", verbose);
+        if (node_->has_parameter("sim_mode"))
+        {
+            sim_mode_ = node_->get_parameter("sim_mode").as_bool();
+        }
+        ground_truth_enabled_ = sim_mode_;
 
         loadData::loadPtreeValue(pt, swing_inflate_, prefix + "SwingInflate", verbose);
 
@@ -1188,6 +1199,10 @@ namespace ocs2::legged_robot
     void ErrorStateKalmanFilter::updateGroundTruth()
     {
         const size_t num_interfaces = ctrl_component_.odom_state_interface_.size();
+        if (num_interfaces < 6)
+        {
+            return;
+        }
 
         // Position (indices 0-2)
         gt_position_(0) = ctrl_component_.odom_state_interface_[0].get().get_value();

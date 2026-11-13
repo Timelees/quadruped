@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "grid_map_sdf/SignedDistanceField.hpp"
 #include "grid_map_sdf/distance_transform/dt.hpp"
@@ -32,6 +33,19 @@ namespace grid_map
 
     SignedDistanceField::~SignedDistanceField()
     {
+    }
+
+    void SignedDistanceField::swap(SignedDistanceField& other)
+    {
+        if (this == &other) { return; }
+        std::scoped_lock lock(sdfMutex_, other.sdfMutex_);
+        using std::swap;
+        swap(size_, other.size_);
+        swap(position_, other.position_);
+        swap(data_, other.data_);
+        swap(maxDistance_, other.maxDistance_);
+        swap(zIndexStartHeight_, other.zIndexStartHeight_);
+        swap(resolution_, other.resolution_);
     }
 
     void SignedDistanceField::calculateSignedDistanceField(

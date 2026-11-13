@@ -38,7 +38,8 @@ namespace ocs2::legged_robot {
                                                                  size_t contactPointIndex)
         : StateInputConstraint(ConstraintOrder::Linear),
           referenceManagerPtr_(&referenceManager),  
-          eeLinearConstraintPtr_(new EndEffectorLinearConstraint(endEffectorKinematics, 1)),
+          eeLinearConstraintPtr_(new EndEffectorLinearConstraint(endEffectorKinematics,
+              referenceManager.getSwingTrajectoryPlanner()->isTerrainPlanningEnabled() ? 3 : 1)),
           contactPointIndex_(contactPointIndex) {
     }
 

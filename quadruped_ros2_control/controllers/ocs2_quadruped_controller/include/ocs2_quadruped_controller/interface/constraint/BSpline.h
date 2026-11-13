@@ -12,6 +12,11 @@ public:
 
     Eigen::VectorXd generateKnots(int numControlPoints, double start, double end, int method = 0) const;
     Eigen::MatrixXd generateSplineBasis(const Eigen::VectorXd& pts) const;
+    Eigen::MatrixXd generateSplineDerivativeBasis(const Eigen::VectorXd& pts, int order = 1) const;
+
+    int getDegree() const { return degree_; }
+    const Eigen::VectorXd& getKnots() const { return knots_; }
+    Eigen::MatrixXd getControlPoints() const;
 
     Eigen::Vector3d getPosition(double t) const;
     Eigen::Vector3d getVelocity(double t) const;

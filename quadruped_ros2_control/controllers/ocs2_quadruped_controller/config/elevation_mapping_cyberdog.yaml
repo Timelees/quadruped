@@ -1,0 +1,88 @@
+# CyberDog real-robot elevation mapping.
+elevation_mapping:
+  ros__parameters:
+    map_frame_id: odom
+    robot_base_frame_id: base
+    robot_pose_with_covariance_topic: /pose
+
+    # Local QoS relay output from the real CyberDog best-effort depth point cloud.
+    input_sources: ["depth_camera"]
+    depth_camera:
+      type: pointcloud
+      topic: /cyberdog_1/perception/depth/color/points_reliable
+      queue_size: 2
+      publish_on_update: true
+      sensor_processor:
+        type: structured_light
+
+        # RealSense D435 depth model. The far range is intentionally limited for
+        # foothold mapping because long-range depth noise corrupts elevation cells.
+        cutoff_min_depth: 0.18
+        cutoff_max_depth: 2.0
+        sensor_max_range: 2.2
+        normal_factor_a: 0.000611
+        normal_factor_b: 0.003587
+        normal_factor_c: 0.3515
+        normal_factor_d: 0.0
+        normal_factor_e: 1.0
+        lateral_factor: 0.01576
+
+        # Keep the realtime path light on the robot and reject self/body returns.
+        apply_voxelgrid_filter: true
+        voxelgrid_filter_size: 0.025
+        ignore_points_above: 0.8
+        ignore_points_below: -0.55
+        ignore_points_inside_min_x: -0.42
+        ignore_points_inside_max_x: 0.42
+        ignore_points_inside_min_y: -0.32
+        ignore_points_inside_max_y: 0.32
+        ignore_points_inside_min_z: -0.45
+        ignore_points_inside_max_z: 0.35
+
+    track_point_frame_id: base
+    track_point_x: 0.25
+    track_point_y: 0.0
+    track_point_z: 0.0
+    time_tolerance: 0.05
+    robot_pose_cache_size: 5000
+    scanning_duration: 0.2
+    visibility_cleanup_rate: 5.0
+    min_update_rate: 2.0
+
+    # Local map around the robot. Resolution is matched to the plane extractor
+    # while keeping CPU load acceptable on the real robot.
+    length_in_x: 3.0
+    length_in_y: 3.0
+    position_x: 0.25
+    position_y: 0.0
+    resolution: 0.03
+
+    mahalanobis_distance_threshold: 2.0
+    min_variance: 0.0001
+    max_variance: 0.03
+    min_horizontal_variance: 0.000225
+    max_horizontal_variance: 0.01
+    horizontal_variance_x: 0.25
+    horizontal_variance_y: 0.0001
+    multi_height_noise: 0.003
+    surface_normal_positive_axis: z
+
+    initialize_elevation_map: true
+    initialization_method: 0
+    length_in_x_init_submap: 3.0
+    length_in_y_init_submap: 3.0
+    margin_init_submap: 0.0
+    init_submap_variance: 1e-3
+    init_submap_height_offset: 0.0
+    fuse_submap_height_offset: 0.0365
+    elevation_clamp_threshold: 0.01
+    target_frame_init_submap: odom
+    increase_height_alpha: 0.0
+
+    enable_visibility_cleanup: true
+    enable_continuous_cleanup: false
+    fused_map_publishing_rate: 2.0
+    output_topic: /elevation_map_raw
+
+    num_callback_threads: 2
+    postprocessor_num_threads: 4

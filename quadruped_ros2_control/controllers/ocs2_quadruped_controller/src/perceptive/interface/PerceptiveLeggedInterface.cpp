@@ -1,3 +1,4 @@
+#include <pinocchio/multibody/model.hpp>
 //
 // Created by biao on 3/21/25.
 //
@@ -85,11 +86,12 @@ namespace ocs2::legged_robot
         std::string layer = "elevation_before_postprocess";
         planarTerrainPtr_->gridMap.setGeometry(grid_map::Length(5.0, 5.0), 0.03);
         planarTerrainPtr_->gridMap.add(layer, 0);               // 添加高度层
+        planarTerrainPtr_->gridMap.add("elevation", 0);
         planarTerrainPtr_->gridMap.add("smooth_planar", 0);     // 添加平滑层
 
 
         signedDistanceFieldPtr_ = std::make_shared<grid_map::SignedDistanceField>();
-        // signedDistanceFieldPtr_->calculateSignedDistanceField(planarTerrainPtr_->gridMap, layer, 0.1);
+        signedDistanceFieldPtr_->calculateSignedDistanceField(planarTerrainPtr_->gridMap, layer, 0.1);
         
 
         LeggedInterface::setupOptimalControlProblem(taskFile, urdfFile, referenceFile, verbose);
@@ -108,10 +110,12 @@ namespace ocs2::legged_robot
             problem_ptr_->stateSoftConstraintPtr->add(
                 footName + "_footPlacement",
                 getFootPlacementConstraint(i, taskFile, "footPlacement.", verbose));
-            // CBF约束
-            problem_ptr_->softConstraintPtr->add(
-                footName + "_footPlacementCbf",
-                getFootPlacementCbfConstraint(i, taskFile, "footPlacementCbf.", verbose));
+            // The legacy foothold CBF is independent of swing trajectory optimization.
+            if (!reference_manager_ptr_->getSwingTrajectoryPlanner()->isTerrainPlanningEnabled()) {
+                problem_ptr_->softConstraintPtr->add(
+                    footName + "_footPlacementCbf",
+                    getFootPlacementCbfConstraint(i, taskFile, "footPlacementCbf.", verbose));
+            }
 
             std::unique_ptr<EndEffectorKinematics<scalar_t>> eeKinematicsPtr = getEeKinematicsPtr({footName}, footName);
             
@@ -157,10 +161,11 @@ namespace ocs2::legged_robot
         auto swingTrajectoryPlanner =
             std::make_unique<SwingTrajectoryPlanner>(
                 loadSwingTrajectorySettings(taskFile, "swing_trajectory_config", verbose), 4);
-        swingTrajectoryPlanner->setTerrainInterface(std::make_shared<GridMapTerrainInterface>(
-            planarTerrainPtr_,
-            swingTrajectoryPlanner->getConfig().cbfQpConfig.elevationLayer,
-            swingTrajectoryPlanner->getConfig().cbfQpConfig.epsilon));
+        if (swingTrajectoryPlanner->isTerrainPlanningEnabled()) {
+            swingTrajectoryPlanner->setTerrainInterface(std::make_shared<GridMapTerrainInterface>(
+                planarTerrainPtr_,
+                swingTrajectoryPlanner->getConfig().terrainQpConfig.elevationLayer));
+        }
 
 
         std::unique_ptr<EndEffectorKinematics<scalar_t>> eeKinematicsPtr = getEeKinematicsPtr(
@@ -179,7 +184,10 @@ namespace ocs2::legged_robot
             std::move(convexRegionSelector),
             *eeKinematicsPtr, comHeight, footPlacementRelaxationConfig));
 
-        // NOTE: SwingTrajectoryPlanner 已回退到基线版本（无 QP/避碰接口），感知层仅保留参考管理与落足区域选择。
+        auto& manager = static_cast<PerceptiveLeggedReferenceManager&>(*reference_manager_ptr_);
+        const auto& model = pinocchio_interface_ptr_->getModel();
+        manager.setJointLimits(model.lowerPositionLimit.tail(centroidal_model_info_.actuatedDofNum),
+                               model.upperPositionLimit.tail(centroidal_model_info_.actuatedDofNum));
     }
 
     void PerceptiveLeggedInterface::setupPreComputation(const std::string& /*taskFile*/,
@@ -296,5 +304,4 @@ namespace ocs2::legged_robot
                                                           std::move(placementCbfPenalty));
     }
 
-
-} // namespace legged
+} // namespace ocs2::legged_robot
