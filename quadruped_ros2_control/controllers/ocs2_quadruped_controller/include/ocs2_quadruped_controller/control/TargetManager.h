@@ -31,32 +31,6 @@ namespace ocs2::legged_robot
         void update(SystemObservation& observation);
 
     private:
-        TargetTrajectories targetPoseToTargetTrajectories(const vector_t& targetPose,
-                                                          const SystemObservation& observation,
-                                                          const scalar_t& targetReachingTime)
-        {
-            vector_t currentPose = observation.state.segment<6>(6);
-            currentPose(2) = command_height_;
-            const scalar_t trajectoryDuration = targetReachingTime - observation.time;
-            const scalar_t pitchResponseDuration = std::min(kPitchResponseTime, trajectoryDuration * scalar_t(0.5));
-            const scalar_t pitchReachingTime = observation.time + pitchResponseDuration;
-            const scalar_t alpha = pitchResponseDuration / trajectoryDuration;
-
-            vector_t pitchReachedPose = currentPose + alpha * (targetPose - currentPose);
-            pitchReachedPose(4) = targetPose(4);
-
-            const scalar_array_t timeTrajectory{observation.time, pitchReachingTime, targetReachingTime};
-            vector_array_t stateTrajectory(3, vector_t::Zero(observation.state.size()));
-            stateTrajectory[0] << vector_t::Zero(6), currentPose, default_joint_state_;
-            stateTrajectory[1] << vector_t::Zero(6), pitchReachedPose, default_joint_state_;
-            stateTrajectory[2] << vector_t::Zero(6), targetPose, default_joint_state_;
-
-            // desired input trajectory (just right dimensions, they are not used)
-            const vector_array_t inputTrajectory(3, vector_t::Zero(observation.input.size()));
-
-            return {timeTrajectory, stateTrajectory, inputTrajectory};
-        }
-
         CtrlInterfaces& ctrl_component_;
         std::shared_ptr<ReferenceManagerInterface> referenceManagerPtr_;
 
@@ -71,6 +45,12 @@ namespace ocs2::legged_robot
         scalar_t target_displacement_velocity_{};
         scalar_t target_lateral_velocity_{};
         scalar_t target_rotation_velocity_{};
+
+        Eigen::Vector4d filtered_command_ = Eigen::Vector4d::Zero();
+        scalar_t previous_command_time_ = -1.0;
+        // Bounded braking completes roughly within one trot swing at normal speed.
+        scalar_t linear_acceleration_ = 0.6; // m/s^2
+        scalar_t yaw_acceleration_ = 1.5; // rad/s^2
 
         // When yaw rate command is ~0, hold a fixed world yaw so MPC regulates heading (avoids passive drift in crab walk).
         bool yaw_hold_initialized_{false};

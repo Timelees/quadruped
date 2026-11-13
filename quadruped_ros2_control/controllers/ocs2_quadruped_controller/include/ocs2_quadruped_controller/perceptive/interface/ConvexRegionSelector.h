@@ -147,6 +147,9 @@ namespace ocs2::legged_robot
         feet_array_t<std::vector<scalar_t>> timeEvents_;
         feet_array_t<std::vector<LockedFootholdRecord>> previousSelectedFootholdsByTime_;
 
+        vector3_t previousCommandPreview_ = vector3_t::Zero();
+        bool commandPreviewInitialized_ = false;
+
         const CentroidalModelInfo info_;
         size_t numVertices_;
 

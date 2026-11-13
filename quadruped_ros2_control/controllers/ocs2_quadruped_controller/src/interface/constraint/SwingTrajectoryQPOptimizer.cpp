@@ -113,19 +113,23 @@ bool SwingTrajectoryQpOptimizer::solveQp(const Eigen::MatrixXd &hessian, const E
     // 1 meter is a conservative limit - typical swing corrections are <0.1m.
     constexpr double kMaxPrimalNorm = 1.0;
     // Build the QP constraint matrix from the free-variable columns only.
-    // Rows where the free-variable part is negligible (e.g. workspace or hull
-    // constraints that map mostly to fixed boundary control points) are
-    // dropped: the QP cannot meaningfully affect those, and including them
-    // when the reference violates them makes the QP numerically unstable.
-    // Use a threshold based on the expected influence: if the free-variable
-    // norm is less than 0.1, the QP can only make tiny adjustments.
-    constexpr double kMinFreeVariableNorm = 0.1;
+    // A small free-variable coefficient is still a real collision constraint.
+    // Normalize these rows below instead of discarding them. Only constant
+    // rows can be omitted, after checking their fixed endpoint values.
+    constexpr double kMinFreeVariableNorm = 1e-12;
     std::vector<int> activeRows;
     activeRows.reserve(nC);
     for (int row = 0; row < nC; ++row) {
         const double freeNorm = constraints.row(row).segment(3, nV).norm();
         if (freeNorm > kMinFreeVariableNorm) {
             activeRows.push_back(row);
+        } else if (constraints.row(row).dot(refControlZ) <
+                   lowerBounds[row] - kConstraintViolationTolerance) {
+            if (config_.verbose) {
+                std::cerr << "Swing QP infeasible fixed endpoint: row=" << row
+                          << ", residual=" << constraints.row(row).dot(refControlZ) - lowerBounds[row] << '\n';
+            }
+            return false;
         }
     }
     const int nActive = static_cast<int>(activeRows.size());
@@ -140,9 +144,7 @@ bool SwingTrajectoryQpOptimizer::solveQp(const Eigen::MatrixXd &hessian, const E
     QpVector g = QpVector::Zero(nQpVariables);
     // Constraint generation: solve a subset, then check EVERY active row.
     // A subset optimum feasible for all active rows is also optimal for the
-    // full convex QP. Inactive rows (purely boundary constraints) are checked
-    // separately against the reference — if violated, they are reported but
-    // cannot be fixed by the QP.
+    // full convex QP. Constant rows were checked against the reference above.
     QpVector primal = QpVector::Zero(nQpVariables);
     std::vector<int> workingRows;
     int budget = config_.qpMaxWorkingSetRecalculations;
@@ -160,6 +162,10 @@ bool SwingTrajectoryQpOptimizer::solveQp(const Eigen::MatrixXd &hessian, const E
             }
         }
         if (worstActive < 0 || worstResidual >= -kConstraintViolationTolerance) {
+            // Check the original unscaled rows, including fixed endpoints.
+            if ((constraints * solution - lowerBounds).minCoeff() < -kConstraintViolationTolerance) {
+                return false;
+            }
             if (config_.verbose) {
                 std::cerr << "Swing QP solved: variables=" << nV << ", active_constraints=" << nActive
                           << "/" << nC << ", generated=" << workingRows.size()
@@ -195,17 +201,18 @@ bool SwingTrajectoryQpOptimizer::solveQp(const Eigen::MatrixXd &hessian, const E
                                          selectedLower.data(), nullptr, nWSR, nullptr, primal.data());
         budget -= std::max(1, static_cast<int>(nWSR));
         iterations = config_.qpMaxWorkingSetRecalculations - budget;
-        // Check for divergence: if primal norm is too large, the QP is numerically unstable
-        if (primal.norm() > kMaxPrimalNorm) {
-            std::cerr << "Swing QP divergence detected: primal_norm=" << primal.norm() << '\n';
-            return false;
-        }
         if (status != qpOASES::SUCCESSFUL_RETURN ||
             problem.getPrimalSolution(primal.data()) != qpOASES::SUCCESSFUL_RETURN) {
             const int origRow = activeRows[worstActive];
             std::cerr << "Swing QP failed: status=" << status << ", generated=" << workingRows.size()
                       << ", remaining=" << budget << ", row=" << origRow
                       << ", residual=" << worstResidual << '\n';
+            return false;
+        }
+        // init() takes primal as an initial guess, not an output buffer. Check
+        // the newly retrieved solution before it can be accepted as feasible.
+        if (!primal.allFinite() || primal.norm() > kMaxPrimalNorm) {
+            std::cerr << "Swing QP divergence detected: primal_norm=" << primal.norm() << '\n';
             return false;
         }
     }

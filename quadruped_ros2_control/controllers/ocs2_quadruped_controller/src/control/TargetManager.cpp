@@ -5,6 +5,9 @@
 #include "ocs2_quadruped_controller/control/TargetManager.h"
 
 #include <angles/angles.h>
+#include "ocs2_quadruped_controller/control/CommandRamp.h"
+#include <boost/property_tree/info_parser.hpp>
+#include <stdexcept>
 #include <ocs2_core/misc/LoadData.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
 
@@ -37,6 +40,14 @@ namespace ocs2::legged_robot
         loadData::loadCppDataType(reference_file, "targetRotationVelocity", target_rotation_velocity_);
         loadData::loadCppDataType(reference_file, "targetDisplacementVelocity", target_displacement_velocity_);
         loadData::loadCppDataType(reference_file, "targetLateralVelocity", target_lateral_velocity_);
+        boost::property_tree::ptree settings;
+        boost::property_tree::read_info(reference_file, settings);
+        linear_acceleration_ = settings.get<scalar_t>("commandLinearAcceleration", linear_acceleration_);
+        yaw_acceleration_ = settings.get<scalar_t>("commandYawAcceleration", yaw_acceleration_);
+        if (!std::isfinite(linear_acceleration_) || linear_acceleration_ <= 0 ||
+            !std::isfinite(yaw_acceleration_) || yaw_acceleration_ <= 0) {
+            throw std::invalid_argument("Command acceleration limits must be finite and positive.");
+        }
         twist_sub_ = node_->create_subscription<geometry_msgs::msg::Twist>(
             "/cmd_vel", 10, [this](const geometry_msgs::msg::Twist::SharedPtr msg)
             {
@@ -80,47 +91,65 @@ namespace ocs2::legged_robot
         const Eigen::Matrix<scalar_t, 3, 1> zyx = currentPose.tail(3);
         vector_t cmd_vel_rot = getRotationMatrixFromZyxEulerAngles(zyx) * cmdGoal.head(3);
 
-        // 航向参考：有显式 yaw 角速度时按指令积分；否则保持已锁定的世界 yaw，使 MPC 对侧走中的偏航有恢复项。
-        scalar_t yaw_target;
-        if (std::abs(cmdGoal(3)) > kYawRateDeadzone)
-        {
-            yaw_target = currentPose(3) + cmdGoal(3) * time_to_target_;
-            yaw_hold_value_ = yaw_target;
-            yaw_hold_initialized_ = true;
-            had_yaw_rate_command_ = true;
-        }
-        else
-        {
-            if (had_yaw_rate_command_ || !yaw_hold_initialized_)
-            {
-                yaw_hold_value_ = currentPose(3);
-                yaw_hold_initialized_ = true;
-                had_yaw_rate_command_ = false;
+        Eigen::Vector4d requested;
+        requested << cmd_vel_rot, cmdGoal(3);
+        const scalar_t dt = observation.time - previous_command_time_;
+        if (previous_command_time_ < 0 || dt < 0 || dt > 0.5) {
+            filtered_command_.setZero();
+            yaw_hold_initialized_ = false;
+            had_yaw_rate_command_ = false;
+        } else {
+            for (int axis = 0; axis < 4; ++axis) {
+                filtered_command_[axis] = sampleCommandRamp(filtered_command_[axis], requested[axis],
+                    axis == 3 ? yaw_acceleration_ : linear_acceleration_, dt).velocity;
             }
-            yaw_target = currentPose(3) +
-                angles::shortest_angular_distance(currentPose(3), yaw_hold_value_);
         }
+        previous_command_time_ = observation.time;
 
-        const vector_t targetPose = [&]
-        {
-            vector_t target(6); // [px, py, pz, theta_base_z, theta_base_y, theta_base_x]
-            target(0) = currentPose(0) + cmd_vel_rot(0) * time_to_target_;  // px
-            target(1) = currentPose(1) + cmd_vel_rot(1) * time_to_target_; // py
-            target(2) = command_height_;    // pz
-            target(3) = yaw_target;         // yaw
-            target(4) = pitch_target;       // pitch
-            target(5) = 0;                  // roll
-            return target;
-        }();
-
-        const scalar_t targetReachingTime = observation.time + time_to_target_;
-        auto trajectories =
-            targetPoseToTargetTrajectories(targetPose, observation, targetReachingTime);
-        for (auto& state : trajectories.stateTrajectory)
-        {
-            state.head(3) = cmd_vel_rot;
+        // Hold the braking endpoint in world yaw; do not snap heading back to
+        // the pose measured at key release while a turn is still decelerating.
+        const bool turning = std::abs(requested[3]) > kYawRateDeadzone ||
+                             std::abs(filtered_command_[3]) > 1e-6;
+        if (turning || !yaw_hold_initialized_ || had_yaw_rate_command_) {
+            yaw_hold_value_ = currentPose(3) +
+                sampleCommandRamp(filtered_command_[3], requested[3], yaw_acceleration_, time_to_target_).displacement;
+            yaw_hold_initialized_ = true;
         }
+        had_yaw_rate_command_ = turning;
 
+        // Include every velocity breakpoint: interpolated pose and momentum
+        // references describe the same bounded braking motion over the horizon.
+        scalar_array_t times{0.0, std::min(kPitchResponseTime, time_to_target_ * 0.5), time_to_target_};
+        for (int axis = 0; axis < 4; ++axis) {
+            const double duration = std::abs(requested[axis] - filtered_command_[axis]) /
+                                    (axis == 3 ? yaw_acceleration_ : linear_acceleration_);
+            if (duration > 1e-6 && duration < time_to_target_) { times.push_back(duration); }
+        }
+        for (double t = 0.05; t < time_to_target_; t += 0.05) { times.push_back(t); }
+        std::sort(times.begin(), times.end());
+        times.erase(std::unique(times.begin(), times.end(), [](double a, double b) {
+            return std::abs(a - b) < 1e-9;
+        }), times.end());
+        TargetTrajectories trajectories;
+        for (const double t : times) {
+            vector_t state = vector_t::Zero(observation.state.size());
+            state.segment<6>(6) = currentPose;
+            state(8) = command_height_;
+            state(10) = currentPose(4) + std::min(1.0, t / kPitchResponseTime) * (pitch_target - currentPose(4));
+            state(11) = 0;
+            state.tail(12) = default_joint_state_;
+            for (int axis = 0; axis < 3; ++axis) {
+                const auto sample = sampleCommandRamp(filtered_command_[axis], requested[axis], linear_acceleration_, t);
+                state(axis) = sample.velocity;
+                if (axis < 2) { state(6 + axis) += sample.displacement; }
+            }
+            state(9) = turning ? currentPose(3) +
+                sampleCommandRamp(filtered_command_[3], requested[3], yaw_acceleration_, t).displacement :
+                currentPose(3) + angles::shortest_angular_distance(currentPose(3), yaw_hold_value_);
+            trajectories.timeTrajectory.push_back(observation.time + t);
+            trajectories.stateTrajectory.push_back(std::move(state));
+            trajectories.inputTrajectory.push_back(vector_t::Zero(observation.input.size()));
+        }
         referenceManagerPtr_->setTargetTrajectories(std::move(trajectories));
     }
 }

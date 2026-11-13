@@ -76,7 +76,8 @@ void checkWorkspaceSeed() {
     require(std::abs(manager.swingNominalState(1.3, 0.0, initial, targets)[6] - 0.13) < 1e-12,
             "Swing workspace froze the body at the target horizon before touchdown.");
     const auto bounds = manager.swingHeightBounds(0, ocs2::vector_t::Zero(15), {0.5, 0, 0});
-    require(std::abs(bounds[0] + 0.75) < 2e-5 && std::abs(bounds[1] - 0.25) < 2e-5,
+    // The production IK residual and section bisection both use 1 mm tolerance.
+    require(std::abs(bounds[0] + 0.75) < 2e-3 && std::abs(bounds[1] - 0.25) < 2e-3,
             "Workspace search rejected a reachable vertical line because nominal height was infeasible.");
     requireThrows([&] { manager.swingHeightBounds(0, ocs2::vector_t::Zero(15), {1.5, 0, 0}); },
                   "Workspace search accepted an unreachable horizontal path.");
@@ -287,10 +288,47 @@ void checkExecutingSwing() {
     require(terrain->heightQueries == queries, "Historical swing triggered terrain optimization.");
 }
 
-// Reproduces the original QP infeasibility: flat terrain, MINVO geometry mode,
-// workspace bounds that produce B.row(i) constraints with zero free-variable
-// coefficients at the endpoints. The reference has a tiny (~1mm) endpoint
-// offset that matches the real simulation scenario.
+void checkTerrainFallback() {
+    class UnavailableTerrain final : public TerrainInterface {
+    public:
+        double getHeight(double, double) const override { throw TerrainUnavailable("test map gap"); }
+        std::vector<TerrainPrism> getPrisms(const Eigen::Vector2d&, const Eigen::Vector2d&) const override {
+            throw TerrainUnavailable("test map gap");
+        }
+    };
+    SwingTrajectoryPlanner::Config config;
+    config.useTerrainPlanning = true;
+    config.terrainQpConfig.checkReference = false;
+    SwingTrajectoryPlanner planner(config, 4);
+    planner.setTerrainInterface(std::make_shared<UnavailableTerrain>());
+    ocs2::ModeSchedule schedule;
+    schedule.eventTimes = {1.0, 1.3};
+    schedule.modeSequence = {15, 0, 15};
+    feet_array_t<ocs2::scalar_array_t> heights;
+    heights.fill({0.1, 0.1, 0.1});
+    feet_array_t<std::vector<Eigen::Vector3d>> liftOff, touchDown;
+    const Eigen::Vector3d a(2.3, -0.15, 0.1), b(2.5, -0.12, 0.1);
+    liftOff.fill(std::vector<Eigen::Vector3d>(3, a));
+    touchDown.fill(std::vector<Eigen::Vector3d>(3, b));
+    for (double horizon : {0.9, 1.3}) {
+        // Exercise both horizon padding and the actual failed-QP branch.
+        planner.updateTerrain(schedule, heights, heights, liftOff, touchDown, 0.95, horizon);
+        for (double phase : {0.0, 0.1, 0.5, 0.9, 1.0}) {
+            const double t = phase == 0.0 ? std::nextafter(1.0, 1.3) : 1.0 + 0.3 * phase;
+            const double progress = phase * phase * phase * (10 + phase * (-15 + 6 * phase));
+            const auto expected = a + progress * (b - a);
+            require((planner.getPositionConstraint(0, t).head<2>() - expected.head<2>()).norm() < 1e-10,
+                    "Failed terrain QP/padding redirected XY toward the world origin.");
+        }
+        for (double t : {std::nextafter(1.0, 1.3), 1.3}) {
+            require(planner.getVelocityConstraint(0, t).head<2>().norm() < 1e-9,
+                    "Fallback lost zero endpoint horizontal velocity.");
+        }
+    }
+}
+
+// Fixed endpoint violations cannot be repaired by the height QP. They must
+// trigger fallback rather than being silently removed from collision checks.
 void checkWorkspaceBoundaryQpFeasibility() {
     SwingTrajectoryQpConfig qpConfig;
     qpConfig.numControlPoints = 15;
@@ -306,13 +344,7 @@ void checkWorkspaceBoundaryQpFeasibility() {
     auto terrain = std::make_shared<Terrain>();
     SwingTrajectoryQpOptimizer optimizer(qpConfig, terrain);
 
-    // Reference spline: typical swing on flat ground
-    BSpline refSpline(5);
-    const int nRef = 7;
-    Eigen::VectorXd z(nRef);
-    z << 0.0, 0.002, 0.0425, 0.085, 0.0425, 0.002, 0.0;
-    refSpline.setControlPoints(Eigen::VectorXd::Zero(nRef), Eigen::VectorXd::Zero(nRef), z);
-    refSpline.setKnots(refSpline.generateKnots(nRef, 0.0, 1.0));
+    const auto refSpline = createSwingHeightBSpline(0.0, 0.3, 0.0, 0.05, 0.085, 0.0, -0.05);
 
     const Eigen::Vector3d liftOff(0.1, 0.0, -0.001);  // ~1mm below ground (sim settling)
     const Eigen::Vector3d touchDown(0.2, 0.0, 0.0);
@@ -325,9 +357,12 @@ void checkWorkspaceBoundaryQpFeasibility() {
         });
 
     auto result = optimizer.optimizeSwingTrajectory(refSpline, 0.0, 0.3, liftOff, touchDown, workspace);
-    require(result.solved,
-            "MINVO QP with workspace boundary constraints should be feasible "
-            "(free_norm=0 rows must be filtered).");
+    require(!result.solved,
+            "QP accepted a fixed endpoint below the terrain by dropping collision rows.");
+    auto feasibleLiftOff = liftOff;
+    feasibleLiftOff.z() = 0.0;
+    result = optimizer.optimizeSwingTrajectory(refSpline, 0.0, 0.3, feasibleLiftOff, touchDown, workspace);
+    require(result.solved, "Feasible contact endpoints were rejected.");
 }
 
 int main(int argc, char** argv) {
@@ -347,6 +382,7 @@ int main(int argc, char** argv) {
             return 0;
         }
         checkWorkspaceSeed();checkTerrainCommitOrder();checkDerivatives();checkPlannerSwitch();checkExecutingSwing();
+        checkTerrainFallback();
         checkWorkspaceBoundaryQpFeasibility();
         std::cout << "Swing integration checks passed.\n";
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n';return 1; }

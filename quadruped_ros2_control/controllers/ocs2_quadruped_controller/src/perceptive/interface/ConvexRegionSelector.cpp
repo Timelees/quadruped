@@ -682,6 +682,22 @@ namespace ocs2::legged_robot
             next->nominal = nominalFootholds_[leg][oldPhase];
             committed = std::move(next);
         }
+        // A changed motion command invalidates only future-step preferences.
+        // The committed airborne touchdown and its subsequent stance stay fixed.
+        if (!targetTrajectories.timeTrajectory.empty()) {
+            const double previewTime = targetTrajectories.timeTrajectory.back();
+            const auto previewState = targetTrajectories.getDesiredState(previewTime);
+            vector3_t commandPreview;
+            commandPreview.head<2>() = centroidal_model::getNormalizedMomentum(previewState, info_).head<2>();
+            commandPreview.z() = estimateDesiredYawRate(targetTrajectories, info_, previewTime - 0.05);
+            if (!commandPreviewInitialized_ ||
+                (commandPreview.head<2>() - previousCommandPreview_.head<2>()).norm() > 0.03 ||
+                std::abs(commandPreview.z() - previousCommandPreview_.z()) > 0.1) {
+                for (auto& records : previousSelectedFootholdsByTime_) { records.clear(); }
+                previousCommandPreview_ = commandPreview;
+                commandPreviewInitialized_ = true;
+            }
+        }
         planarTerrain_ = *planarTerrainPtr_;
         feet_array_t<std::vector<LockedFootholdRecord>> currentSelectedFootholdsByTime;
         feet_array_t<std::vector<int>> phaseEventIndices;

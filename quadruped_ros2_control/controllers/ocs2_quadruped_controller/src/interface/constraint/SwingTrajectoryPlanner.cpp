@@ -309,6 +309,22 @@ namespace ocs2::legged_robot {
                         midHeight,
                         touchDownHeightSequence[j][p], scaling * config_.touchDownVelocity);
 
+                    // Terrain mode tracks XYZ, including when the QP is unavailable.
+                    // Insert the midpoint knot into the quintic smoothstep's Bezier
+                    // controls [0,0,0,1,1,1]: [0,0,0,1/2,1,1,1]. Preserve the
+                    // nominal Z controls and its endpoint derivatives exactly.
+                    const Eigen::Vector3d& liftOffPosition = liftOffPositionSequence[j].at(p);
+                    const Eigen::Vector3d& touchDownPosition = touchDownPositionSequence[j].at(p);
+                    const Eigen::VectorXd progress =
+                        (Eigen::VectorXd(kSwingHeightControlPoints) << 0, 0, 0, 0.5, 1, 1, 1).finished();
+                    const Eigen::MatrixXd referenceControls = referenceSpline.getControlPoints();
+                    referenceSpline.setControlPoints(
+                        Eigen::VectorXd::Constant(kSwingHeightControlPoints, liftOffPosition.x()) +
+                            progress * (touchDownPosition.x() - liftOffPosition.x()),
+                        Eigen::VectorXd::Constant(kSwingHeightControlPoints, liftOffPosition.y()) +
+                            progress * (touchDownPosition.y() - liftOffPosition.y()),
+                        referenceControls.col(2));
+
                     if (swingFinalTime < initTime || swingStartTime > finalTime) {
                         // OCS2 keeps padding modes outside the policy horizon. They need no QP.
                         feetHeightTrajectories_[j].push_back(referenceSpline);
@@ -331,8 +347,8 @@ namespace ocs2::legged_robot {
                     if (!optimized.valid()) {
                         // guardrail: QP infeasible or output certification failed.
                         // Fall back to the reference spline rather than aborting the
-                        // controller — the reference is the pre-terrain-plan baseline
-                        // and is always available.
+                        // controller. The nominal XYZ reference remains available;
+                        // it is a fallback, not a collision-certified trajectory.
                         if (config_.terrainQpConfig.verbose) {
                             std::cerr << "Swing terrain-QP fallback for leg " << j
                                       << " at " << std::to_string(initTime) << " in ["
