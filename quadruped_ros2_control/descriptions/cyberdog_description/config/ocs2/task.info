@@ -20,11 +20,11 @@ swing_trajectory_config
 {
   liftOffVelocity               0.04   // 离地速度 - 降低以减少冲击
   touchDownVelocity            -0.04   // 触地速度 - 降低以减少落地冲击
-  swingHeight                   0.085
+  swingHeight                   0.085  // 降低摆高保持机体稳定（绕障由摆动QP负责）
   swingTimeScale                0.20   // 摆动时间缩放因子
   footRadius                    0.019  // 接触面到足端运动学球心的高度偏移 [m]
   trackingWeight                25.0 // 完整三维摆动参考跟踪的二次代价
-  trackingPositionErrorGain     3.0 // 仅用于地形三维摆动跟踪 [1/s]--影响EndEffectorLinearConstraint约束
+  trackingPositionErrorGain     2.0 // 仅用于地形三维摆动跟踪 [1/s]--影响EndEffectorLinearConstraint约束
   useTerrainPlanning            true
   terrainGeometryMode           2    // 0: discrete ablation, 1: Bezier, 2: MINVO
   terrainNumCurveSamples        60
@@ -39,7 +39,7 @@ swing_trajectory_config
   terrainVelocityTrackingWeight 0.35
   terrainAccelerationTrackingWeight 0.2
   terrainJerkSmoothnessWeight    0.08
-  terrainGroundClearance         0.03 // C2 piecewise-quintic envelope, zero value/slope/curvature at contacts
+  terrainGroundClearance         0.02 // C2 piecewise-quintic envelope（从0.03降到0.02，减少过高抬脚）
   terrainQpMaxWorkingSetRecalculations 200
   terrainElevationLayer          elevation
   terrainVerbose                 true

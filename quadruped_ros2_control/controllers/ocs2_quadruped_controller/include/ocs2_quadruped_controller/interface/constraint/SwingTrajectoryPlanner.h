@@ -116,6 +116,7 @@ namespace ocs2::legged_robot {
         const size_t numFeet_;
 
         std::shared_ptr<SwingTrajectoryQpOptimizer> swingTrajectoryQpOptimizer_;
+        std::shared_ptr<TerrainInterface> terrainInterface_;  // For adaptive swing height
 
         feet_array_t<std::vector<BSpline> > feetHeightTrajectories_;
         feet_array_t<std::vector<scalar_t> > feetHeightTrajectoriesEvents_;

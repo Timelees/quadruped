@@ -127,6 +127,7 @@ namespace ocs2::legged_robot {
     }
 
     void SwingTrajectoryPlanner::setTerrainInterface(std::shared_ptr<TerrainInterface> terrainInterface) {
+        terrainInterface_ = terrainInterface;  // Store for adaptive swing height
         auto qpConfig = config_.terrainQpConfig;
         qpConfig.footRadius = config_.footRadius;
         swingTrajectoryQpOptimizer_ = std::make_shared<SwingTrajectoryQpOptimizer>(
@@ -302,7 +303,36 @@ namespace ocs2::legged_robot {
                     }
                     const scalar_t scaling = swingTrajectoryScaling(swingStartTime, swingFinalTime,
                                                                     config_.swingTimeScale);
-                    const scalar_t midHeight = maxHeightSequence[j][p] + scaling * config_.swingHeight;
+                    // Adaptive swing height: increase when high obstacles detected along swing path.
+                    // Query terrain at midpoint of swing to get obstacle height.
+                    scalar_t adaptiveSwingHeight = config_.swingHeight;
+                    if (terrainInterface_) {
+                        const Eigen::Vector3d& liftOffPos = liftOffPositionSequence[j].at(p);
+                        const Eigen::Vector3d& touchDownPos = touchDownPositionSequence[j].at(p);
+                        // Sample terrain at midpoint and a few points along swing path
+                        const Eigen::Vector3d midPos = 0.5 * (liftOffPos + touchDownPos);
+                        double maxTerrainHeight = 0.0;
+                        for (double s = 0.2; s <= 0.8; s += 0.2) {
+                            const Eigen::Vector3d samplePos = (1 - s) * liftOffPos + s * touchDownPos;
+                            try {
+                                const double h = terrainInterface_->getHeight(samplePos.x(), samplePos.y());
+                                maxTerrainHeight = std::max(maxTerrainHeight, h);
+                            } catch (...) {
+                                // Terrain query failed, skip this point
+                            }
+                        }
+                        // If obstacle is higher than reference, increase swing height
+                        // Reference peak ≈ maxHeight + swingHeight, so we need:
+                        // swingHeight > obstacleHeight + clearance - maxHeight
+                        const double baseHeight = maxHeightSequence[j][p];
+                        const double targetPeak = maxTerrainHeight + 0.03;  // 3cm clearance
+                        if (targetPeak > baseHeight + adaptiveSwingHeight) {
+                            adaptiveSwingHeight = targetPeak - baseHeight;
+                            // Limit maximum increase to prevent instability
+                            adaptiveSwingHeight = std::min(adaptiveSwingHeight, 0.15);  // max 15cm swing height
+                        }
+                    }
+                    const scalar_t midHeight = maxHeightSequence[j][p] + scaling * adaptiveSwingHeight;
                     BSpline referenceSpline = createSwingHeightBSpline(
                         swingStartTime, swingFinalTime,
                         liftOffHeightSequence[j][p], scaling * config_.liftOffVelocity,
