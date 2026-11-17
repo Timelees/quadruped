@@ -20,7 +20,7 @@ swing_trajectory_config
 {
   liftOffVelocity               0.05   // 离地速度 - 适度增大以支持更高越障
   touchDownVelocity            -0.05   // 触地速度 - 适度增大以配合高摆高
-  swingHeight                   0.11  // 基础摆高,支持8cm障碍
+  swingHeight                   0.09  // 基础摆高,支持8cm障碍
   swingTimeScale                0.20   // 摆动时间缩放因子
   footRadius                    0.019  // 接触面到足端运动学球心的高度偏移 [m]
   trackingWeight                25.0 // 完整三维摆动参考跟踪的二次代价
