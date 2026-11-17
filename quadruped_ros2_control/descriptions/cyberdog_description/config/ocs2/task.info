@@ -7,8 +7,8 @@ legged_robot_interface
 
 model_settings
 {
-  positionErrorGain             0.0     // 保持原支撑/非地形规划 足端约束
-  phaseTransitionStanceTime     0.1     // 相位转换时的站立时间
+  positionErrorGain             0.0     // 保持原值
+  phaseTransitionStanceTime     0.1     // 保持原值
 
   verboseCppAd                  true    // 是否显示 C++ AD（自动微分）的详细信息
   recompileLibrariesCppAd       false
@@ -18,10 +18,10 @@ model_settings
 ; 摆动相轨迹配置
 swing_trajectory_config
 {
-  liftOffVelocity               0.05   // 离地速度 - 适度增大以支持更高越障
-  touchDownVelocity            -0.05   // 触地速度 - 适度增大以配合高摆高
-  swingHeight                   0.09  // 基础摆高,支持8cm障碍
-  swingTimeScale                0.20   // 摆动时间缩放因子
+  liftOffVelocity               0.10   // 增大离地速度,更主动抬脚上楼梯
+  touchDownVelocity            -0.10   // 增大触地速度配合高摆高
+  swingHeight                   0.09  // 适中摆高
+  swingTimeScale                0.25   // 增大摆动时间,给robot更多时间抬脚
   footRadius                    0.019  // 接触面到足端运动学球心的高度偏移 [m]
   trackingWeight                25.0 // 完整三维摆动参考跟踪的二次代价
   trackingPositionErrorGain     1.5 // 足端速度误差反馈增益 [1/s]。降低以减少摆动冲击和侧翻
@@ -194,20 +194,20 @@ Q
   scaling 1e+0
 
   ;; Normalized Centroidal Momentum: [linear, angular] ;;
-  (0,0)   35.0     ; vcom_x  -- 增大以更好跟踪速度指令
-  (1,1)   35.0     ; vcom_y 
+  (0,0)   35.0     ; vcom_x
+  (1,1)   35.0     ; vcom_y
   (2,2)   100.0     ; vcom_z
   (3,3)   50.0      ; L_x / robotMass
   (4,4)   50.0      ; L_y / robotMass
   (5,5)   50.0     ; L_z / robotMass
 
   ;; Base Pose: [position, orientation] ;;
-  (6,6)   2000.0   ; p_base_x -- 增大以减少x漂移
-  (7,7)   1000.0   ; p_base_y -- 增大以减少y漂移
+  (6,6)   3000.0   ; p_base_x — 增大以推动robot爬上楼梯
+  (7,7)   1000.0   ; p_base_y
   (8,8)   2000.0   ; p_base_z
   (9,9)   800.0    ; theta_base_z
-  (10,10) 350.0    ; theta_base_y
-  (11,11) 800.0    ; theta_base_x — 增大以减少侧翻
+  (10,10) 500.0    ; theta_base_y
+  (11,11) 800.0    ; theta_base_x
 
   ;; Leg Joint Positions: [FL, FR, RL, RR] ;; -- 增加以更好跟踪关节位置
   (12,12) 5.0     ; FL_hip_joint
@@ -335,13 +335,13 @@ torqueLimitsTask
 ; 摩擦椎硬约束，必须严格满足摩擦椎约束，否则求解不可达
 frictionConeTask
 {
-  frictionCoefficient    0.5
+  frictionCoefficient    0.6
 }
 
 swingLegTask
 {
     kp                   400
-    kd                   20    // 降低kd,减少摆动冲击和侧翻倾向
+    kd                   20    // 保持原值
 }
 
 weight
