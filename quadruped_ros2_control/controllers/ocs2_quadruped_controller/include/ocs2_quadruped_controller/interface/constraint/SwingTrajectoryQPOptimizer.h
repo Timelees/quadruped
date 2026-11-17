@@ -20,6 +20,21 @@ struct SwingTrajectoryQpConfig {
     double jerkSmoothnessWeight = 0.08;
     double groundClearance = 0.03;
     double footRadius = 0.019;
+    // Section 3.1 corridor shrink: reference-to-executed tracking error the
+    // terrain rows must reserve (b_bar = b - sigma_E). Applied with the same
+    // C2 envelope as groundClearance so contacts stay feasible.
+    double trackingMargin = 0.02;
+    // Body envelope F behind the foot: a trailing calf bound sampled at these
+    // horizontal distances, tilted by tan(theta) to follow the shank. Scaled by
+    // the same C2 envelope so a touchdown next to a riser stays feasible.
+    double calfLength = 0.09;
+    double calfSlope = 0.6;
+    int calfSamples = 3;
+    // Executability rows on the correction curve. Without them the QP happily
+    // returns corrections the NMPC/WBC chain cannot track.
+    double maxCorrection = 0.06;
+    double maxVelocity = 1.5;
+    double maxAcceleration = 60.0;
     double hessianRegularization = 1e-8;
     int qpMaxWorkingSetRecalculations = 200;
     std::string elevationLayer = "elevation";
@@ -51,6 +66,11 @@ class SwingTrajectoryQpOptimizer {
     const SwingTrajectoryQpConfig& getConfig() const { return config_; }
 
    private:
+    // Lower bound on foot-centre z at one surface point: terrain envelope behind
+    // the foot (calf), terrain under it, plus corridor margins, blended toward
+    // referenceZ by the contact envelope so fixed contact rows stay feasible.
+    double terrainLowerBound(const Eigen::Vector2d& xy, const Eigen::Vector2d& heading,
+                             double envelope, double referenceZ) const;
     bool solveQp(const Eigen::MatrixXd& hessian, const Eigen::MatrixXd& constraints,
                  const Eigen::VectorXd& lowerBounds, const Eigen::VectorXd& reference,
                  Eigen::VectorXd& solution, int& iterations) const;

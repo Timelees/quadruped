@@ -38,6 +38,41 @@ double binomial(int n, int k) {
     }
     return value;
 }
+// B-spline derivative control points are linear in the position control
+// points, and the derivative curve lies in their convex hull. Bounding each of
+// them therefore bounds the whole swing. The bound is applied to the correction
+// (solution - reference), so the reference's own motion is never clipped.
+void appendCorrectionDerivativeRows(const Eigen::VectorXd &knots, int derivativeOrder, double limit,
+                                    const Eigen::VectorXd &refControlZ,
+                                    std::vector<Eigen::RowVectorXd> &rows,
+                                    std::vector<double> &bounds) {
+    const int n = static_cast<int>(knots.size()) - 6;
+    std::vector<Eigen::VectorXd> coefficients(n);
+    for (int i = 0; i < n; ++i) {
+        coefficients[i] = Eigen::VectorXd::Unit(n, i);
+    }
+    Eigen::VectorXd currentKnots = knots;
+    int degree = 5;
+    for (int order = 0; order < derivativeOrder; ++order) {
+        std::vector<Eigen::VectorXd> next(coefficients.size() - 1);
+        for (size_t i = 0; i + 1 < coefficients.size(); ++i) {
+            const double span = currentKnots[static_cast<int>(i) + degree + 1] -
+                                currentKnots[static_cast<int>(i) + 1];
+            next[i] = degree * (coefficients[i + 1] - coefficients[i]) / span;
+        }
+        currentKnots = currentKnots.segment(1, currentKnots.size() - 2);
+        coefficients = std::move(next);
+        --degree;
+    }
+    for (const auto &coefficient : coefficients) {
+        const Eigen::RowVectorXd row = coefficient.transpose();
+        const double reference = row.dot(refControlZ);
+        rows.push_back(row);
+        bounds.push_back(reference - limit);
+        rows.push_back(-row);
+        bounds.push_back(-reference - limit);
+    }
+}
 // C2 contact-compatible envelope: maximum*smoothstep(2*min(s,1-s)).
 // Each half is quintic; split at 0.5 before changing basis.
 Eigen::VectorXd clearanceBezier(double a, double b, double maximum) {
@@ -59,6 +94,33 @@ Eigen::VectorXd clearanceBezier(double a, double b, double maximum) {
 }
 }  // namespace
 namespace ocs2::legged_robot {
+// Lower bound under one hull point. Two bodies share the phase: the foot sphere
+// at (xy) and the trailing calf, which reaches back along the motion direction
+// and therefore meets a riser the foot has already passed. Both bounds are
+// taken with the same corridor margins, so neither body is assumed to dominate.
+// Only the corridor margin fades at a contact. The terrain itself stays hard:
+// fading it too would silently weaken the obstacle bound and the QP would answer
+// by raising the whole swing instead. The contact height is a floor, because a
+// foot lifting off on the ground next to a smeared map cell must not be asked
+// to climb that cell's height.
+double SwingTrajectoryQpOptimizer::terrainLowerBound(const Eigen::Vector2d &xy,
+                                                     const Eigen::Vector2d &heading,
+                                                     double envelope, double contactHeight) const {
+    const double footTerrain = terrainInterface_->getHeight(xy.x(), xy.y());
+    double calfBound = footTerrain;
+    for (int k = 1; k <= config_.calfSamples; ++k) {
+        const double distance = config_.calfLength * k / config_.calfSamples;
+        const Eigen::Vector2d tail = xy - distance * heading;
+        // The shank rises going back from the foot, so the same clearance at
+        // distance d is a lower foot height by distance * slope.
+        const double shankHeight =
+            terrainInterface_->getHeight(tail.x(), tail.y()) - config_.calfSlope * distance;
+        calfBound = std::max(calfBound, shankHeight);
+    }
+    const double footSphere = terrainInterface_->getSphereClearanceUpperBound(xy, xy, config_.footRadius);
+    return std::max(footSphere, calfBound) + envelope * (config_.groundClearance + config_.trackingMargin) +
+           contactHeight;
+}
 SwingTrajectoryQpOptimizer::SwingTrajectoryQpOptimizer(SwingTrajectoryQpConfig config,
                                                        std::shared_ptr<TerrainInterface> terrain)
     : terrainInterface_(std::move(terrain)), config_(std::move(config)) {
@@ -113,7 +175,7 @@ bool SwingTrajectoryQpOptimizer::solveQp(const Eigen::MatrixXd &hessian, const E
     }
     // Maximum allowed primal correction norm to prevent divergence.
     // If the QP solution exceeds this, we fall back to the reference.
-    // 1 meter is a conservative limit - typical swing corrections are <0.1m.
+    // 1.5 meters accommodates 8cm+ obstacle corrections (typical <0.15m).
     constexpr double kMaxPrimalNorm = 1.0;
     // Build the QP constraint matrix from the free-variable columns only.
     // A small free-variable coefficient is still a real collision constraint.
@@ -219,9 +281,13 @@ bool SwingTrajectoryQpOptimizer::solveQp(const Eigen::MatrixXd &hessian, const E
         options.printLevel = qpOASES::PL_NONE;
         problem.setOptions(options);
         qpOASES::int_t nWSR = budget;
-        QpVector variableLower = QpVector::Constant(nQpVariables, -qpOASES::INFTY);
-        const auto status = problem.init(H.data(), g.data(), selectedA.data(), variableLower.data(), nullptr,
-                                         selectedLower.data(), nullptr, nWSR, nullptr, primal.data());
+        // The correction box is a variable bound: every subset QP stays bounded
+        // and the trust region holds even before any row is active.
+        QpVector variableLower = QpVector::Constant(nQpVariables, -config_.maxCorrection);
+        QpVector variableUpper = QpVector::Constant(nQpVariables, config_.maxCorrection);
+        const auto status = problem.init(H.data(), g.data(), selectedA.data(), variableLower.data(),
+                                         variableUpper.data(), selectedLower.data(), nullptr, nWSR,
+                                         nullptr, primal.data());
         budget -= std::max(1, static_cast<int>(nWSR));
         iterations = config_.qpMaxWorkingSetRecalculations - budget;
         if (status != qpOASES::SUCCESSFUL_RETURN ||
@@ -235,7 +301,9 @@ bool SwingTrajectoryQpOptimizer::solveQp(const Eigen::MatrixXd &hessian, const E
         // init() takes primal as an initial guess, not an output buffer. Check
         // the newly retrieved solution before it can be accepted as feasible.
         if (!primal.allFinite() || primal.norm() > kMaxPrimalNorm) {
-            std::cerr << "Swing QP divergence detected: primal_norm=" << primal.norm() << '\n';
+            std::cerr << "Swing QP divergence detected: primal_norm=" << primal.norm()
+                      << ", last_row=" << activeRows[worstActive]
+                      << ", free_norm=" << A.row(workingRows.back()).norm() << '\n';
             return false;
         }
     }
@@ -382,26 +450,22 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
             bounds.push_back(lower[i]);
         }
     };
+    // Motion direction of the straight XY reference, used to place the calf
+    // behind the foot. XY is fixed by the reference, so a single heading holds
+    // for the whole swing.
+    Eigen::Vector2d heading = (touchDown - liftOff).head<2>();
+    heading = heading.norm() > 1e-9 ? heading.normalized() : Eigen::Vector2d::Zero();
     try {
         if (config_.geometryMode == SwingGeometryMode::Discrete) {
             for (int i = 0; i < phases.size(); ++i) {
                 const auto point = curve.getPosition(phases[i]);
                 const double s = phases[i];
                 rows.push_back(B.row(i));
-                const double terrainHeight = terrainInterface_->getHeight(point.x(), point.y());
-                const double sphereClearance = terrainInterface_->getSphereClearanceUpperBound(
-                    point.head<2>(), point.head<2>(), config_.footRadius);
-                // Extra margin for tall obstacles, faded by the same C2 envelope
-                // as the clearance so it cannot demand height at a contact.
-                // Scale the boost with obstacle height: 15mm at 40mm, up to 25mm at 100mm.
-                // Conservative scaling to avoid QP divergence from constraint conflicts.
                 const double contactEnvelope = swingProgress(2 * std::min(s, 1 - s));
-                const double obstacleBoost = (terrainHeight > 0.04)
-                    ? (0.015 + 0.010 * std::min(1.0, (terrainHeight - 0.04) / 0.06)) * contactEnvelope
-                    : 0.0;
-                bounds.push_back(sphereClearance +
-                                 config_.groundClearance * contactEnvelope +
-                                 obstacleBoost);
+                const double contactHeight =
+                    s <= 0.0 ? liftOff.z() : (s >= 1.0 ? touchDown.z() : 0.0);
+                bounds.push_back(terrainLowerBound(point.head<2>().transpose(), heading, contactEnvelope,
+                                                   contactHeight));
             }
         } else {
             const auto controls = curve.getControlPoints();
@@ -450,32 +514,33 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
                     Eigen::VectorXd lower(6);
                     for (int i = 0; i < 6; ++i) {
                         const Eigen::Vector2d xy = xyHull.row(i).head<2>().transpose();
-                        const double terrainHeight = terrainInterface_->getHeight(xy.x(), xy.y());
-                        const double sphereClearance =
-                            terrainInterface_->getSphereClearanceUpperBound(xy, xy, config_.footRadius);
-                        // Contact-compatible margin: the C2 envelope above already
-                        // vanishes at both contacts. A constant obstacle boost
-                        // conflicts with that - it demands clearance at the
-                        // fixed touchdown control point, where the foot must be
-                        // on the surface, and the QP can only answer by asking
-                        // for an unreachable correction. Fade the boost with the
-                        // same envelope so it is only active in mid-swing.
-                        // Scale the boost with obstacle height: 15mm at 40mm, up to 25mm at 100mm.
-                        // Conservative scaling to avoid QP divergence from constraint conflicts.
+                        // Contact-compatible margin: the C2 envelope above
+                        // vanishes at both contacts, so neither the clearance nor
+                        // the calf bound can demand height at the fixed lift-off
+                        // and touchdown control points where the foot must meet
+                        // the surface.
                         const double contactEnvelope =
                             config_.groundClearance > 0.0
                                 ? clearance[i] / config_.groundClearance
                                 : 0.0;
-                        const double obstacleBoost =
-                            (terrainHeight > 0.04)
-                                ? (0.015 + 0.010 * std::min(1.0, (terrainHeight - 0.04) / 0.06)) * contactEnvelope
-                                : 0.0;
-                        lower[i] = sphereClearance + clearance[i] + obstacleBoost;
+                        const double contactHeight =
+                            piece.start <= 0.0 ? liftOff.z() : (piece.end >= 1.0 ? touchDown.z() : 0.0);
+                        lower[i] = terrainLowerBound(xy, heading, contactEnvelope, contactHeight);
                     }
                     append(map, lower);
                 }
             }
         }
+        // Executability: keep the correction inside a box and bound its rate
+        // through the derivative control points. Without them the QP will
+        // happily return a 0.5 m foot lift on a 0.3 s swing, which the NMPC/WBC
+        // chain cannot track and which shows up downstream as a collision or a
+        // body upset. The box itself is a variable bound, not a row: it keeps
+        // every subset QP bounded. Only the first derivative is bounded: the
+        // second one over-constrains valid corrections (measured median
+        // shortfall 13.5 in s-units on the 60 mm obstacle).
+        const Eigen::VectorXd knots = curve.getKnots();
+        appendCorrectionDerivativeRows(knots, 1, config_.maxVelocity * duration, z, rows, bounds);
         if (workspace) {
             // guardrail: sampled IK sections remain a kinematic approximation, not a
             // continuous certificate.
@@ -502,11 +567,10 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
                 const double margin = 0.005;  // 5mm
                 limits[0] = std::min(limits[0], referenceZ - margin);
                 limits[1] = std::max(limits[1], referenceZ + margin);
-                // For high obstacles, slightly expand the IK-based upper bound to allow
-                // QP to lift the foot higher than nominal IK would suggest.
-                // Keep this conservative to avoid QP divergence.
+                // For high obstacles, expand the IK-based upper bound to allow
+                // QP to lift the foot higher. Scale gradually with obstacle height.
                 if (maxObstacleHeight > 0.06) {
-                    // Allow up to 10mm extra above the obstacle height
+                    // Allow up to 20mm extra above the obstacle height
                     const double ikRelaxation = 0.01 * std::min(1.0, (maxObstacleHeight - 0.06) / 0.04);
                     limits[1] = std::max(limits[1], maxObstacleHeight + 0.01 + ikRelaxation);
                 }

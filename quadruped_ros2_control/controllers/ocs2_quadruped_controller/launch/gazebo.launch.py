@@ -36,12 +36,12 @@ def launch_setup(context, *args, **kwargs):
         arguments=['-topic', 'robot_description', 
                    '-name', 'robot', 
                    '-allow_renaming', 'true', 
-                   '-x', context.launch_configurations['x'],  
-                   '-y', context.launch_configurations['y'],  
-                   '-z', context.launch_configurations['z'],  
-                   '-roll', context.launch_configurations['roll'],
-                   '-pitch', context.launch_configurations['pitch'],
-                   '-yaw', context.launch_configurations['yaw'], 
+                   '-x', context.launch_configurations['x'],
+                   '-y', context.launch_configurations['y'],
+                   '-z', context.launch_configurations['z'],
+                   '-R', context.launch_configurations['roll'],
+                   '-P', context.launch_configurations['pitch'],
+                   '-Y', context.launch_configurations['yaw'],
                    ],
     )
 

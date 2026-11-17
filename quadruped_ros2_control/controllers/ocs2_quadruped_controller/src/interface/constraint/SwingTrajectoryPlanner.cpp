@@ -303,16 +303,28 @@ namespace ocs2::legged_robot {
                     }
                     const scalar_t scaling = swingTrajectoryScaling(swingStartTime, swingFinalTime,
                                                                     config_.swingTimeScale);
-                    // Adaptive swing height: increase when high obstacles detected along swing path.
-                    // Query terrain at midpoint of swing to get obstacle height.
+                    // Adaptive swing height. The reference must already clear the
+                    // obstacle by more than the executor can lose: the QP's terrain
+                    // row over a bar asks for crest + (groundClearance +
+                    // trackingMargin) at the foot centre, and measured tracking
+                    // error eats into whatever is left. On an 8 cm bar the old
+                    // crest + 3 cm rule left ~1 mm of true margin (crest reads
+                    // 0.0986 on the smoothed map, so 0.1286 was required against a
+                    // 0.130 reference peak), which any WBC lag turns into a
+                    // collision. Target the same bound the QP uses, plus an
+                    // execution allowance, so the profile the QP is asked to
+                    // certify is not already on the constraint surface.
                     scalar_t adaptiveSwingHeight = config_.swingHeight;
                     if (terrainInterface_) {
                         const Eigen::Vector3d& liftOffPos = liftOffPositionSequence[j].at(p);
                         const Eigen::Vector3d& touchDownPos = touchDownPositionSequence[j].at(p);
-                        // Sample terrain at midpoint and a few points along swing path
-                        const Eigen::Vector3d midPos = 0.5 * (liftOffPos + touchDownPos);
+                        // Sample the bar itself, not just the endpoints: a 3 cm
+                        // thick obstacle under a 20 cm stride is invisible to the
+                        // 0.2/0.4/0.6/0.8 midpoint probes on some phases.
                         double maxTerrainHeight = 0.0;
-                        for (double s = 0.2; s <= 0.8; s += 0.2) {
+                        for (int sample = 0; sample <= 10; ++sample) {
+                            const double s = 0.1 + 0.08 * sample;  // keep clear of contacts
+                            if (s > 0.9) { break; }
                             const Eigen::Vector3d samplePos = (1 - s) * liftOffPos + s * touchDownPos;
                             try {
                                 const double h = terrainInterface_->getHeight(samplePos.x(), samplePos.y());
@@ -321,15 +333,22 @@ namespace ocs2::legged_robot {
                                 // Terrain query failed, skip this point
                             }
                         }
-                        // If obstacle is higher than reference, increase swing height
-                        // Reference peak ≈ maxHeight + swingHeight, so we need:
-                        // swingHeight > obstacleHeight + clearance - maxHeight
                         const double baseHeight = maxHeightSequence[j][p];
-                        const double targetPeak = maxTerrainHeight + 0.03;  // 3cm clearance
+                        // Foot-centre height that clears the obstacle's crest:
+                        // crest + foot sphere radius is the geometric contact
+                        // point, then the QP corridor (clearance + tracking
+                        // margin) and an execution allowance the WBC needs to
+                        // absorb its own tracking lag.
+                        const double executionAllowance = 0.02;
+                        const double targetPeak = maxTerrainHeight +
+                            (config_.terrainQpConfig.groundClearance + config_.terrainQpConfig.trackingMargin) +
+                            executionAllowance;
                         if (targetPeak > baseHeight + adaptiveSwingHeight) {
                             adaptiveSwingHeight = targetPeak - baseHeight;
-                            // Limit maximum increase to prevent instability
-                            adaptiveSwingHeight = std::min(adaptiveSwingHeight, 0.15);  // max 15cm swing height
+                            // Cap the lift so a corrupted map cell cannot ask for a
+                            // stride the leg cannot track (~0.16 m above the
+                            // support surface is a comfortable Cyberdog swing).
+                            adaptiveSwingHeight = std::min(adaptiveSwingHeight, 0.16);
                         }
                     }
                     const scalar_t midHeight = maxHeightSequence[j][p] + scaling * adaptiveSwingHeight;
@@ -535,6 +554,13 @@ namespace ocs2::legged_robot {
         loadOptional(config.terrainQpConfig.accelerationTrackingWeight, "terrainAccelerationTrackingWeight");
         loadOptional(config.terrainQpConfig.jerkSmoothnessWeight, "terrainJerkSmoothnessWeight");
         loadOptional(config.terrainQpConfig.groundClearance, "terrainGroundClearance");
+        loadOptional(config.terrainQpConfig.trackingMargin, "terrainTrackingMargin");
+        loadOptional(config.terrainQpConfig.calfLength, "terrainCalfLength");
+        loadOptional(config.terrainQpConfig.calfSlope, "terrainCalfSlope");
+        loadOptional(config.terrainQpConfig.calfSamples, "terrainCalfSamples");
+        loadOptional(config.terrainQpConfig.maxCorrection, "terrainMaxCorrection");
+        loadOptional(config.terrainQpConfig.maxVelocity, "terrainMaxVelocity");
+        loadOptional(config.terrainQpConfig.maxAcceleration, "terrainMaxAcceleration");
         loadOptional(config.terrainQpConfig.qpMaxWorkingSetRecalculations, "terrainQpMaxWorkingSetRecalculations");
         loadOptional(config.terrainQpConfig.hessianRegularization, "terrainHessianRegularization");
         loadOptional(config.terrainQpConfig.elevationLayer, "terrainElevationLayer");
