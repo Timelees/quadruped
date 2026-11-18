@@ -315,13 +315,13 @@ namespace ocs2::legged_robot {
                     // execution allowance, so the profile the QP is asked to
                     // certify is not already on the constraint surface.
                     scalar_t adaptiveSwingHeight = config_.swingHeight;
-                    if (terrainInterface_) {
+                    if (terrainInterface_ && swingFinalTime >= initTime && swingStartTime <= finalTime) {
                         const Eigen::Vector3d& liftOffPos = liftOffPositionSequence[j].at(p);
                         const Eigen::Vector3d& touchDownPos = touchDownPositionSequence[j].at(p);
                         // Sample the bar itself, not just the endpoints: a 3 cm
                         // thick obstacle under a 20 cm stride is invisible to the
                         // 0.2/0.4/0.6/0.8 midpoint probes on some phases.
-                        double maxTerrainHeight = 0.0;
+                        double maxTerrainHeight = -std::numeric_limits<double>::infinity();
                         for (int sample = 0; sample <= 10; ++sample) {
                             const double s = 0.1 + 0.08 * sample;  // keep clear of contacts
                             if (s > 0.9) { break; }
@@ -391,8 +391,14 @@ namespace ocs2::legged_robot {
                         }) : SwingTrajectoryQpOptimizer::HeightBounds{});
                     if (config_.terrainQpConfig.verbose) {
                         std::cerr << "Swing planning ms=" << std::chrono::duration<double, std::milli>(
-                            std::chrono::steady_clock::now() - optimizationStart).count() << '\n';
+                            std::chrono::steady_clock::now() - optimizationStart).count()
+                                  << " corridor_cells=" << optimized.corridor.cells.size()
+                                  << " corridor_certified=" << optimized.corridorCertified
+                                  << " corridor_max_violation=" << optimized.corridorMaxViolation << '\n';
                     }
+                    // The last swing of the horizon is the freshest plan, so it
+                    // defines the corridor published for this leg.
+                    terrainCorridors_[j] = optimized.corridor;
                     if (!optimized.valid()) {
                         // guardrail: QP infeasible or output certification failed.
                         // Fall back to the reference spline rather than aborting the
@@ -546,6 +552,8 @@ namespace ocs2::legged_robot {
         loadOptional(config.useTerrainPlanning, "useTerrainPlanning");
         loadOptional(config.footRadius, "footRadius");
         loadOptional(config.trackingPositionErrorGain, "trackingPositionErrorGain");
+        loadOptional(config.trackingVerticalErrorGain, "trackingVerticalErrorGain");
+        loadOptional(config.trackingVerticalHardConstraint, "trackingVerticalHardConstraint");
         loadOptional(config.terrainQpConfig.numControlPoints, "terrainNumControlPoints");
         loadOptional(config.terrainQpConfig.numCurveSamples, "terrainNumCurveSamples");
         loadOptional(config.terrainQpConfig.controlPointTrackingWeight, "terrainControlPointTrackingWeight");
@@ -579,6 +587,30 @@ namespace ocs2::legged_robot {
         loadOptional(config.terrainQpConfig.verifyOutput, "verifySwingOutput");
         loadOptional(config.terrainQpConfig.collisionCheck.maxDepth, "collisionMaxDepth");
         loadOptional(config.terrainQpConfig.collisionCheck.maxSegments, "collisionMaxSegments");
+
+        // Section 3.1 terrain safety corridor: optional, off by default so the
+        // existing height-based planning path is untouched unless switched on.
+        loadOptional(config.terrainQpConfig.safetyCorridorEnabled, "terrainSafetyCorridorEnabled");
+        auto& corridor = config.terrainQpConfig.corridorConfig;
+        loadOptional(corridor.lateralExtent, "corridorLateralExtent");
+        loadOptional(corridor.longitudinalExtent, "corridorLongitudinalExtent");
+        loadOptional(corridor.verticalExtent, "corridorVerticalExtent");
+        loadOptional(corridor.mapMargin, "corridorMapMargin");
+        loadOptional(corridor.geometricClearance, "corridorGeometricClearance");
+        loadOptional(corridor.numericalMargin, "corridorNumericalMargin");
+        loadOptional(corridor.contactPhase, "corridorContactPhase");
+        loadOptional(corridor.footRadius, "corridorFootRadius");
+        loadOptional(corridor.trackingMargin, "corridorTrackingMargin");
+        // Default the corridor's geometry to the values the QP already uses, so
+        // enabling it does not silently change the safety margins.
+        if (config.terrainQpConfig.safetyCorridorEnabled) {
+            if (!pt.get_optional<scalar_t>(prefix + "corridorFootRadius")) {
+                corridor.footRadius = config.footRadius;
+            }
+            if (!pt.get_optional<scalar_t>(prefix + "corridorTrackingMargin")) {
+                corridor.trackingMargin = config.terrainQpConfig.trackingMargin;
+            }
+        }
 
         if (verbose) {
             std::cerr << " #### =============================================================================" <<

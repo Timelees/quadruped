@@ -1,0 +1,21 @@
+{
+  "plot_evidence.py": "f5efb4159f624cf19418f98ecbf10b74bbdaf65cf39efc39ac9bcaadf09b36d3",
+  "data/final/stability_summary.json": "0233c74a648573a72dc14f2d1e5db13a0afdf63a082b6d32c978607a7d30035f",
+  "data/final/bar_terrain.csv": "294ae8bb0141d4b4e97740ca2f0cb20466f138b1a998c2ebff88d797e54dfba9",
+  "data/final/bar_trajectory.csv": "0b1b62e98295f21ef448df73183b0d8d1a5d5ba831a3a0608e751ee4ba72e2b7",
+  "data/final/bar_vertices.csv": "df808e69bad68f358fbe02cf9db54c121fda0e4543297a13c3a938014e9bf8e8",
+  "data/final/bar_planes.csv": "72b897f0ba1b2729e45c0bb342a08831dee7d2cc4476466b4a3e8bf6e879a51a",
+  "data/final/minvo/trajectories.csv": "1e98ae71d2b080e8353d20d35b2fd394b119c7ce88020a7755c72f18be67ff23",
+  "data/final/minvo/hull_bounds.csv": "b7f4ce725ea92dc6af134540fb03427279ff88707432226abd6b980ee21021dd",
+  "data/final/minvo/metrics.csv": "f848e8024076b636d21ac01f43f33a517f6c3c5b87078cf2c3a020580f28fce6",
+  "data/stability/platform_capped_105.csv": "fed6c248d0b47b3f405e3b77aaa6350ed9bc8e5e9f9173ffd549c384bddf5ac6",
+  "data/stability/platform_final_107.csv": "2f1d4869a5617b948dd5f7b7ce4204f5d95f2538852eda867a77473352a10779",
+  "data/stability/platform_final_108.csv": "8b8f00046fef8f9e59c5a56fb0dcfbbaa97966a495bc7817643c2ab06e543d22",
+  "data/stability/stairs_capped_103.csv": "00a4099b7914a367c9e5556e6b9402708ad0ed58c1848fe9d92240181a68e2cc",
+  "data/stability/stairs_final_104.csv": "076800627108180d3e4e21e6aabcd492bb3ddcad445a7f8a384d6cfee1305862",
+  "data/stability/stairs_final_106.csv": "51f00a55ce1478aea5008433aebacda6f4307ab34b6963f3e8e1da53082d97b9",
+  "data/stability/stairs_map_91_map.csv": "2e410ac6ddfab1d83f8fb584087e13b93bc6934fb9cbc867397f21e9c936cadb",
+  "data/stability/stairs_camera_96_map.csv": "c3216ac9b1ecdfe1088fbbc873cbc3248c7af8c3db7296d03da93cc9f8908460",
+  "data/stability/stairs_repeat_89_wbc.csv": "5334f252c7ea19fb8c61d9424b35a3297ee2dae3b736d0be284df80bf21f7192",
+  "data/stability/stairs_final_104_wbc.csv": "f561f61b09c952ce8230fcba0de8e4ca252c3442c009d4afca81e33728e1894b"
+}

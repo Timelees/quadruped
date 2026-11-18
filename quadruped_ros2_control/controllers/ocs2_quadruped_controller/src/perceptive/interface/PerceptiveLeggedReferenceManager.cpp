@@ -129,6 +129,12 @@ namespace ocs2::legged_robot
         // 生成新目标轨迹
         TargetTrajectories newTargetTrajectories;
         int nodeNum = 11;
+        // TargetManager blends measured pitch toward the operator command. Testing
+        // each intermediate pitch against zero disabled terrain alignment whenever
+        // the measured body had any tilt. Use the terminal operator target instead.
+        const bool followTerrainPitch = std::abs(
+            centroidal_model::getBasePose(targetTrajectories.stateTrajectory.back(), info_)(4)) < 1e-6;
+        const scalar_t initialPitch = centroidal_model::getBasePose(initState, info_)(4);
         for (size_t i = 0; i < nodeNum; ++i)
         {
             scalar_t time = initTime + static_cast<double>(i) * timeHorizon / (nodeNum - 1);
@@ -178,10 +184,13 @@ namespace ocs2::legged_robot
              0, 0, 1;  // clang-format on
             vector_t v = R.transpose() * normalVector;
             auto basePose = centroidal_model::getBasePose(state, info_);
-            const scalar_t terrainPitch = atan(v.x() / v.z());
-            if (std::abs(basePose(4)) < scalar_t(1e-6))
+            // Stair gradients can request >0.3 rad while the two support
+            // feet lie on different treads. Cap tilt to retain leg workspace.
+            const scalar_t terrainPitch = std::clamp(std::atan2(v.x(), v.z()), scalar_t(-0.20), scalar_t(0.20));
+            if (followTerrainPitch)
             {
-                basePose(4) = terrainPitch;
+                const scalar_t blend = std::min(scalar_t(1.0), (time - initTime) / scalar_t(0.3));
+                basePose(4) = initialPitch + blend * (terrainPitch - initialPitch);
             }
 
             // Base Z Position

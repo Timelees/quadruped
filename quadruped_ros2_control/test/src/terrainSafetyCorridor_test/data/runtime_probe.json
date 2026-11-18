@@ -1,0 +1,17 @@
+{
+  "corridor_messages": 413,
+  "nonempty_corridor_messages": 163,
+  "map_messages": 0,
+  "fell": true,
+  "odometry_samples": 672,
+  "last_odometry": [
+    15.227284857013728,
+    -0.23823601757112867,
+    0.8369266978980869,
+    0.10887887119633755,
+    -3.0120917903253086,
+    -0.3816871299761423
+  ],
+  "max_abs_roll": 3.1360612747193746,
+  "max_abs_pitch": 0.3816871299761423
+}

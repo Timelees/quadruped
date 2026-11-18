@@ -170,6 +170,10 @@ namespace ocs2::legged_robot
             // 足端法向速度约束
             auto swingTracking = std::make_unique<NormalVelocityConstraintCppAd>(*reference_manager_ptr_, *eeKinematicsPtr, i);
             if (useSwingTracking) {
+                if (reference_manager_ptr_->getSwingTrajectoryPlanner()->getConfig().trackingVerticalHardConstraint) {
+                    problem_ptr_->equalityConstraintPtr->add(footName + "_swingVerticalTracking",
+                        std::make_unique<NormalVelocityConstraintCppAd>(*reference_manager_ptr_, *eeKinematicsPtr, i, true));
+                }
                 problem_ptr_->softConstraintPtr->add(footName + "_swingTracking",
                     std::make_unique<StateInputSoftConstraint>(std::move(swingTracking), std::make_unique<QuadraticPenalty>(swingTrackingWeight)));
             } else {

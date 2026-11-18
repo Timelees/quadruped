@@ -1,0 +1,1 @@
+error: PyMuPDF is required for rendered collision QA. Install it with: python -m pip install -r skills/nature-figure/requirements.txt

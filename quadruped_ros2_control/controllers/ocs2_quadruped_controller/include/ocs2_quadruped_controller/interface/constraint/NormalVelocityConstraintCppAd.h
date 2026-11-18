@@ -51,7 +51,7 @@ namespace ocs2::legged_robot {
          */
         NormalVelocityConstraintCppAd(const SwitchedModelReferenceManager &referenceManager,
                                       const EndEffectorKinematics<scalar_t> &endEffectorKinematics,
-                                      size_t contactPointIndex);
+                                      size_t contactPointIndex, bool verticalOnly = false);
 
         ~NormalVelocityConstraintCppAd() override = default;
 
@@ -59,7 +59,7 @@ namespace ocs2::legged_robot {
 
         bool isActive(scalar_t time) const override;
 
-        size_t getNumConstraints(scalar_t time) const override { return referenceManagerPtr_->getSwingTrajectoryPlanner()->isTerrainPlanningEnabled() ? 3 : 1; }
+        size_t getNumConstraints(scalar_t time) const override { return !verticalOnly_ && referenceManagerPtr_->getSwingTrajectoryPlanner()->isTerrainPlanningEnabled() ? 3 : 1; }
 
         vector_t getValue(scalar_t time, const vector_t &state, const vector_t &input,
                           const PreComputation &preComp) const override;
@@ -70,9 +70,11 @@ namespace ocs2::legged_robot {
 
     private:
         NormalVelocityConstraintCppAd(const NormalVelocityConstraintCppAd &rhs);
+        void configure(const PreComputation& preComp) const;
 
         const SwitchedModelReferenceManager *referenceManagerPtr_;  
         std::unique_ptr<EndEffectorLinearConstraint> eeLinearConstraintPtr_;
         const size_t contactPointIndex_;
+        const bool verticalOnly_;
     };
 }

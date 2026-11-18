@@ -42,15 +42,22 @@ namespace ocs2::legged_robot
         auto qpProblem = qpOASES::QProblem(getNumDecisionVars(), numConstraints);
         qpOASES::Options options;
         options.setToMPC();
-        options.printLevel = qpOASES::PL_LOW;
+        options.printLevel = qpOASES::PL_NONE;
         options.enableEqualities = qpOASES::BT_TRUE;
         qpProblem.setOptions(options);
-        int nWsr = 20;
+        // A cold start can need >20 iterations even during standing up.
+        int nWsr = 100;
 
-        qpProblem.init(H.data(), g.data(), A.data(), nullptr, nullptr, lbA.data(), ubA.data(), nWsr);
-        vector_t qpSol(getNumDecisionVars());
-
-        qpProblem.getPrimalSolution(qpSol.data());
+        solver_status_ = qpProblem.init(H.data(), g.data(), A.data(), nullptr, nullptr, lbA.data(), ubA.data(), nWsr);
+        solver_iterations_ = nWsr;
+        vector_t qpSol = vector_t::Zero(getNumDecisionVars());
+        const auto primalStatus = qpProblem.getPrimalSolution(qpSol.data());
+        const vector_t value = A * qpSol;
+        constraint_violation_ = std::max(0.0, std::max((lbA - value).maxCoeff(), (value - ubA).maxCoeff()));
+        solution_valid_ = primalStatus == qpOASES::SUCCESSFUL_RETURN && qpSol.allFinite() &&
+            constraint_violation_ <= 1e-5 &&
+            (solver_status_ == qpOASES::SUCCESSFUL_RETURN || solver_status_ == qpOASES::RET_MAX_NWSR_REACHED);
+        if (!solution_valid_) qpSol.setZero();
         return qpSol;
     }
 

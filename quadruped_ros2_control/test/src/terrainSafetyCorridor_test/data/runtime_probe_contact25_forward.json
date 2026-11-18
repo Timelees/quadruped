@@ -1,0 +1,31 @@
+{
+  "corridor_messages": 428,
+  "nonempty_corridor_messages": 428,
+  "map_messages": 227,
+  "map_layers": [
+    "elevation",
+    "variance",
+    "horizontal_variance_x",
+    "horizontal_variance_y",
+    "horizontal_variance_xy",
+    "color",
+    "time",
+    "dynamic_time",
+    "lowest_scan_point",
+    "sensor_x_at_lowest_scan",
+    "sensor_y_at_lowest_scan",
+    "sensor_z_at_lowest_scan"
+  ],
+  "fell": false,
+  "odometry_samples": 2031,
+  "last_odometry": [
+    26.022858638025355,
+    0.2001868631399175,
+    0.23500193241934073,
+    0.2594066455854456,
+    -0.008969597808717839,
+    0.012785214864194334
+  ],
+  "max_abs_roll": 0.019937845898519567,
+  "max_abs_pitch": 0.016008524372980722
+}

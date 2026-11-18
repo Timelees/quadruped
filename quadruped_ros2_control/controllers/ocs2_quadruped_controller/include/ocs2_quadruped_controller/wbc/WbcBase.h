@@ -30,6 +30,13 @@ namespace ocs2::legged_robot
                                 const vector_t& rbdStateMeasured, size_t mode,
                                 scalar_t period);
 
+        // Columns are measured p/v and MPC p/v, in world coordinates, per leg.
+        const Eigen::Matrix<scalar_t, 12, 4>& footTracking() const { return foot_tracking_; }
+        bool solutionValid() const { return solution_valid_; }
+        int solverStatus() const { return solver_status_; }
+        int solverIterations() const { return solver_iterations_; }
+        scalar_t constraintViolation() const { return constraint_violation_; }
+
     protected:
         void updateMeasured(const vector_t& rbdStateMeasured);
 
@@ -64,6 +71,10 @@ namespace ocs2::legged_robot
         matrix_t j_, dj_;
         contact_flag_t contact_flag_{};
         size_t num_contacts_{};
+        Eigen::Matrix<scalar_t, 12, 4> foot_tracking_ = Eigen::Matrix<scalar_t, 12, 4>::Zero();
+        bool solution_valid_ = true;
+        int solver_status_ = 0, solver_iterations_ = 0;
+        scalar_t constraint_violation_ = 0.0;
 
         // Task Parameters:
         vector_t torque_limits_;

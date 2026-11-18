@@ -11,6 +11,7 @@
 #include <ocs2_quadruped_controller/control/CtrlComponent.h>
 #include <ocs2_quadruped_controller/wbc/WbcBase.h>
 #include <rclcpp/duration.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
 
 #include "controller_common/FSM/FSMState.h"
 
@@ -48,6 +49,8 @@ namespace ocs2::legged_robot
         std::shared_ptr<SafetyChecker> safety_checker_;
         benchmark::RepeatedTimer wbc_timer_;
         scalar_t last_visualization_time_ = 0.0;
+        rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr diagnostics_pub_;
+        scalar_t last_diagnostics_time_ = 0.0;
 
         double default_kp_ = 0;
         double default_kd_ = 6;

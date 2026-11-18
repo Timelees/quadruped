@@ -38,6 +38,7 @@ namespace ocs2::legged_robot
         gait_file_ = package_share_directory + "/config/ocs2/gait.info";
 
         loadData::loadCppDataType(task_file_, "legged_robot_interface.verbose", verbose_);
+        swingReferencePublisher_ = node_->create_publisher<std_msgs::msg::Float64MultiArray>("/swing_reference", 5);
 
         setupLeggedInterface(); // 建立机器人模型接口
         setupMpc();             // 配置MPC求解器
@@ -193,6 +194,10 @@ namespace ocs2::legged_robot
             sphereVisualizationPtr_ = std::make_unique<SphereVisualization>(
                 legged_interface_->getPinocchioInterface(), legged_interface_->getCentroidalModelInfo(),
                 *dynamic_cast<PerceptiveLeggedInterface &>(*legged_interface_).getPinocchioSphereInterfacePtr(), node_);
+
+            // 地形安全走廊可视化（与规划器解耦：仅在规划器产出走廊时发布）
+            terrainCorridorVisualizationPtr_ = std::make_unique<TerrainCorridorVisualization>(
+                node_, legged_interface_->getCentroidalModelInfo().numThreeDofContacts);
         }
     }
 
@@ -258,6 +263,33 @@ namespace ocs2::legged_robot
                                     SystemObservation plannedObservation;
                                     plannedObservation.time = mpc_->getSolverPtr()->getFinalTime() - mpc_->getTimeHorizon();
                                     footPlacementVisualizationPtr_->update(plannedObservation);
+                                    // 走廊由参考管理器在上一轮规划中产出，这里只做发布。
+                                    std_msgs::msg::Header corridorHeader;
+                                    corridorHeader.frame_id = "odom";
+                                    const auto& planner = dynamic_cast<PerceptiveLeggedReferenceManager&>(
+                                        *legged_interface_->getReferenceManagerPtr())
+                                                          .getSwingTrajectoryPlanner();
+                                    if (swingReferencePublisher_->get_subscription_count() > 0) {
+                                        std_msgs::msg::Float64MultiArray reference;
+                                        // Sample on the MPC thread, which owns the planner. Each row:
+                                        // [observation time, LF p/v, RF p/v, LH p/v, RH p/v].
+                                        for (int sample = 0; sample <= 20; ++sample) {
+                                            const double t = plannedObservation.time + .01 * sample;
+                                            reference.data.push_back(t);
+                                            for (size_t leg = 0; leg < 4; ++leg) {
+                                                const auto p = planner->getPositionConstraint(leg, t);
+                                                const auto v = planner->getVelocityConstraint(leg, t);
+                                                reference.data.insert(reference.data.end(), p.data(), p.data() + 3);
+                                                reference.data.insert(reference.data.end(), v.data(), v.data() + 3);
+                                            }
+                                        }
+                                        swingReferencePublisher_->publish(reference);
+                                    }
+                                    terrainCorridorVisualizationPtr_->update(
+                                        std::vector<TerrainSafetyCorridor>(
+                                            planner->getTerrainCorridors().begin(),
+                                            planner->getTerrainCorridors().end()),
+                                        corridorHeader);
                                 }
                             }
                         },

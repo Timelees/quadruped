@@ -1,0 +1,112 @@
+Panels:
+- Class: rviz_common/Displays
+  Name: Displays
+- Class: rviz_common/Views
+  Name: Views
+Visualization Manager:
+  Class: ''
+  Displays:
+  - Class: rviz_default_plugins/Grid
+    Enabled: true
+    Name: Ground Grid
+    Cell Size: 0.05
+    Plane Cell Count: 20
+    Alpha: 0.3
+  - Class: grid_map_rviz_plugin/GridMap
+    Enabled: true
+    Name: Synthetic Elevation
+    Alpha: 1
+    Height Layer: elevation
+    Height Transformer: Layer
+    Color Layer: elevation
+    Color Transformer: FlatColor
+    Autocompute Intensity Bounds: true
+    Min Intensity: 0
+    Max Intensity: 10
+    Use Rainbow: false
+    Show Grid Lines: true
+    History Length: 1
+    Topic:
+      Value: /corridor_test/elevation_map
+      Reliability Policy: Reliable
+      Durability Policy: Transient Local
+      History Policy: Keep Last
+      Depth: 1
+    Invert Rainbow: false
+    Min Color: 0; 0; 0
+    Max Color: 255; 255; 255
+    Color: 200; 200; 200
+    Value: true
+  - Class: rviz_default_plugins/MarkerArray
+    Enabled: true
+    Name: 3D Geometric and Planning Corridors
+    Topic:
+      Value: /corridor_test/markers
+      Reliability Policy: Reliable
+      Durability Policy: Transient Local
+      History Policy: Keep Last
+      Depth: 1
+  Global Options:
+    Fixed Frame: map
+    Background Color: 198; 198; 198
+    Frame Rate: 30
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 1.45
+      Pitch: 0.55
+      Yaw: 4.8
+      Focal Point:
+        X: 0.34
+        Y: 0
+        Z: 0.04
+      Target Frame: <Fixed Frame>
+      Name: Current View
+      Near Clip Distance: 0.005
+      Value: Orbit (rviz_default_plugins)
+    Saved:
+    - Class: rviz_default_plugins/Orbit
+      Distance: 1.45
+      Pitch: 1.5707
+      Yaw: 4.71
+      Focal Point:
+        X: 0.34
+        Y: 0
+        Z: 0.04
+      Target Frame: <Fixed Frame>
+      Name: Top
+      Near Clip Distance: 0.005
+      Value: Orbit (rviz_default_plugins)
+    - Class: rviz_default_plugins/Orbit
+      Distance: 1.45
+      Pitch: 0.02
+      Yaw: 4.71
+      Focal Point:
+        X: 0.34
+        Y: 0
+        Z: 0.04
+      Target Frame: <Fixed Frame>
+      Name: Side XZ
+      Near Clip Distance: 0.005
+      Value: Orbit (rviz_default_plugins)
+    - Class: rviz_default_plugins/Orbit
+      Distance: 1.45
+      Pitch: 0.55
+      Yaw: 4.8
+      Focal Point:
+        X: 0.34
+        Y: 0
+        Z: 0.04
+      Target Frame: <Fixed Frame>
+      Name: Oblique
+      Near Clip Distance: 0.005
+      Value: Orbit (rviz_default_plugins)
+  Enabled: true
+  Name: root
+  Value: true
+  Tools:
+  - Class: rviz_default_plugins/Interact
+    Hide Inactive Objects: true
+  - Class: rviz_default_plugins/MoveCamera
+  - Class: rviz_default_plugins/Select
+  - Class: rviz_default_plugins/FocusCamera

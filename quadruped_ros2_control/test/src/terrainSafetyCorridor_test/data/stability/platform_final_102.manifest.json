@@ -1,0 +1,12 @@
+{
+  "src/quadruped_ros2_control/descriptions/cyberdog_description/config/ocs2/task.info": "141bf958aba6a8be9dacc9965cf890664f1cea793ad1c70e3e316fcb2fd85c28",
+  "src/quadruped_ros2_control/descriptions/cyberdog_description/config/ocs2/gait.info": "457972680781344cf8042768625633deb0957d144f6b14e88112800732ce89c7",
+  "src/quadruped_ros2_control/descriptions/cyberdog_description/config/ocs2/reference.info": "c08dd5302ad38075f23441b7d45e0bb883d44dd06835d61c9bc3a2537a96a4d4",
+  "src/quadruped_ros2_control/descriptions/cyberdog_description/xacro/gazebo.xacro": "1c3d685a0caa5cfa04a6b9af68ffda3d400f67ecf551c67250a98f0fd13b01a0",
+  "src/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/run_trial.py": "d2a0281c1b238ff09e22892a18c99085957befc017d6fd4f93191cfddc0d6f8b",
+  "src/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/scenario_probe.py": "5509eba372ecf68c45614224ef27210e0adeecf9a04c8044fdfa22ea32b8a6b9",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp": "716b48a5d72068caf113ae99a8906e921ae086baae8d92533c240ff7c6ea68b4",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryQPOptimizer.cpp": "7f39a71dfa230a972f245abebe0264e9ed5c2e59166e5f6ffff7fb8913f5d917",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/TerrainSafetyCorridor.cpp": "84cc913485970dd67008fc5ce23ee581f9a0ab3e83f9a57f06683c3bd8c6cb2b",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp": "f203da6407b5a913dd297604f5d1cb62f0dea92f558fd56e2b299062e470ed8f"
+}

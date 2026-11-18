@@ -87,7 +87,7 @@ elevation_mapping:
     margin_init_submap: 0.0
     init_submap_variance: 1e-3
     init_submap_height_offset: 0.0   # 高程图初始化子图的高度偏移（以米为单位）
-    fuse_submap_height_offset: 0.0365   # 融合子图时的高度偏移（以米为单位）——弥补点云的高度偏移
+    fuse_submap_height_offset: 0.0      # 仿真相机使用一致的FOV投影，不再叠加经验高度补偿
     elevation_clamp_threshold: 0.01    # 点云融合后高程绝对值小于此阈值则钳位为0（抑制地面附近的点云噪声）
     target_frame_init_submap: odom    # 初始化子图的目标坐标系
     increase_height_alpha: 0.0        # 当新观测高度高于当前地图高度时，增加高度的权重，alpha越大越倾向于增加高度

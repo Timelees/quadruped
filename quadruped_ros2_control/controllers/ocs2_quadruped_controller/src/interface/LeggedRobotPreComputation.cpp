@@ -77,8 +77,11 @@ namespace ocs2::legged_robot {
                 const scalar_t gain = swingTrajectoryPlannerPtr_->getConfig().trackingPositionErrorGain;
                 config.Av = matrix_t::Identity(3, 3);
                 config.Ax = gain * matrix_t::Identity(3, 3);
+                if (swingTrajectoryPlannerPtr_->getConfig().trackingVerticalHardConstraint) {
+                    config.Ax(2, 2) = swingTrajectoryPlannerPtr_->getConfig().trackingVerticalErrorGain;
+                }
                 config.b = -swingTrajectoryPlannerPtr_->getVelocityConstraint(footIndex, t)
-                           - gain * swingTrajectoryPlannerPtr_->getPositionConstraint(footIndex, t);
+                           - config.Ax * swingTrajectoryPlannerPtr_->getPositionConstraint(footIndex, t);
                 return config;
             }
             // 设置速度约束

@@ -247,6 +247,10 @@ namespace ocs2::legged_robot
         std::vector<vector3_t> posDesired = ee_kinematics_->getPosition(vector_t());
         std::vector<vector3_t> velDesired = ee_kinematics_->getVelocity(vector_t(), vector_t());
 
+        for (size_t i = 0; i < info_.numThreeDofContacts; ++i) {
+            foot_tracking_.col(i) << posMeasured[i], velMeasured[i], posDesired[i], velDesired[i];
+        }
+
         matrix_t a(3 * (info_.numThreeDofContacts - num_contacts_), num_decision_vars_);
         vector_t b(a.rows());
         a.setZero();

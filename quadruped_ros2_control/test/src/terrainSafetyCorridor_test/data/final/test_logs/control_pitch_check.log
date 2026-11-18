@@ -1,0 +1,51 @@
+[LeggedInterface] Loading task file: "src/quadruped_ros2_control/descriptions/cyberdog_description/config/ocs2/task.info"
+[LeggedInterface] Loading Pinocchio model from: "src/quadruped_ros2_control/descriptions/cyberdog_description/urdf/robot.urdf"
+[LeggedInterface] Loading target command settings from: "src/quadruped_ros2_control/descriptions/cyberdog_description/config/ocs2/reference.info"
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/ALL_FOOT_position/cppad_generated/ALL_FOOT_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/ALL_FOOT_velocity/cppad_generated/ALL_FOOT_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/ALL_FOOT_orientation/cppad_generated/ALL_FOOT_orientation_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/dynamics_systemFlowMap/cppad_generated/dynamics_systemFlowMap_lib.so
+WARNING: Loaded at least one default value in matrix: "Q"
+WARNING: Loaded at least one default value in matrix: "R"
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_position/cppad_generated/FL_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_velocity/cppad_generated/FL_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_orientation/cppad_generated/FL_foot_orientation_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_position/cppad_generated/FR_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_velocity/cppad_generated/FR_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_orientation/cppad_generated/FR_foot_orientation_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_position/cppad_generated/RL_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_velocity/cppad_generated/RL_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_orientation/cppad_generated/RL_foot_orientation_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_position/cppad_generated/RR_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_velocity/cppad_generated/RR_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_orientation/cppad_generated/RR_foot_orientation_lib.so
+WARNING: in collision link pair [FL_calf, FR_calf], one or both of the links don't exist in the pinocchio/urdf model
+WARNING: in collision link pair [RL_calf, RR_calf], one or both of the links don't exist in the pinocchio/urdf model
+WARNING: in collision link pair [FL_calf, RL_calf], one or both of the links don't exist in the pinocchio/urdf model
+WARNING: in collision link pair [FR_calf, RR_calf], one or both of the links don't exist in the pinocchio/urdf model
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_position/cppad_generated/FL_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_velocity/cppad_generated/FL_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_orientation/cppad_generated/FL_foot_orientation_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_position/cppad_generated/FL_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_velocity/cppad_generated/FL_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_orientation/cppad_generated/FL_foot_orientation_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_position/cppad_generated/FR_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_velocity/cppad_generated/FR_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_orientation/cppad_generated/FR_foot_orientation_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_position/cppad_generated/FR_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_velocity/cppad_generated/FR_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_orientation/cppad_generated/FR_foot_orientation_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_position/cppad_generated/RL_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_velocity/cppad_generated/RL_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_orientation/cppad_generated/RL_foot_orientation_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_position/cppad_generated/RL_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_velocity/cppad_generated/RL_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_orientation/cppad_generated/RL_foot_orientation_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_position/cppad_generated/RR_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_velocity/cppad_generated/RR_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_orientation/cppad_generated/RR_foot_orientation_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_position/cppad_generated/RR_foot_position_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_velocity/cppad_generated/RR_foot_velocity_lib.so
+[CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_orientation/cppad_generated/RR_foot_orientation_lib.so
+buildGeom done!
+Production control problem regression passed: terrain=1

@@ -1,5 +1,7 @@
 # minvo_test
 
+当前在线集成与楼梯/平台重复验证（2026-11-18）：见工作区根目录 `QUICK_START.md` 和相邻 `terrainSafetyCorridor_test/VALIDATION.md`。本包合成场景保留各自配置，不能把其摆高/时长视为当前在线参数。
+
 论文使用说明：[第5章：数据、图片含义与章节对应](docs/第5章_数据图片说明与章节对应.md)，包含CSV字段解释、图题建议、章节映射和结论边界。
 
 独立 ROS 2 / ament_cmake 实验包，直接链接生产控制器中的 `BSpline`、`PolynomialHull`、`GridMapTerrainInterface`、`SwingTrajectoryQpOptimizer`、`SwingCollisionCertifier`。不复制样条或优化算法，不修改在线控制路径。
@@ -58,7 +60,7 @@ reference:
   touch_down_velocity: -0.04
 ```
 
-参考轨迹直接复用在线控制器的 `createSwingHeightBSpline()`，采用五次、7 控制点 B 样条。中间时刻真实曲线高度满足 `z(T/2) = max(z_start,z_goal) + min(1,T/swing_time_scale)*swing_height`；该高度不是中间控制点高度。离地/触地速度也按同一比例缩放，端点加速度为零。默认值对齐 Cyberdog 的 task.info（85 mm、0.20 s、+0.04/-0.04 m/s）；地形基准取起落平台中较高者。测试只为高度样条嵌入起落点之间的 XY，优化器继续使用生产固定 XY 平滑进度。
+参考轨迹直接复用在线控制器的 `createSwingHeightBSpline()`，采用五次、7 控制点 B 样条。中间时刻真实曲线高度满足 `z(T/2) = max(z_start,z_goal) + min(1,T/swing_time_scale)*swing_height`；该高度不是中间控制点高度。离地/触地速度也按同一比例缩放，端点加速度为零。这些合成场景使用 85 mm、0.20 s、+0.04/-0.04 m/s 的独立设置；当前在线 task.info 为 75 mm、0.25 s、+0.10/−0.03 m/s；地形基准取起落平台中较高者。测试只为高度样条嵌入起落点之间的 XY，优化器继续使用生产固定 XY 平滑进度。
 
 已移除旧 `height_controls` 及 B→C 人为负高度。新参考可能本身就不碰撞，这是正常结果，不再人为压低参考以制造优化收益。
 
@@ -80,7 +82,7 @@ reference:
 
 ## 当前场景尺度与接触
 
-以 Cyberdog 当前 `gait.info` 的 trot 单摆动 0.3 s 为时间尺度，保持足端半径 19 mm。`reference.info` 目标前进速度为 0.35 m/s；同一足端周期约 0.6 s，对应前进约 0.21 m，因此柱顶间采用 0.18 m 的前进步长作为测试尺度。
+本组合成场景以 trot 单摆动 0.3 s 为时间尺度，保持足端半径 19 mm；当前在线 `gait.info` 已采用单摆动 0.4 s。`reference.info` 目标前进速度为 0.35 m/s；同一足端周期约 0.6 s，对应前进约 0.21 m，因此柱顶间采用 0.18 m 的前进步长作为测试尺度。
 
 | 场景 | 几何与起落点 |
 |---|---|

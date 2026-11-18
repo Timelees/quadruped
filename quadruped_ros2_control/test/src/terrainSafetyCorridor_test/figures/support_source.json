@@ -1,0 +1,16 @@
+[
+  {
+    "trial": "stairs_repeat_89",
+    "event_ros_time": 27.676,
+    "selection": "First RF stance transition with estimated RF x in (2.55, 2.85) m",
+    "stance_median_gap_mm": 32.744151535274575,
+    "stance_median_sensor_N": 0.676263952800433
+  },
+  {
+    "trial": "stairs_final_104",
+    "event_ros_time": 27.216,
+    "selection": "First RF stance transition with estimated RF x in (2.55, 2.85) m",
+    "stance_median_gap_mm": -0.18678010013192803,
+    "stance_median_sensor_N": 28.50027702517085
+  }
+]

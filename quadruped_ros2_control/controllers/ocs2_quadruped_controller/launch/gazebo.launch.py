@@ -72,7 +72,8 @@ def launch_setup(context, *args, **kwargs):
         executable='rviz2',
         name='rviz',
         output='screen',
-        arguments=["-d", rviz_config_file]
+        arguments=["-d", rviz_config_file],
+        condition=IfCondition(LaunchConfiguration('rviz')),
     )
 
     joint_state_publisher = Node(
@@ -167,7 +168,7 @@ def launch_setup(context, *args, **kwargs):
                                        'launch',
                                        'gz_sim.launch.py'])]),
             launch_arguments=[
-                ('gz_args', [' -r -v 4 ', default_sdf_path]),
+                ('gz_args', [' -r -v 2 ', '' if context.launch_configurations['gui'] == 'true' else '-s ', default_sdf_path]),
                 ('on_exit_shutdown', 'true'),
             ]),          
         RegisterEventHandler(
@@ -331,6 +332,8 @@ def generate_launch_description():
 
 
     return LaunchDescription([
+        DeclareLaunchArgument('gui', default_value='true', description='Show Gazebo GUI'),
+        DeclareLaunchArgument('rviz', default_value='true', description='Show RViz'),
         world,
         pkg_description,
         z_pos,

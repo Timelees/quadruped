@@ -1,4 +1,5 @@
 #include "ocs2_quadruped_controller/interface/constraint/SwingTrajectoryQPOptimizer.h"
+#include "ocs2_quadruped_controller/interface/constraint/TerrainSafetyCorridor.h"
 
 #include <Eigen/Cholesky>
 #include <algorithm>
@@ -105,8 +106,8 @@ namespace ocs2::legged_robot {
 // to climb that cell's height.
 double SwingTrajectoryQpOptimizer::terrainLowerBound(const Eigen::Vector2d &xy,
                                                      const Eigen::Vector2d &heading,
-                                                     double envelope, double contactHeight) const {
-    const double footTerrain = terrainInterface_->getHeight(xy.x(), xy.y());
+                                                     double envelope, double contactHeight,
+                                                     double footTerrain) const {
     double calfBound = footTerrain;
     for (int k = 1; k <= config_.calfSamples; ++k) {
         const double distance = config_.calfLength * k / config_.calfSamples;
@@ -118,9 +119,12 @@ double SwingTrajectoryQpOptimizer::terrainLowerBound(const Eigen::Vector2d &xy,
         calfBound = std::max(calfBound, shankHeight);
     }
     const double footSphere = terrainInterface_->getSphereClearanceUpperBound(xy, xy, config_.footRadius);
-    return std::max(footSphere, calfBound) + envelope * (config_.groundClearance + config_.trackingMargin) +
-           contactHeight;
+    // Contact height is a floor, not another terrain elevation. Adding it
+    // counted a raised landing surface twice (and zero clipped negative maps).
+    return std::max(std::max(footSphere, calfBound) +
+                        envelope * (config_.groundClearance + config_.trackingMargin), contactHeight);
 }
+
 SwingTrajectoryQpOptimizer::SwingTrajectoryQpOptimizer(SwingTrajectoryQpConfig config,
                                                        std::shared_ptr<TerrainInterface> terrain)
     : terrainInterface_(std::move(terrain)), config_(std::move(config)) {
@@ -129,6 +133,11 @@ SwingTrajectoryQpOptimizer::SwingTrajectoryQpOptimizer(SwingTrajectoryQpConfig c
         config_.qpMaxWorkingSetRecalculations < 1 || static_cast<int>(config_.geometryMode) < 0 ||
         static_cast<int>(config_.geometryMode) > 2) {
         throw std::invalid_argument("Invalid quintic swing geometry configuration.");
+    }
+    if (config_.safetyCorridorEnabled &&
+        (config_.geometryMode == SwingGeometryMode::Discrete ||
+         std::abs(config_.corridorConfig.footRadius - config_.footRadius) > 1e-12)) {
+        throw std::invalid_argument("Corridors require continuous hull mode and the same physical foot radius.");
     }
     const double values[] = {config_.controlPointTrackingWeight,
                              config_.positionTrackingWeight,
@@ -414,10 +423,15 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
     const Eigen::MatrixXd B = curve.generateSplineBasis(phases);
     // Scan for max obstacle height in the swing path for adaptive constraint margins.
     double maxObstacleHeight = 0.0;
-    for (int i = 0; i < phases.size(); ++i) {
-        const auto point = curve.getPosition(phases[i]);
-        const double h = terrainInterface_->getHeight(point.x(), point.y());
-        maxObstacleHeight = std::max(maxObstacleHeight, h);
+    try {
+        for (int i = 0; i < phases.size(); ++i) {
+            const auto point = curve.getPosition(phases[i]);
+            const double h = terrainInterface_->getHeight(point.x(), point.y());
+            maxObstacleHeight = std::max(maxObstacleHeight, h);
+        }
+    } catch (const TerrainUnavailable& e) {
+        result.corridor.failureReason = e.what();
+        return result;
     }
     // Reference peak height (mid-swing) - for logging only.
     const double refPeakHeight = z.maxCoeff();
@@ -455,6 +469,35 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
     // for the whole swing.
     Eigen::Vector2d heading = (touchDown - liftOff).head<2>();
     heading = heading.norm() > 1e-9 ? heading.normalized() : Eigen::Vector2d::Zero();
+    // Build immutable 3D cells in sphere-centre coordinates. Retain all planes;
+    // project onto Z only after substituting the fixed reference XY controls.
+    CorridorLinearConstraints corridorRows;
+    if (config_.safetyCorridorEnabled) {
+        result.corridor = buildTerrainSafetyCorridor(*terrainInterface_, curve, config_.corridorConfig,
+            config_.subdivisionsPerSpan,
+            config_.geometryMode == SwingGeometryMode::Bezier ? HullBasis::Bezier : HullBasis::Minvo);
+        if (!result.corridor.valid) {
+            if (config_.verbose) std::cerr << "Swing corridor unavailable: " << result.corridor.failureReason << '\n';
+            return result;
+        }
+        corridorRows = corridorControlPointConstraints(result.corridor);
+        for (int i = 0; i < corridorRows.A.rows(); ++i) {
+            const Eigen::RowVectorXd zRow = corridorRows.A.row(i).tail(n);
+            const double upper = corridorRows.b[i] - corridorRows.A.row(i).head(n).dot(x) -
+                corridorRows.A.row(i).segment(n, n).dot(y);
+            // Reject a violated plane that no free Z control can change. The
+            // legacy terrain solver omits fixed contact rows; corridor rows must
+            // never inherit that relaxation.
+            if (zRow.segment(3, n - 6).norm() <= 1e-12) {
+                if (zRow.dot(z) > upper + kConstraintViolationTolerance) return result;
+                // Exact substitution leaves a satisfied constant inequality;
+                // retain it in corridorRows for the final full-matrix check.
+                continue;
+            }
+            rows.push_back(-zRow);
+            bounds.push_back(-upper);
+        }
+    }
     try {
         if (config_.geometryMode == SwingGeometryMode::Discrete) {
             for (int i = 0; i < phases.size(); ++i) {
@@ -463,9 +506,10 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
                 rows.push_back(B.row(i));
                 const double contactEnvelope = swingProgress(2 * std::min(s, 1 - s));
                 const double contactHeight =
-                    s <= 0.0 ? liftOff.z() : (s >= 1.0 ? touchDown.z() : 0.0);
+                    s <= 0.0 ? liftOff.z() : (s >= 1.0 ? touchDown.z() : -std::numeric_limits<double>::infinity());
                 bounds.push_back(terrainLowerBound(point.head<2>().transpose(), heading, contactEnvelope,
-                                                   contactHeight));
+                                                   contactHeight,
+                                                   terrainInterface_->getHeight(point.x(), point.y())));
             }
         } else {
             const auto controls = curve.getControlPoints();
@@ -524,8 +568,9 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
                                 ? clearance[i] / config_.groundClearance
                                 : 0.0;
                         const double contactHeight =
-                            piece.start <= 0.0 ? liftOff.z() : (piece.end >= 1.0 ? touchDown.z() : 0.0);
-                        lower[i] = terrainLowerBound(xy, heading, contactEnvelope, contactHeight);
+                            piece.start <= 0.0 ? liftOff.z() : (piece.end >= 1.0 ? touchDown.z() : -std::numeric_limits<double>::infinity());
+                        lower[i] = terrainLowerBound(xy, heading, contactEnvelope, contactHeight,
+                                                     terrainInterface_->getHeight(xy.x(), xy.y()));
                     }
                     append(map, lower);
                 }
@@ -614,6 +659,15 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
             std::cerr << "[SwingQP] Workspace impact: maxCorrection=" << maxCorrection
                       << ", cost=" << result.correctionCost << '\n';
         }
+    }
+    if (config_.safetyCorridorEnabled) {
+        Eigen::VectorXd q(3 * n);
+        q << x, y, solution;
+        result.corridorMaxViolation = (corridorRows.A * q - corridorRows.b).maxCoeff();
+        if (result.corridorMaxViolation > kConstraintViolationTolerance) {
+            return result;
+        }
+        result.corridorCertified = true;
     }
     curve.setControlPoints(x, y, solution);
     // Certify actual output independently of QP rows; certifier uses the original

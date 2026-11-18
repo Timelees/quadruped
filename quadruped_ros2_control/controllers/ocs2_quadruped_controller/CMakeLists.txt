@@ -74,6 +74,7 @@ add_library(${PROJECT_NAME} SHARED
         src/interface/constraint/SwingTrajectoryPlanner.cpp
         src/interface/constraint/PolynomialHull.cpp
         src/interface/constraint/TerrainGeometry.cpp
+        src/interface/constraint/TerrainSafetyCorridor.cpp
         src/interface/constraint/SwingCollisionCertifier.cpp
         src/interface/constraint/SwingTrajectoryQPOptimizer.cpp
         src/interface/initialization/LeggedRobotInitializer.cpp
@@ -97,6 +98,7 @@ add_library(${PROJECT_NAME} SHARED
         src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp
         src/perceptive/visualize/FootPlacementVisualization.cpp
         src/perceptive/visualize/SphereVisualization.cpp
+        src/perceptive/visualize/TerrainCorridorVisualization.cpp
         src/perceptive/synchronize/PlanarTerrainReceiver.cpp
         # include logs implementation so LogSave symbols are available at link time
         ../../logs/src/log_save.cpp
@@ -140,6 +142,15 @@ install(
 
 ament_export_dependencies(${CONTROLLER_INCLUDE_DEPENDS})
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+
+# Runnable self-check for the section 3.1 terrain safety corridor builder.
+# Plain executable so it can be run without a test harness or a terrain map.
+add_executable(terrain_safety_corridor_selfcheck test/terrain_safety_corridor_selfcheck.cpp)
+target_include_directories(terrain_safety_corridor_selfcheck PRIVATE
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(terrain_safety_corridor_selfcheck
+        ${PROJECT_NAME}
+        Eigen3::Eigen)
 
 if (BUILD_TESTING)
     find_package(ament_lint_auto REQUIRED)

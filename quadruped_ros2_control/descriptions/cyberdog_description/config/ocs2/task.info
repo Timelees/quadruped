@@ -19,12 +19,14 @@ model_settings
 swing_trajectory_config
 {
   liftOffVelocity               0.10   // 增大离地速度,更主动抬脚上楼梯
-  touchDownVelocity            -0.10   // 增大触地速度配合高摆高
-  swingHeight                   0.09  // 适中摆高
+  touchDownVelocity            -0.03   // 降低落地速度以减轻触地冲击
+  swingHeight                   0.075  // 适中摆高
   swingTimeScale                0.25   // 增大摆动时间,给robot更多时间抬脚
   footRadius                    0.019  // 接触面到足端运动学球心的高度偏移 [m]
   trackingWeight                25.0 // 完整三维摆动参考跟踪的二次代价
   trackingPositionErrorGain     1.5 // 足端速度误差反馈增益 [1/s]。降低以减少摆动冲击和侧翻
+  trackingVerticalHardConstraint true
+  trackingVerticalErrorGain     20.0
   useTerrainPlanning            true
   terrainGeometryMode           2    // 0: discrete ablation, 1: Bezier, 2: MINVO
   terrainNumCurveSamples        60
@@ -46,6 +48,19 @@ swing_trajectory_config
   terrainMaxCorrection           0.12 // 增大QP修正范围到12cm以应对8cm障碍
   terrainMaxVelocity             2.0  // 增大速度上限
   terrainMaxAcceleration         80.0 // 增大加速度上限
+
+  ; ---- 3.1 三维地形安全走廊：固定XY，MINVO整段约束，球心坐标 ----
+  ; 非接触认证区间由 corridorContactPhase 给出；起落脚仍用原有接触过渡约束。
+  terrainSafetyCorridorEnabled   true
+  corridorLateralExtent          0.15 // 每段路径横向扩展 [m]
+  corridorLongitudinalExtent     0.04 // 每段路径前后扩展 [m]
+  corridorVerticalExtent         0.08 // 单段参考凸包上下扩展；规划集再收缩2cm [m]
+  corridorMapMargin              0.0  // 地图误差的各向同性障碍膨胀 [m]，需按感知误差标定
+  corridorGeometricClearance     0.001 // 膨胀障碍到几何走廊的严格间隙 [m]
+  corridorNumericalMargin        0.0000001 // QP额外方向数值预算 [m]
+  corridorContactPhase           0.25 // 前后各25%为接触过渡；中间区间保留完整2cm误差球
+  ; corridorFootRadius / corridorTrackingMargin 默认沿用 footRadius / terrainTrackingMargin
+
 }
 
 ; DDP settings

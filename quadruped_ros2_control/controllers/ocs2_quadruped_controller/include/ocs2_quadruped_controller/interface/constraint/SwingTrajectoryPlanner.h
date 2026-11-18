@@ -38,6 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "ocs2_quadruped_controller/interface/constraint/BSpline.h"
 #include "ocs2_quadruped_controller/interface/constraint/SwingTrajectoryQPOptimizer.h"
+#include "ocs2_quadruped_controller/interface/constraint/TerrainSafetyCorridor.h"
 
 namespace ocs2::legged_robot {
     // Shared by the online planner and scene experiments; midHeight is the curve height at mid-time.
@@ -55,6 +56,8 @@ namespace ocs2::legged_robot {
             scalar_t swingTimeScale = 0.15;
             scalar_t footRadius = 0.019; // preserve the original perceptive liftoff offset [m]
             scalar_t trackingPositionErrorGain = 20.0; // Terrain 3D tracking only; stance keeps model_settings gain
+            scalar_t trackingVerticalErrorGain = 20.0;
+            bool trackingVerticalHardConstraint = false;
             // swing phases shorter than this time will be scaled down in height and velocity
             bool useTerrainPlanning = false;
             SwingTrajectoryQpConfig terrainQpConfig;
@@ -95,6 +98,9 @@ namespace ocs2::legged_robot {
         void setWorkspace(Workspace workspace) { workspace_ = std::move(workspace); }
         bool isTerrainPlanningEnabled() const { return config_.useTerrainPlanning; }
         const Config& getConfig() const { return config_; }
+        // Most recent corridor built per leg, published for RViz. Empty entries
+        // mean corridor mode is off or construction failed (e.g. unknown map).
+        const feet_array_t<TerrainSafetyCorridor>& getTerrainCorridors() const { return terrainCorridors_; }
 
         vector3_t getVelocityConstraint(size_t leg, scalar_t time) const;
         vector3_t getPositionConstraint(size_t leg, scalar_t time) const;
@@ -120,6 +126,7 @@ namespace ocs2::legged_robot {
 
         feet_array_t<std::vector<BSpline> > feetHeightTrajectories_;
         feet_array_t<std::vector<scalar_t> > feetHeightTrajectoriesEvents_;
+        feet_array_t<TerrainSafetyCorridor> terrainCorridors_;
     };
 
     SwingTrajectoryPlanner::Config loadSwingTrajectorySettings(const std::string &fileName,

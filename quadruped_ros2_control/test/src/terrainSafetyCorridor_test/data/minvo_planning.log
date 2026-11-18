@@ -1,0 +1,6 @@
+Maximum reconstruction error: 1.4277e-15
+Swing QP failed: status=37, generated=2, remaining=195, row=297, residual=-0.081593
+Swing QP failed: status=37, generated=1, remaining=196, row=3, residual=-0.119764
+Swing QP failed: status=37, generated=2, remaining=194, row=299, residual=-0.0815643
+Swing QP failed: status=37, generated=1, remaining=196, row=3, residual=-0.119764
+MINVO planning checks passed.

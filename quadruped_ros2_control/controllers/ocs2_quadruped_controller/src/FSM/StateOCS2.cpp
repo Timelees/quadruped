@@ -34,6 +34,7 @@ namespace ocs2::legged_robot
                                              ctrl_component_->legged_interface_->getCentroidalModelInfo(),
                                              *ctrl_component_->ee_kinematics_);
         wbc_->loadTasksSetting(ctrl_component_->task_file_, ctrl_component_->verbose_);
+        diagnostics_pub_ = node_->create_publisher<std_msgs::msg::Float64MultiArray>("/wbc_diagnostics", 5);
 
         // Safety Checker
         safety_checker_ = std::make_shared<SafetyChecker>(ctrl_component_->legged_interface_->getCentroidalModelInfo());
@@ -44,7 +45,7 @@ namespace ocs2::legged_robot
         ctrl_component_->init();
     }
 
-    void StateOCS2::run(const rclcpp::Time& /**time**/,
+    void StateOCS2::run(const rclcpp::Time& time,
                         const rclcpp::Duration& period)
     {
         if (ctrl_component_->mpc_running_ == false)
@@ -81,6 +82,32 @@ namespace ocs2::legged_robot
                                                                 ctrl_component_->legged_interface_->
                                                                 getCentroidalModelInfo());
 
+        if (diagnostics_pub_->get_subscription_count() > 0 &&
+            ctrl_component_->observation_.time - last_diagnostics_time_ >= 0.01) {
+            last_diagnostics_time_ = ctrl_component_->observation_.time;
+            std_msgs::msg::Float64MultiArray msg;
+            // [time, mode, QP status, nWSR, violation, valid, tau(12), F(12), feet(4*12)].
+            msg.data = {last_diagnostics_time_, static_cast<double>(planned_mode),
+                        static_cast<double>(wbc_->solverStatus()), static_cast<double>(wbc_->solverIterations()),
+                        wbc_->constraintViolation(), wbc_->solutionValid() ? 1.0 : 0.0};
+            msg.data.insert(msg.data.end(), torque.data(), torque.data() + 12);
+            msg.data.insert(msg.data.end(), x.data() + 18, x.data() + 30);
+            const auto& feet = wbc_->footTracking();
+            msg.data.insert(msg.data.end(), feet.data(), feet.data() + feet.size());
+            msg.data.push_back(time.seconds());
+            for (const auto& sensor : ctrl_interfaces_.foot_force_state_interface_) {
+                msg.data.push_back(sensor.get().get_value());
+            }
+            diagnostics_pub_->publish(msg);
+        }
+
+        if (!wbc_->solutionValid()) {
+            RCLCPP_ERROR(node_->get_logger(), "WBC QP invalid: status=%d nWSR=%d residual=%g; entering passive",
+                         wbc_->solverStatus(), wbc_->solverIterations(), wbc_->constraintViolation());
+            torque.setZero();
+            vel_des.setZero();
+        }
+
         for (int i = 0; i < 12; i++)
         {
             ctrl_interfaces_.joint_torque_command_interface_[i].get().set_value(torque(i));
@@ -106,7 +133,7 @@ namespace ocs2::legged_robot
 
     FSMStateName StateOCS2::checkChange()
     {
-        if (ctrl_component_->mpc_failed_) {
+        if (ctrl_component_->mpc_failed_ || !wbc_->solutionValid()) {
             return FSMStateName::PASSIVE;
         }
         // Safety check, if failed, stop the controller

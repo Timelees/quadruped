@@ -3,8 +3,10 @@
 #include <ocs2_core/Types.h>
 
 #include <functional>
+#include <limits>
 
 #include "ocs2_quadruped_controller/interface/constraint/SwingCollisionCertifier.h"
+#include "ocs2_quadruped_controller/interface/constraint/TerrainSafetyCorridor.h"
 
 namespace ocs2::legged_robot {
 enum class SwingGeometryMode { Discrete = 0, Bezier = 1, Minvo = 2 };
@@ -32,9 +34,9 @@ struct SwingTrajectoryQpConfig {
     int calfSamples = 3;
     // Executability rows on the correction curve. Without them the QP happily
     // returns corrections the NMPC/WBC chain cannot track.
-    double maxCorrection = 0.06;
-    double maxVelocity = 1.5;
-    double maxAcceleration = 60.0;
+    double maxCorrection = 0.10;
+    double maxVelocity = 2.0;
+    double maxAcceleration = 80.0;
     double hessianRegularization = 1e-8;
     int qpMaxWorkingSetRecalculations = 200;
     std::string elevationLayer = "elevation";
@@ -44,6 +46,10 @@ struct SwingTrajectoryQpConfig {
     bool checkReference = true;
     bool verifyOutput = true;  // disable only for uncertified ablation output
     CollisionCheckConfig collisionCheck;
+    // Optional immutable 3D corridor rows, additional to existing terrain/calf
+    // rows. Applies to the explicit non-contact interval in corridorConfig.
+    bool safetyCorridorEnabled = false;
+    CorridorConfig corridorConfig;
 };
 
 class SwingTrajectoryQpOptimizer {
@@ -55,6 +61,9 @@ class SwingTrajectoryQpOptimizer {
         double correctionCost = 0.0;
         CollisionCertificate referenceCertificate, certificate;
         int constraintRows = 0, workingSetIterations = 0;
+        TerrainSafetyCorridor corridor;
+        bool corridorCertified = false;  // all six hull vertices, non-contact interval only
+        double corridorMaxViolation = std::numeric_limits<double>::infinity();
         bool valid() const { return solved && static_cast<bool>(bspline); }
     };
     using HeightBounds = std::function<Eigen::Vector2d(double, const Eigen::Vector3d&)>;
@@ -69,8 +78,9 @@ class SwingTrajectoryQpOptimizer {
     // Lower bound on foot-centre z at one surface point: terrain envelope behind
     // the foot (calf), terrain under it, plus corridor margins, blended toward
     // referenceZ by the contact envelope so fixed contact rows stay feasible.
-    double terrainLowerBound(const Eigen::Vector2d& xy, const Eigen::Vector2d& heading,
-                             double envelope, double referenceZ) const;
+    // footTerrain is the height queried at the fixed horizontal hull vertex.
+    double terrainLowerBound(const Eigen::Vector2d& xy, const Eigen::Vector2d& heading, double envelope,
+                             double contactHeight, double footTerrain) const;
     bool solveQp(const Eigen::MatrixXd& hessian, const Eigen::MatrixXd& constraints,
                  const Eigen::VectorXd& lowerBounds, const Eigen::VectorXd& reference,
                  Eigen::VectorXd& solution, int& iterations) const;

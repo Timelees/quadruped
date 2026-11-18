@@ -4,6 +4,9 @@
 #include <ocs2_core/constraint/StateInputConstraintCollection.h>
 #include <ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedInterface.h>
 #include <ocs2_core/misc/LoadData.h>
+#include <ocs2_core/soft_constraint/StateInputSoftConstraint.h>
+#include <ocs2_quadruped_controller/interface/LeggedRobotPreComputation.h>
+#include <grid_map_core/iterators/GridMapIterator.hpp>
 #include <iostream>
 #include <stdexcept>
 
@@ -34,6 +37,10 @@ int main(int argc, char** argv) {
                     "nominal Z velocity equality registration changed");
             require(problem.softConstraintPtr->getTermIndex(foot + "_swingTracking", index) == terrain,
                     "3D tracking leaked into the nominal path");
+            const bool hardVertical = terrain && interface.getSwitchedModelReferenceManagerPtr()
+                ->getSwingTrajectoryPlanner()->getConfig().trackingVerticalHardConstraint;
+            require(problem.equalityConstraintPtr->getTermIndex(foot + "_swingVerticalTracking", index) == hardVertical,
+                    "vertical swing equality registration does not match configuration");
             for (const auto& suffix : {"_footPlacement", "_footCollision"}) {
                 require(problem.stateSoftConstraintPtr->getTermIndex(foot + suffix, index),
                         std::string("missing shared terrain cost ") + suffix);
@@ -68,6 +75,61 @@ int main(int argc, char** argv) {
         selector->update(schedule, 1.65, state, targets);
         if (selector->getProjection(0, 2.0).positionInWorld.z() < .1) {
             throw std::runtime_error("Next swing inherited the previous committed foothold.");
+        }
+        if (terrain && manager->getSwingTrajectoryPlanner()->getConfig().trackingVerticalHardConstraint) {
+            // Exercise production configuration, row extraction, linearization and clone.
+            auto planner = manager->getSwingTrajectoryPlanner();
+
+            ocs2::ModeSchedule stance; stance.modeSequence = {15};
+            planner->update(stance, 0.0);
+            const auto input = ocs2::vector_t::Zero(interface.getCentroidalModelInfo().inputDim);
+            auto& pre = *problem.preComputationPtr;
+            pre.request(ocs2::Request::Constraint + ocs2::Request::Approximation, 0.5, state, input);
+            for (size_t i = 0; i < feet.size(); ++i) {
+                auto& full = problem.softConstraintPtr->get<ocs2::StateInputSoftConstraint>(feet[i] + "_swingTracking")
+                    .get<ocs2::StateInputConstraint>();
+                auto& vertical = problem.equalityConstraintPtr->get(feet[i] + "_swingVerticalTracking");
+                const auto f = full.getLinearApproximation(.5, state, input, pre);
+                const auto z = vertical.getLinearApproximation(.5, state, input, pre);
+                std::unique_ptr<ocs2::StateInputConstraint> copy(vertical.clone());
+                if (vertical.getNumConstraints(.5) != 1 || f.f.size() != 3 ||
+                    (z.f - f.f.tail(1)).norm() > 1e-10 ||
+                    (z.dfdx - f.dfdx.bottomRows(1)).norm() > 1e-10 ||
+                    (z.dfdu - f.dfdu.bottomRows(1)).norm() > 1e-10 ||
+                    (copy->getValue(.5, state, input, pre) - z.f).norm() > 1e-10) {
+                    throw std::runtime_error("Vertical swing equality row/clone mismatch");
+                }
+                const auto& config = dynamic_cast<ocs2::legged_robot::LeggedRobotPreComputation&>(pre)
+                    .getEeNormalVelocityConstraintConfigs()[i];
+                if (std::abs(config.Ax(2,2) - planner->getConfig().trackingVerticalErrorGain) > 1e-12 ||
+                    std::abs(config.Ax(0,0) - planner->getConfig().trackingPositionErrorGain) > 1e-12) {
+                    throw std::runtime_error("Vertical gain changed horizontal tracking");
+                }
+            }
+        }
+        // A tilted initial body must not suppress terrain following; yaw rotates
+        // the terrain gradient into body pitch, and manual pitch takes precedence.
+        map->planarRegions.front().transformPlaneToWorld.translation().z() = 0.0;
+        for (double yaw : {0.0, 1.5707963267948966}) {
+            for (grid_map::GridMapIterator it(map->gridMap); !it.isPastEnd(); ++it) {
+                grid_map::Position xy; map->gridMap.getPosition(*it, xy);
+                map->gridMap.at("smooth_planar", *it) = 0.5 * (std::cos(yaw)*xy.x() + std::sin(yaw)*xy.y());
+            }
+            for (double command : {0.0, 0.10}) {
+                auto initial = state; initial[9] = yaw; initial[10] = 0.08;
+                auto goal = initial; goal[10] = command;
+                manager->setTargetTrajectories(ocs2::TargetTrajectories({0.0, 0.3, 2.0},
+                    {initial, goal, goal}, {ocs2::vector_t::Zero(interface.getCentroidalModelInfo().inputDim),
+                    ocs2::vector_t::Zero(interface.getCentroidalModelInfo().inputDim),
+                    ocs2::vector_t::Zero(interface.getCentroidalModelInfo().inputDim)}));
+                manager->preSolverRun(0.0, 1.0, initial);
+                const auto& reference = manager->getTargetTrajectories();
+                const double pitch = reference.getDesiredState(0.5)[10];
+                if (std::abs(pitch - (command == 0.0 ? -0.20 : command)) > 1e-7 ||
+                    std::abs(reference.getDesiredState(0.0)[10] - initial[10]) > 1e-10) {
+                    throw std::runtime_error("Terrain pitch blend, yaw, limit or manual override regression");
+                }
+            }
         }
         std::cout << "Production control problem regression passed: terrain=" << terrain << '\n';
     } catch (const std::exception& e) {

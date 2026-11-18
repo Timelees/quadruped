@@ -1,0 +1,13 @@
+{
+  "plans": 1916,
+  "fallbacks": 47,
+  "latency_ms": {
+    "p50": 4.1759,
+    "p95": 4.89125,
+    "p99": 5.54976,
+    "max": 6.226
+  },
+  "certified_flags": 1916,
+  "accepted_certified": 0,
+  "max_finite_corridor_residual": null
+}

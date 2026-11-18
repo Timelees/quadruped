@@ -7,8 +7,8 @@ legged_robot_interface
 
 model_settings
 {
-  positionErrorGain             0.0     // 保持原支撑/非地形规划 足端约束
-  phaseTransitionStanceTime     0.1     // 相位转换时的站立时间
+  positionErrorGain             0.0     // 保持原值
+  phaseTransitionStanceTime     0.1     // 保持原值
 
   verboseCppAd                  true    // 是否显示 C++ AD（自动微分）的详细信息
   recompileLibrariesCppAd       false
@@ -18,13 +18,13 @@ model_settings
 ; 摆动相轨迹配置
 swing_trajectory_config
 {
-  liftOffVelocity               0.05   // 离地速度 - 适度增大以支持更高越障
-  touchDownVelocity            -0.05   // 触地速度 - 适度增大以配合高摆高
-  swingHeight                   
-  swingTimeScale                0.20   // 摆动时间缩放因子
+  liftOffVelocity               0.10   // 增大离地速度,更主动抬脚上楼梯
+  touchDownVelocity            -0.03   // 增大触地速度配合高摆高
+  swingHeight                   0.09  // 适中摆高
+  swingTimeScale                0.25   // 增大摆动时间,给robot更多时间抬脚
   footRadius                    0.019  // 接触面到足端运动学球心的高度偏移 [m]
-  trackingWeight                25.0 // 完整三维摆动参考跟踪的二次代价
-  trackingPositionErrorGain     
+  trackingWeight                250.0 // 完整三维摆动参考跟踪的二次代价
+  trackingPositionErrorGain     10.0 // 足端速度误差反馈增益 [1/s]。降低以减少摆动冲击和侧翻
   useTerrainPlanning            true
   terrainGeometryMode           2    // 0: discrete ablation, 1: Bezier, 2: MINVO
   terrainNumCurveSamples        60
@@ -34,18 +34,31 @@ swing_trajectory_config
   collisionHullBasis            1    // 0: Bezier, 1: MINVO
   collisionMaxDepth             10
   collisionMaxSegments          4096
-  terrainControlPointTrackingWeight 1.2
-  terrainPositionTrackingWeight 1.2
-  terrainVelocityTrackingWeight 0.25
-  terrainAccelerationTrackingWeight 0.15
-  terrainJerkSmoothnessWeight    0.05
-  terrainGroundClearance         
+  terrainControlPointTrackingWeight 0.8
+  terrainPositionTrackingWeight 0.8
+  terrainVelocityTrackingWeight 0.35
+  terrainAccelerationTrackingWeight 0.2
+  terrainJerkSmoothnessWeight    0.08
+  terrainGroundClearance         0.035 // C2 piecewise-quintic envelope（增大到3.5cm提高8cm障碍裕量）
   terrainQpMaxWorkingSetRecalculations 200
   terrainElevationLayer          elevation
   terrainVerbose                 true
-  terrainMaxCorrection           0.10 // 增大QP修正范围到10cm以应对8cm障碍
+  terrainMaxCorrection           0.12 // 增大QP修正范围到12cm以应对8cm障碍
   terrainMaxVelocity             2.0  // 增大速度上限
   terrainMaxAcceleration         80.0 // 增大加速度上限
+
+  ; ---- 3.1 三维地形安全走廊：固定XY，MINVO整段约束，球心坐标 ----
+  ; 非接触认证区间由 corridorContactPhase 给出；起落脚仍用原有接触过渡约束。
+  terrainSafetyCorridorEnabled   true
+  corridorLateralExtent          0.15 // 每段路径横向扩展 [m]
+  corridorLongitudinalExtent     0.04 // 每段路径前后扩展 [m]
+  corridorVerticalExtent         0.08 // 每段参考上下扩展 [m]
+  corridorMapMargin              0.0  // 地图误差的各向同性障碍膨胀 [m]，需按感知误差标定
+  corridorGeometricClearance     0.001 // 膨胀障碍到几何走廊的严格间隙 [m]
+  corridorNumericalMargin        0.0000001 // QP额外方向数值预算 [m]
+  corridorContactPhase           0.25 // 前后各25%为接触过渡；中间区间保留完整2cm误差球
+  ; corridorFootRadius / corridorTrackingMargin 默认沿用 footRadius / terrainTrackingMargin
+
 }
 
 ; DDP settings
@@ -194,20 +207,20 @@ Q
   scaling 1e+0
 
   ;; Normalized Centroidal Momentum: [linear, angular] ;;
-  (0,0)   35.0     ; vcom_x  -- 增大以更好跟踪速度指令
-  (1,1)   35.0     ; vcom_y 
+  (0,0)   35.0     ; vcom_x
+  (1,1)   35.0     ; vcom_y
   (2,2)   100.0     ; vcom_z
-  (3,3)   30.0      ; L_x / robotMass
-  (4,4)   30.0      ; L_y / robotMass
-  (5,5)   30.0     ; L_z / robotMass
+  (3,3)   50.0      ; L_x / robotMass
+  (4,4)   50.0      ; L_y / robotMass
+  (5,5)   50.0     ; L_z / robotMass
 
   ;; Base Pose: [position, orientation] ;;
-  (6,6)   2000.0   ; p_base_x -- 增大以减少x漂移
-  (7,7)   1000.0   ; p_base_y -- 增大以减少y漂移
-  (8,8)   2000.0   ; p_base_z -- 增大z权重以提高平台着陆稳定性
-  (9,9)   600.0    ; theta_base_z -- 增大偏航跟踪
-  (10,10) 400.0    ; theta_base_y -- 增大俯仰跟踪以改善楼梯稳定性
-  (11,11) 400.0    ; theta_base_x -- 增大横滚跟踪以改善平台稳定性
+  (6,6)   3000.0   ; p_base_x — 增大以推动robot爬上楼梯
+  (7,7)   1000.0   ; p_base_y
+  (8,8)   2000.0   ; p_base_z
+  (9,9)   800.0    ; theta_base_z
+  (10,10) 500.0    ; theta_base_y
+  (11,11) 800.0    ; theta_base_x
 
   ;; Leg Joint Positions: [FL, FR, RL, RR] ;; -- 增加以更好跟踪关节位置
   (12,12) 5.0     ; FL_hip_joint
@@ -261,7 +274,7 @@ R
 ; 软摩擦椎约束，允许不满足摩擦椎，但是会被惩罚 【当前使用软约束】
 frictionConeSoftConstraint
 {
-  frictionCoefficient    0.5        // 摩擦系数 - 增大以减少足端滑动
+  frictionCoefficient    0.65        // 摩擦系数 - 增大到0.65以防止平台/楼梯侧滑
 
   ; relaxed log barrier parameters  // 松弛障碍函数配置
   mu                     0.1        // 惩罚权重，控制不等式约束不满足条件时惩罚的强度
@@ -335,18 +348,18 @@ torqueLimitsTask
 ; 摩擦椎硬约束，必须严格满足摩擦椎约束，否则求解不可达
 frictionConeTask
 {
-  frictionCoefficient    0.5
+  frictionCoefficient    0.6
 }
 
 swingLegTask
 {
-    kp                   450  ; 增大位置增益以提高摆动腿跟踪精度
-    kd                   35   ; 增大阻尼增益以抑制高摆高引起的振荡
+    kp                   400
+    kd                   20    // 保持原值
 }
 
 weight
 {
-    swingLeg        250      ; 增大摆动腿权重以提升跟踪优先级
+    swingLeg        200
     baseAccel       5
     contactForce    0.005
 }

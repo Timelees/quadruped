@@ -35,12 +35,12 @@ namespace ocs2::legged_robot {
     NormalVelocityConstraintCppAd::NormalVelocityConstraintCppAd(const SwitchedModelReferenceManager &referenceManager,
                                                                  const EndEffectorKinematics<scalar_t> &
                                                                  endEffectorKinematics,
-                                                                 size_t contactPointIndex)
+                                                                 size_t contactPointIndex, bool verticalOnly)
         : StateInputConstraint(ConstraintOrder::Linear),
           referenceManagerPtr_(&referenceManager),  
           eeLinearConstraintPtr_(new EndEffectorLinearConstraint(endEffectorKinematics,
-              referenceManager.getSwingTrajectoryPlanner()->isTerrainPlanningEnabled() ? 3 : 1)),
-          contactPointIndex_(contactPointIndex) {
+              !verticalOnly && referenceManager.getSwingTrajectoryPlanner()->isTerrainPlanningEnabled() ? 3 : 1)),
+          contactPointIndex_(contactPointIndex), verticalOnly_(verticalOnly) {
     }
 
 
@@ -48,7 +48,7 @@ namespace ocs2::legged_robot {
         : StateInputConstraint(rhs),
           referenceManagerPtr_(rhs.referenceManagerPtr_),
           eeLinearConstraintPtr_(rhs.eeLinearConstraintPtr_->clone()),
-          contactPointIndex_(rhs.contactPointIndex_) {
+          contactPointIndex_(rhs.contactPointIndex_), verticalOnly_(rhs.verticalOnly_) {
     }
 
     // 当足端处于摆动相（不接触地面）时激活约束
@@ -59,8 +59,7 @@ namespace ocs2::legged_robot {
     // 约束值计算
     vector_t NormalVelocityConstraintCppAd::getValue(scalar_t time, const vector_t &state, const vector_t &input,
                                                      const PreComputation &preComp) const {
-        const auto &preCompLegged = cast<LeggedRobotPreComputation>(preComp);
-        eeLinearConstraintPtr_->configure(preCompLegged.getEeNormalVelocityConstraintConfigs()[contactPointIndex_]);
+        configure(preComp);
 
         return eeLinearConstraintPtr_->getValue(time, state, input, preComp);
     }
@@ -70,9 +69,18 @@ namespace ocs2::legged_robot {
         scalar_t time, const vector_t &state,
         const vector_t &input,
         const PreComputation &preComp) const {
-        const auto &preCompLegged = cast<LeggedRobotPreComputation>(preComp);
-        eeLinearConstraintPtr_->configure(preCompLegged.getEeNormalVelocityConstraintConfigs()[contactPointIndex_]);
+        configure(preComp);
 
         return eeLinearConstraintPtr_->getLinearApproximation(time, state, input, preComp);
+    }
+
+    void NormalVelocityConstraintCppAd::configure(const PreComputation& preComp) const {
+        auto config = cast<LeggedRobotPreComputation>(preComp).getEeNormalVelocityConstraintConfigs()[contactPointIndex_];
+        if (verticalOnly_ && config.b.size() == 3) {
+            config.b = config.b.tail(1).eval();
+            config.Av = config.Av.bottomRows(1).eval();
+            config.Ax = config.Ax.bottomRows(1).eval();
+        }
+        eeLinearConstraintPtr_->configure(std::move(config));
     }
 } // namespace ocs2::legged_robot

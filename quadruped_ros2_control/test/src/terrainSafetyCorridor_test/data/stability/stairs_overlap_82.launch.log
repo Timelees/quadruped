@@ -1,0 +1,533 @@
+[INFO] [launch]: All log files can be found below /home/lee/.ros/log/2026-11-17-22-59-18-377542-lee-492372
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [parameter_bridge-1]: process started with pid [492373]
+[INFO] [robot_state_publisher-2]: process started with pid [492375]
+[INFO] [create-3]: process started with pid [492377]
+[INFO] [ruby $(which gz) sim-4]: process started with pid [492379]
+[INFO] [elevation_mapping-5]: process started with pid [492381]
+[INFO] [convex_plane_decomposition_ros_node-6]: process started with pid [492383]
+[INFO] [static_transform_publisher-7]: process started with pid [492386]
+[INFO] [static_transform_publisher-8]: process started with pid [492388]
+[INFO] [static_transform_publisher-9]: process started with pid [492390]
+[INFO] [static_transform_publisher-10]: process started with pid [492393]
+[static_transform_publisher-7] [WARN] [1794927558.556671280] []: Old-style arguments are deprecated; see --help for new-style arguments
+[static_transform_publisher-8] [WARN] [1794927558.557123701] []: Old-style arguments are deprecated; see --help for new-style arguments
+[static_transform_publisher-9] [WARN] [1794927558.557225097] []: Old-style arguments are deprecated; see --help for new-style arguments
+[static_transform_publisher-10] [WARN] [1794927558.558759302] []: Old-style arguments are deprecated; see --help for new-style arguments
+[static_transform_publisher-8] [INFO] [1794927558.566981307] [world2map_tf_publisher]: Spinning until stopped - publishing transform
+[static_transform_publisher-8] translation: ('0.000000', '0.000000', '0.000000')
+[static_transform_publisher-8] rotation: ('0.000000', '0.000000', '0.000000', '1.000000')
+[static_transform_publisher-8] from 'world' to 'map'
+[static_transform_publisher-7] [INFO] [1794927558.567393870] [odom_tf_publisher]: Spinning until stopped - publishing transform
+[static_transform_publisher-7] translation: ('0.000000', '0.000000', '0.000000')
+[static_transform_publisher-7] rotation: ('0.000000', '0.000000', '0.000000', '1.000000')
+[static_transform_publisher-7] from 'map' to 'odom'
+[static_transform_publisher-10] [INFO] [1794927558.568966742] [map_to_odom_tf_publisher]: Spinning until stopped - publishing transform
+[static_transform_publisher-10] translation: ('0.000000', '0.000000', '0.000000')
+[static_transform_publisher-10] rotation: ('0.000000', '0.000000', '0.000000', '1.000000')
+[static_transform_publisher-10] from 'map' to 'odom'
+[static_transform_publisher-9] [INFO] [1794927558.569764891] [world_to_map_tf_publisher]: Spinning until stopped - publishing transform
+[static_transform_publisher-9] translation: ('0.000000', '0.000000', '0.000000')
+[static_transform_publisher-9] rotation: ('0.000000', '0.000000', '0.000000', '1.000000')
+[static_transform_publisher-9] from 'world' to 'map'
+[create-3] [INFO] [1794927558.581789328] [ros_gz_sim]: Requesting list of world names.
+[parameter_bridge-1] [INFO] [1794927558.582075716] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/clock (gz.msgs.Clock) -> /clock (rosgraph_msgs/msg/Clock)] (Lazy 0)
+[parameter_bridge-1] [INFO] [1794927558.582683174] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/odom (gz.msgs.Odometry) -> /odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-1] [INFO] [1794927558.583840079] [ros_gz_bridge]: Creating ROS->GZ Bridge: [/odom (nav_msgs/msg/Odometry) -> /odom (gz.msgs.Odometry)] (Lazy 0)
+[parameter_bridge-1] [INFO] [1794927558.584139500] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/tf (gz.msgs.Pose_V) -> /tf (tf2_msgs/msg/TFMessage)] (Lazy 0)
+[parameter_bridge-1] [INFO] [1794927558.584865903] [ros_gz_bridge]: Creating ROS->GZ Bridge: [/tf (tf2_msgs/msg/TFMessage) -> /tf (gz.msgs.Pose_V)] (Lazy 0)
+[parameter_bridge-1] [INFO] [1794927558.585122824] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/depth_camera/color/image_raw (gz.msgs.Image) -> /depth_camera/color/image_raw (sensor_msgs/msg/Image)] (Lazy 0)
+[parameter_bridge-1] [INFO] [1794927558.585790820] [ros_gz_bridge]: Creating ROS->GZ Bridge: [/depth_camera/color/image_raw (sensor_msgs/msg/Image) -> /depth_camera/color/image_raw (gz.msgs.Image)] (Lazy 0)
+[parameter_bridge-1] [INFO] [1794927558.586272886] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/depth_camera/camera_info (gz.msgs.CameraInfo) -> /depth_camera/camera_info (sensor_msgs/msg/CameraInfo)] (Lazy 0)
+[parameter_bridge-1] [INFO] [1794927558.586818844] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/depth_camera/points (gz.msgs.PointCloudPacked) -> /depth_camera/points (sensor_msgs/msg/PointCloud2)] (Lazy 0)
+[parameter_bridge-1] [INFO] [1794927558.587132615] [ros_gz_bridge]: Creating GZ->ROS Bridge: [/depth_camera/depth/image_raw (gz.msgs.Image) -> /depth_camera/depth/image_raw (sensor_msgs/msg/Image)] (Lazy 0)
+[parameter_bridge-1] [INFO] [1794927558.587342163] [ros_gz_bridge]: Creating ROS->GZ Bridge: [/depth_camera/depth/image_raw (sensor_msgs/msg/Image) -> /depth_camera/depth/image_raw (gz.msgs.Image)] (Lazy 0)
+[robot_state_publisher-2] [INFO] [1794927558.594494997] [robot_state_publisher]: got segment AI_camera_link
+[robot_state_publisher-2] [INFO] [1794927558.594590958] [robot_state_publisher]: got segment D435_camera_link
+[robot_state_publisher-2] [INFO] [1794927558.594596303] [robot_state_publisher]: got segment FL_abad
+[robot_state_publisher-2] [INFO] [1794927558.594598856] [robot_state_publisher]: got segment FL_abad_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594601236] [robot_state_publisher]: got segment FL_foot
+[robot_state_publisher-2] [INFO] [1794927558.594603506] [robot_state_publisher]: got segment FL_hip
+[robot_state_publisher-2] [INFO] [1794927558.594605699] [robot_state_publisher]: got segment FL_hip_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594608078] [robot_state_publisher]: got segment FL_hip_shoulder
+[robot_state_publisher-2] [INFO] [1794927558.594610304] [robot_state_publisher]: got segment FL_knee
+[robot_state_publisher-2] [INFO] [1794927558.594612513] [robot_state_publisher]: got segment FL_knee_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594614869] [robot_state_publisher]: got segment FR_abad
+[robot_state_publisher-2] [INFO] [1794927558.594616977] [robot_state_publisher]: got segment FR_abad_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594619114] [robot_state_publisher]: got segment FR_foot
+[robot_state_publisher-2] [INFO] [1794927558.594621187] [robot_state_publisher]: got segment FR_hip
+[robot_state_publisher-2] [INFO] [1794927558.594623259] [robot_state_publisher]: got segment FR_hip_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594625417] [robot_state_publisher]: got segment FR_hip_shoulder
+[robot_state_publisher-2] [INFO] [1794927558.594627548] [robot_state_publisher]: got segment FR_knee
+[robot_state_publisher-2] [INFO] [1794927558.594629610] [robot_state_publisher]: got segment FR_knee_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594631707] [robot_state_publisher]: got segment RGB_camera_link
+[robot_state_publisher-2] [INFO] [1794927558.594633787] [robot_state_publisher]: got segment RL_abad
+[robot_state_publisher-2] [INFO] [1794927558.594636091] [robot_state_publisher]: got segment RL_abad_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594638269] [robot_state_publisher]: got segment RL_foot
+[robot_state_publisher-2] [INFO] [1794927558.594640369] [robot_state_publisher]: got segment RL_hip
+[robot_state_publisher-2] [INFO] [1794927558.594642635] [robot_state_publisher]: got segment RL_hip_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594644757] [robot_state_publisher]: got segment RL_hip_shoulder
+[robot_state_publisher-2] [INFO] [1794927558.594646864] [robot_state_publisher]: got segment RL_knee
+[robot_state_publisher-2] [INFO] [1794927558.594648929] [robot_state_publisher]: got segment RL_knee_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594651020] [robot_state_publisher]: got segment RR_abad
+[robot_state_publisher-2] [INFO] [1794927558.594653106] [robot_state_publisher]: got segment RR_abad_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594655195] [robot_state_publisher]: got segment RR_foot
+[robot_state_publisher-2] [INFO] [1794927558.594657328] [robot_state_publisher]: got segment RR_hip
+[robot_state_publisher-2] [INFO] [1794927558.594659377] [robot_state_publisher]: got segment RR_hip_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594661459] [robot_state_publisher]: got segment RR_hip_shoulder
+[robot_state_publisher-2] [INFO] [1794927558.594663622] [robot_state_publisher]: got segment RR_knee
+[robot_state_publisher-2] [INFO] [1794927558.594665684] [robot_state_publisher]: got segment RR_knee_rotor
+[robot_state_publisher-2] [INFO] [1794927558.594667759] [robot_state_publisher]: got segment base
+[robot_state_publisher-2] [INFO] [1794927558.594669999] [robot_state_publisher]: got segment body
+[robot_state_publisher-2] [INFO] [1794927558.594672116] [robot_state_publisher]: got segment head
+[robot_state_publisher-2] [INFO] [1794927558.594674126] [robot_state_publisher]: got segment imu_link
+[robot_state_publisher-2] [INFO] [1794927558.594676176] [robot_state_publisher]: got segment lidar_link
+[elevation_mapping-5] [INFO] [1794927558.636685732] [elevation_mapping]: Elevation mapping node started.
+[elevation_mapping-5] [INFO] [1794927558.639194071] [elevation_mapping]: topic: /boundaries
+[elevation_mapping-5] [INFO] [1794927558.639208993] [elevation_mapping]: topic: /clock
+[elevation_mapping-5] [INFO] [1794927558.639212348] [elevation_mapping]: topic: /depth_camera/camera_info
+[elevation_mapping-5] [INFO] [1794927558.639215183] [elevation_mapping]: topic: /depth_camera/color/image_raw
+[elevation_mapping-5] [INFO] [1794927558.639217692] [elevation_mapping]: topic: /depth_camera/depth/image_raw
+[elevation_mapping-5] [INFO] [1794927558.639220000] [elevation_mapping]: topic: /depth_camera/points
+[elevation_mapping-5] [INFO] [1794927558.639222470] [elevation_mapping]: topic: /elevation_map
+[elevation_mapping-5] [INFO] [1794927558.639224913] [elevation_mapping]: topic: /elevation_map_raw
+[elevation_mapping-5] [INFO] [1794927558.639227267] [elevation_mapping]: topic: /filtered_map
+[elevation_mapping-5] [INFO] [1794927558.639229619] [elevation_mapping]: topic: /insets
+[elevation_mapping-5] [INFO] [1794927558.639231977] [elevation_mapping]: topic: /joint_states
+[elevation_mapping-5] [INFO] [1794927558.639234220] [elevation_mapping]: topic: /odom
+[elevation_mapping-5] [INFO] [1794927558.639236618] [elevation_mapping]: topic: /parameter_events
+[elevation_mapping-5] [INFO] [1794927558.639239007] [elevation_mapping]: topic: /planar_terrain
+[elevation_mapping-5] [INFO] [1794927558.639241316] [elevation_mapping]: topic: /robot_description
+[elevation_mapping-5] [INFO] [1794927558.639243674] [elevation_mapping]: topic: /rosout
+[elevation_mapping-5] [INFO] [1794927558.639245935] [elevation_mapping]: topic: /signed_distance_field
+[elevation_mapping-5] [INFO] [1794927558.639248212] [elevation_mapping]: topic: /terrain_edges
+[elevation_mapping-5] [INFO] [1794927558.639250431] [elevation_mapping]: topic: /tf
+[elevation_mapping-5] [INFO] [1794927558.639253885] [elevation_mapping]: topic: /tf_static
+[elevation_mapping-5] [INFO] [1794927558.639256122] [elevation_mapping]: topic: /visibility_cleanup_map
+[elevation_mapping-5] [INFO] [1794927558.639276434] [elevation_mapping]: Input sources configuration:
+[elevation_mapping-5] [INFO] [1794927558.639280974] [elevation_mapping]:   - depth_camera
+[elevation_mapping-5] [INFO] [1794927558.641635909] [elevation_mapping]: Configured pointcloud:depth_camera @ /depth_camera/points (publishing_on_update: true), using perfect to process data.
+[elevation_mapping-5] 
+[elevation_mapping-5] [INFO] [1794927558.642605812] [elevation_mapping]: Subscribing to pointcloud: /depth_camera/points, queue_size: 1.
+[elevation_mapping-5] [INFO] [1794927558.646219102] [elevation_mapping]: Elevation mapping node initializing ... 
+[create-3] [INFO] [1794927559.256461659] [ros_gz_sim]: Waiting messages on topic [robot_description].
+[create-3] [INFO] [1794927559.271953779] [ros_gz_sim]: Requested creation of entity.
+[create-3] [INFO] [1794927559.272011629] [ros_gz_sim]: OK creation of entity.
+[INFO] [create-3]: process has finished cleanly [pid 492377]
+[INFO] [spawner-11]: process started with pid [492548]
+[INFO] [spawner-12]: process started with pid [492550]
+[elevation_mapping-5] [INFO] [1794927559.648027347] [elevation_mapping]: Successfully launched node.
+[spawner-12] [INFO] [1794927559.977865076] [spawner_imu_sensor_broadcaster]: waiting for service /controller_manager/list_controllers to become available...
+[spawner-11] [INFO] [1794927559.978095170] [spawner_joint_state_broadcaster]: waiting for service /controller_manager/list_controllers to become available...
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/link[@name="FL_knee"]/surface:<urdf-string>:L0]: XML Element[surface], child of element[link], not defined in SDF. Copying[surface] as children of [link].
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/joint[@name="FL_foot_fixed"]/provide_feedback:<urdf-string>:L0]: XML Element[provide_feedback], child of element[joint], not defined in SDF. Copying[provide_feedback] as children of [joint].
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/link[@name="FL_foot"]/surface:<urdf-string>:L0]: XML Element[surface], child of element[link], not defined in SDF. Copying[surface] as children of [link].
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/link[@name="FR_knee"]/surface:<urdf-string>:L0]: XML Element[surface], child of element[link], not defined in SDF. Copying[surface] as children of [link].
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/joint[@name="FR_foot_fixed"]/provide_feedback:<urdf-string>:L0]: XML Element[provide_feedback], child of element[joint], not defined in SDF. Copying[provide_feedback] as children of [joint].
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/link[@name="FR_foot"]/surface:<urdf-string>:L0]: XML Element[surface], child of element[link], not defined in SDF. Copying[surface] as children of [link].
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/link[@name="RL_knee"]/surface:<urdf-string>:L0]: XML Element[surface], child of element[link], not defined in SDF. Copying[surface] as children of [link].
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/joint[@name="RL_foot_fixed"]/provide_feedback:<urdf-string>:L0]: XML Element[provide_feedback], child of element[joint], not defined in SDF. Copying[provide_feedback] as children of [joint].
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/link[@name="RL_foot"]/surface:<urdf-string>:L0]: XML Element[surface], child of element[link], not defined in SDF. Copying[surface] as children of [link].
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/link[@name="RR_knee"]/surface:<urdf-string>:L0]: XML Element[surface], child of element[link], not defined in SDF. Copying[surface] as children of [link].
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/joint[@name="RR_foot_fixed"]/provide_feedback:<urdf-string>:L0]: XML Element[provide_feedback], child of element[joint], not defined in SDF. Copying[provide_feedback] as children of [joint].
+[ruby $(which gz) sim-4] [1;33mWarning [Utils.cc:132][0m [/sdf/model[@name="cyber_dog"]/link[@name="RR_foot"]/surface:<urdf-string>:L0]: XML Element[surface], child of element[link], not defined in SDF. Copying[surface] as children of [link].
+[ruby $(which gz) sim-4] [INFO] [1794927560.756603952] [GazeboSimQuadrupedPlugin]: robot_param_node is robot_state_publisher
+[ruby $(which gz) sim-4] [INFO] [1794927560.756623957] [GazeboSimQuadrupedPlugin]: robot_param_node is robot_description
+[ruby $(which gz) sim-4] [ERROR] [1794927561.480173639] [gz_quadruped_hardware]: robot_state_publisher service not available, waiting again...
+[ruby $(which gz) sim-4] [INFO] [1794927561.959796159] [gz_quadruped_hardware]: connected to service!! robot_state_publisher asking for robot_description
+[ruby $(which gz) sim-4] [INFO] [1794927561.961220816] [gz_quadruped_hardware]: Received URDF from param server
+[ruby $(which gz) sim-4] [INFO] [1794927561.986410251] [gz_quadruped_hardware]: Loading joint: FR_hip_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.986441530] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.986449884] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.986495244] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.986515753] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.986525896] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.986529305] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.986701278] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.986743377] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.986754710] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.986765068] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.986780690] [gz_quadruped_hardware]: Loading joint: FR_thigh_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.986784103] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.986787113] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.986790456] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.986794162] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.986797266] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.986800192] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.986806262] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.986811800] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.986816928] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.986823441] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.986832876] [gz_quadruped_hardware]: Loading joint: FR_calf_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.986836027] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.986839026] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.986841999] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.986844870] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.986848846] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.986854347] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.986859309] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.986863844] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.986891108] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.986895586] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.986903695] [gz_quadruped_hardware]: Loading joint: FL_hip_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.986906438] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.986908960] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.986911693] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.986914533] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.986917334] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.986919955] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.986924764] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.986931046] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.986935618] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.986940095] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.986948013] [gz_quadruped_hardware]: Loading joint: FL_thigh_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.986950817] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.986953489] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.986956197] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.986958832] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.986961449] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.986963900] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.986968734] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.986973258] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.986977710] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.986982152] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.986989715] [gz_quadruped_hardware]: Loading joint: FL_calf_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.986992376] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987010667] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987013705] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987017908] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987020777] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987025395] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987030553] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987035385] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987039937] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.987044433] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.987053294] [gz_quadruped_hardware]: Loading joint: RR_hip_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.987056043] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987058666] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987061385] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987064137] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987066868] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987069343] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987074242] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987079036] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987085784] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.987090394] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.987108711] [gz_quadruped_hardware]: Loading joint: RR_thigh_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.987111518] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987114130] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987116791] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987119431] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987122060] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987124631] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987129683] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987134349] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987138867] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.987143347] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.987153527] [gz_quadruped_hardware]: Loading joint: RR_calf_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.987156345] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987158959] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987161611] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987164222] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987166831] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987169287] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987174203] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987178852] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987183309] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.987188652] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.987198559] [gz_quadruped_hardware]: Loading joint: RL_hip_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.987201382] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987204009] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987206789] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987209583] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987212216] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987214706] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987219699] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987224247] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987228807] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.987233340] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.987241025] [gz_quadruped_hardware]: Loading joint: RL_thigh_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.987243876] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987246521] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987249228] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987251840] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987256189] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987258872] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987263758] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987272398] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987276894] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.987283634] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.987294058] [gz_quadruped_hardware]: Loading joint: RL_calf_joint
+[ruby $(which gz) sim-4] [INFO] [1794927561.987297049] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987300027] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987303066] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987306431] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987309400] [gz_quadruped_hardware]: 	Command:
+[ruby $(which gz) sim-4] [INFO] [1794927561.987311920] [gz_quadruped_hardware]: 		 position
+[ruby $(which gz) sim-4] [INFO] [1794927561.987316633] [gz_quadruped_hardware]: 		 velocity
+[ruby $(which gz) sim-4] [INFO] [1794927561.987321081] [gz_quadruped_hardware]: 		 effort
+[ruby $(which gz) sim-4] [INFO] [1794927561.987325551] [gz_quadruped_hardware]: 		 kp
+[ruby $(which gz) sim-4] [INFO] [1794927561.987331219] [gz_quadruped_hardware]: 		 kd
+[ruby $(which gz) sim-4] [INFO] [1794927561.988418594] [gz_quadruped_hardware]: Loading sensor: imu_sensor
+[ruby $(which gz) sim-4] [INFO] [1794927561.988514072] [gz_quadruped_hardware]: 	State:
+[ruby $(which gz) sim-4] [INFO] [1794927561.988581618] [gz_quadruped_hardware]: 		 orientation.x
+[ruby $(which gz) sim-4] [INFO] [1794927561.988598887] [gz_quadruped_hardware]: 		 orientation.y
+[ruby $(which gz) sim-4] [INFO] [1794927561.988602094] [gz_quadruped_hardware]: 		 orientation.z
+[ruby $(which gz) sim-4] [INFO] [1794927561.988604720] [gz_quadruped_hardware]: 		 orientation.w
+[ruby $(which gz) sim-4] [INFO] [1794927561.988607534] [gz_quadruped_hardware]: 		 angular_velocity.x
+[ruby $(which gz) sim-4] [INFO] [1794927561.988610414] [gz_quadruped_hardware]: 		 angular_velocity.y
+[ruby $(which gz) sim-4] [INFO] [1794927561.988613049] [gz_quadruped_hardware]: 		 angular_velocity.z
+[ruby $(which gz) sim-4] [INFO] [1794927561.988615563] [gz_quadruped_hardware]: 		 linear_acceleration.x
+[ruby $(which gz) sim-4] [INFO] [1794927561.988618470] [gz_quadruped_hardware]: 		 linear_acceleration.y
+[ruby $(which gz) sim-4] [INFO] [1794927561.988622699] [gz_quadruped_hardware]: 		 linear_acceleration.z
+[ruby $(which gz) sim-4] [INFO] [1794927561.988625278] [gz_quadruped_hardware]: 		 orientation_covariance.0
+[ruby $(which gz) sim-4] [INFO] [1794927561.988627961] [gz_quadruped_hardware]: 		 orientation_covariance.1
+[ruby $(which gz) sim-4] [INFO] [1794927561.988630544] [gz_quadruped_hardware]: 		 orientation_covariance.2
+[ruby $(which gz) sim-4] [INFO] [1794927561.988633107] [gz_quadruped_hardware]: 		 orientation_covariance.3
+[ruby $(which gz) sim-4] [INFO] [1794927561.988635716] [gz_quadruped_hardware]: 		 orientation_covariance.4
+[ruby $(which gz) sim-4] [INFO] [1794927561.988638216] [gz_quadruped_hardware]: 		 orientation_covariance.5
+[ruby $(which gz) sim-4] [INFO] [1794927561.988640836] [gz_quadruped_hardware]: 		 orientation_covariance.6
+[ruby $(which gz) sim-4] [INFO] [1794927561.988643318] [gz_quadruped_hardware]: 		 orientation_covariance.7
+[ruby $(which gz) sim-4] [INFO] [1794927561.988645918] [gz_quadruped_hardware]: 		 orientation_covariance.8
+[ruby $(which gz) sim-4] [INFO] [1794927561.988648451] [gz_quadruped_hardware]: 		 angular_velocity_covariance.0
+[ruby $(which gz) sim-4] [INFO] [1794927561.988651337] [gz_quadruped_hardware]: 		 angular_velocity_covariance.1
+[ruby $(which gz) sim-4] [INFO] [1794927561.988654068] [gz_quadruped_hardware]: 		 angular_velocity_covariance.2
+[ruby $(which gz) sim-4] [INFO] [1794927561.988656703] [gz_quadruped_hardware]: 		 angular_velocity_covariance.3
+[ruby $(which gz) sim-4] [INFO] [1794927561.988659361] [gz_quadruped_hardware]: 		 angular_velocity_covariance.4
+[ruby $(which gz) sim-4] [INFO] [1794927561.988661844] [gz_quadruped_hardware]: 		 angular_velocity_covariance.5
+[ruby $(which gz) sim-4] [INFO] [1794927561.988664372] [gz_quadruped_hardware]: 		 angular_velocity_covariance.6
+[ruby $(which gz) sim-4] [INFO] [1794927561.988667084] [gz_quadruped_hardware]: 		 angular_velocity_covariance.7
+[ruby $(which gz) sim-4] [INFO] [1794927561.988669746] [gz_quadruped_hardware]: 		 angular_velocity_covariance.8
+[ruby $(which gz) sim-4] [INFO] [1794927561.988672317] [gz_quadruped_hardware]: 		 linear_acceleration_covariance.0
+[ruby $(which gz) sim-4] [INFO] [1794927561.988678944] [gz_quadruped_hardware]: 		 linear_acceleration_covariance.1
+[ruby $(which gz) sim-4] [INFO] [1794927561.988681977] [gz_quadruped_hardware]: 		 linear_acceleration_covariance.2
+[ruby $(which gz) sim-4] [INFO] [1794927561.988684713] [gz_quadruped_hardware]: 		 linear_acceleration_covariance.3
+[ruby $(which gz) sim-4] [INFO] [1794927561.988687327] [gz_quadruped_hardware]: 		 linear_acceleration_covariance.4
+[ruby $(which gz) sim-4] [INFO] [1794927561.988689926] [gz_quadruped_hardware]: 		 linear_acceleration_covariance.5
+[ruby $(which gz) sim-4] [INFO] [1794927561.988693598] [gz_quadruped_hardware]: 		 linear_acceleration_covariance.6
+[ruby $(which gz) sim-4] [INFO] [1794927561.988696218] [gz_quadruped_hardware]: 		 linear_acceleration_covariance.7
+[ruby $(which gz) sim-4] [INFO] [1794927561.988703966] [gz_quadruped_hardware]: 		 linear_acceleration_covariance.8
+[ruby $(which gz) sim-4] [INFO] [1794927561.989013550] [gz_quadruped_hardware]: Loading Foot Force sensor: FL_foot_force
+[ruby $(which gz) sim-4] [INFO] [1794927561.989054012] [gz_quadruped_hardware]: Loading Foot Force sensor: FR_foot_force
+[ruby $(which gz) sim-4] [INFO] [1794927561.989069905] [gz_quadruped_hardware]: Loading Foot Force sensor: RL_foot_force
+[ruby $(which gz) sim-4] [INFO] [1794927561.989073322] [gz_quadruped_hardware]: Loading Foot Force sensor: RR_foot_force
+[ruby $(which gz) sim-4] [INFO] [1794927561.989117904] [gz_quadruped_hardware]: Loading Ground Truth Odom sensor: ground_truth, tracking link: base
+[ruby $(which gz) sim-4] [INFO] [1794927561.989166317] [gz_quadruped_hardware]: Found link entity for: base
+[ruby $(which gz) sim-4] [INFO] [1794927561.989307094] [gz_quadruped_hardware]: 	State interfaces:
+[ruby $(which gz) sim-4] [INFO] [1794927561.989311828] [gz_quadruped_hardware]: 		 position.x
+[ruby $(which gz) sim-4] [INFO] [1794927561.989316744] [gz_quadruped_hardware]: 		 position.y
+[ruby $(which gz) sim-4] [INFO] [1794927561.989319598] [gz_quadruped_hardware]: 		 position.z
+[ruby $(which gz) sim-4] [INFO] [1794927561.989322401] [gz_quadruped_hardware]: 		 linear_velocity.x
+[ruby $(which gz) sim-4] [INFO] [1794927561.989325415] [gz_quadruped_hardware]: 		 linear_velocity.y
+[ruby $(which gz) sim-4] [INFO] [1794927561.989328102] [gz_quadruped_hardware]: 		 linear_velocity.z
+[ruby $(which gz) sim-4] [INFO] [1794927561.989330741] [gz_quadruped_hardware]: 		 orientation.x
+[ruby $(which gz) sim-4] [INFO] [1794927561.989333403] [gz_quadruped_hardware]: 		 orientation.y
+[ruby $(which gz) sim-4] [INFO] [1794927561.989336016] [gz_quadruped_hardware]: 		 orientation.z
+[ruby $(which gz) sim-4] [INFO] [1794927561.989338577] [gz_quadruped_hardware]: 		 orientation.w
+[ruby $(which gz) sim-4] [INFO] [1794927561.989341167] [gz_quadruped_hardware]: 		 angular_velocity.x
+[ruby $(which gz) sim-4] [INFO] [1794927561.989343839] [gz_quadruped_hardware]: 		 angular_velocity.y
+[ruby $(which gz) sim-4] [INFO] [1794927561.989346535] [gz_quadruped_hardware]: 		 angular_velocity.z
+[ruby $(which gz) sim-4] [INFO] [1794927561.989407627] [resource_manager]: Initialize hardware 'GazeboSystem' 
+[ruby $(which gz) sim-4] [INFO] [1794927561.989500001] [resource_manager]: Successful initialization of hardware 'GazeboSystem'
+[ruby $(which gz) sim-4] [INFO] [1794927561.989575917] [resource_manager]: 'configure' hardware 'GazeboSystem' 
+[ruby $(which gz) sim-4] [INFO] [1794927561.989578537] [gz_quadruped_hardware]: System Successfully configured!
+[ruby $(which gz) sim-4] [INFO] [1794927561.989584300] [resource_manager]: Successful 'configure' of hardware 'GazeboSystem'
+[ruby $(which gz) sim-4] [INFO] [1794927561.989600541] [resource_manager]: 'activate' hardware 'GazeboSystem' 
+[ruby $(which gz) sim-4] [INFO] [1794927561.989603420] [resource_manager]: Successful 'activate' of hardware 'GazeboSystem'
+[ruby $(which gz) sim-4] [ERROR] [1794927561.989670033] [gz_quadruped_hardware]: The plugin failed to load for some reason. Error: According to the loaded plugin descriptions the class cyber_quadruped_hardware/CyberSystem with base class type gz_quadruped_hardware::GazeboSimSystemInterface does not exist. Declared types are  gz_quadruped_hardware/GazeboSimSystem
+[ruby $(which gz) sim-4] 
+[ruby $(which gz) sim-4] [INFO] [1794927561.989676956] [gz_quadruped_hardware]: Loading controller_manager
+[ruby $(which gz) sim-4] [INFO] [1794927562.044718677] [gz_quadruped_hardware]: IMU imu_sensor has a topic name: imu
+[ruby $(which gz) sim-4] [INFO] [1794927562.045710718] [gz_quadruped_hardware]: ForceTorque FL_foot_force has a topic name: FL_foot_force
+[ruby $(which gz) sim-4] [INFO] [1794927562.045915698] [gz_quadruped_hardware]: ForceTorque FR_foot_force has a topic name: FR_foot_force
+[ruby $(which gz) sim-4] [INFO] [1794927562.046005270] [gz_quadruped_hardware]: ForceTorque RL_foot_force has a topic name: RL_foot_force
+[ruby $(which gz) sim-4] [INFO] [1794927562.046083964] [gz_quadruped_hardware]: ForceTorque RR_foot_force has a topic name: RR_foot_force
+[ruby $(which gz) sim-4] [INFO] [1794927562.233575635] [controller_manager]: Loading controller 'joint_state_broadcaster'
+[ruby $(which gz) sim-4] libEGL warning: egl: failed to create dri2 screen
+[ruby $(which gz) sim-4] libEGL warning: egl: failed to create dri2 screen
+[ruby $(which gz) sim-4] [INFO] [1794927562.540334227] [controller_manager]: Loading controller 'imu_sensor_broadcaster'
+[spawner-11] [INFO] [1794927562.540861219] [spawner_joint_state_broadcaster]: [94mLoaded [1mjoint_state_broadcaster[0m
+[ruby $(which gz) sim-4] [INFO] [1794927563.223768880] [controller_manager]: Configuring controller 'joint_state_broadcaster'
+[ruby $(which gz) sim-4] [INFO] [1794927563.223960613] [joint_state_broadcaster]: 'joints' or 'interfaces' parameter is empty. All available state interfaces will be published
+[spawner-12] [INFO] [1794927563.224238681] [spawner_imu_sensor_broadcaster]: [94mLoaded [1mimu_sensor_broadcaster[0m
+[ruby $(which gz) sim-4] [INFO] [1794927563.232118341] [controller_manager]: Configuring controller 'imu_sensor_broadcaster'
+[parameter_bridge-1] [INFO] [1794927563.235535394] [ros_gz_bridge]: Passing message from ROS tf2_msgs/msg/TFMessage to Gazebo gz.msgs.Pose_V (showing msg only once per type)
+[spawner-11] [INFO] [1794927563.235629614] [spawner_joint_state_broadcaster]: [92mConfigured and activated [1mjoint_state_broadcaster[0m
+[spawner-12] [INFO] [1794927563.237909102] [spawner_imu_sensor_broadcaster]: [92mConfigured and activated [1mimu_sensor_broadcaster[0m
+[elevation_mapping-5] [INFO] [1794927563.280330012] [elevation_mapping]: First corresponding point cloud and pose found, elevation mapping started. 
+[elevation_mapping-5] [ERROR] [1794927563.288311883] [elevation_mapping]: Could not get pose information from robot for time 0.033000. Buffer empty?
+[elevation_mapping-5] [ERROR] [1794927563.310981101] [elevation_mapping]: Could not get pose information from robot for time 0.067000. Buffer empty?
+[elevation_mapping-5] [ERROR] [1794927563.349446211] [elevation_mapping]: Could not get pose information from robot for time 0.100000. Buffer empty?
+[INFO] [spawner-11]: process has finished cleanly [pid 492548]
+[INFO] [spawner-12]: process has finished cleanly [pid 492550]
+[INFO] [spawner-13]: process started with pid [492716]
+[elevation_mapping-5] [ERROR] [1794927563.374012253] [elevation_mapping]: Could not get pose information from robot for time 0.133000. Buffer empty?
+[elevation_mapping-5] [ERROR] [1794927563.415070130] [elevation_mapping]: Could not get pose information from robot for time 0.166000. Buffer empty?
+[elevation_mapping-5] [ERROR] [1794927563.446620720] [elevation_mapping]: Could not get pose information from robot for time 0.199000. Buffer empty?
+[elevation_mapping-5] [ERROR] [1794927563.479917542] [elevation_mapping]: Could not get pose information from robot for time 0.232000. Buffer empty?
+[ruby $(which gz) sim-4] [INFO] [1794927563.596953845] [controller_manager]: Loading controller 'ocs2_quadruped_controller'
+[elevation_mapping-5] [ERROR] [1794927563.636896182] [elevation_mapping]: Could not get pose information from robot for time 0.298000. Buffer empty?
+[elevation_mapping-5] [ERROR] [1794927563.645407812] [elevation_mapping]: Could not get pose information from robot for time 0.331000. Buffer empty?
+[ruby $(which gz) sim-4] [INFO] [1794927563.658861575] [ocs2_quadruped_controller]: Controller Manager Update Rate: 200 Hz
+[ruby $(which gz) sim-4] [INFO] [1794927563.659017299] [ocs2_quadruped_controller]: Gazebo Ground Truth enabled, odom_name: ground_truth
+[ruby $(which gz) sim-4] [LeggedInterface] Loading task file: "/home/lee/Code/quadruped_control_ws/install/cyberdog_description/share/cyberdog_description/config/ocs2/task.info"
+[ruby $(which gz) sim-4] [LeggedInterface] Loading Pinocchio model from: "/home/lee/Code/quadruped_control_ws/install/cyberdog_description/share/cyberdog_description/urdf/robot.urdf"
+[ruby $(which gz) sim-4] [LeggedInterface] Loading target command settings from: "/home/lee/Code/quadruped_control_ws/install/cyberdog_description/share/cyberdog_description/config/ocs2/reference.info"
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/ALL_FOOT_position/cppad_generated/ALL_FOOT_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/ALL_FOOT_velocity/cppad_generated/ALL_FOOT_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/ALL_FOOT_orientation/cppad_generated/ALL_FOOT_orientation_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/dynamics_systemFlowMap/cppad_generated/dynamics_systemFlowMap_lib.so
+[ruby $(which gz) sim-4] WARNING: Loaded at least one default value in matrix: "Q"
+[ruby $(which gz) sim-4] WARNING: Loaded at least one default value in matrix: "R"
+[elevation_mapping-5] [ERROR] [1794927563.678902458] [elevation_mapping]: Could not get pose information from robot for time 0.364000. Buffer empty?
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_position/cppad_generated/FL_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_velocity/cppad_generated/FL_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_orientation/cppad_generated/FL_foot_orientation_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_position/cppad_generated/FR_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_velocity/cppad_generated/FR_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_orientation/cppad_generated/FR_foot_orientation_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_position/cppad_generated/RL_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_velocity/cppad_generated/RL_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_orientation/cppad_generated/RL_foot_orientation_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_position/cppad_generated/RR_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_velocity/cppad_generated/RR_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_orientation/cppad_generated/RR_foot_orientation_lib.so
+[ruby $(which gz) sim-4] WARNING: in collision link pair [FL_calf, FR_calf], one or both of the links don't exist in the pinocchio/urdf model
+[ruby $(which gz) sim-4] WARNING: in collision link pair [RL_calf, RR_calf], one or both of the links don't exist in the pinocchio/urdf model
+[ruby $(which gz) sim-4] WARNING: in collision link pair [FL_calf, RL_calf], one or both of the links don't exist in the pinocchio/urdf model
+[ruby $(which gz) sim-4] WARNING: in collision link pair [FR_calf, RR_calf], one or both of the links don't exist in the pinocchio/urdf model
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_position/cppad_generated/FL_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_velocity/cppad_generated/FL_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_orientation/cppad_generated/FL_foot_orientation_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_position/cppad_generated/FL_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_velocity/cppad_generated/FL_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FL_foot_orientation/cppad_generated/FL_foot_orientation_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_position/cppad_generated/FR_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_velocity/cppad_generated/FR_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_orientation/cppad_generated/FR_foot_orientation_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_position/cppad_generated/FR_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_velocity/cppad_generated/FR_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/FR_foot_orientation/cppad_generated/FR_foot_orientation_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_position/cppad_generated/RL_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_velocity/cppad_generated/RL_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_orientation/cppad_generated/RL_foot_orientation_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_position/cppad_generated/RL_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_velocity/cppad_generated/RL_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RL_foot_orientation/cppad_generated/RL_foot_orientation_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_position/cppad_generated/RR_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_velocity/cppad_generated/RR_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_orientation/cppad_generated/RR_foot_orientation_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_position/cppad_generated/RR_foot_position_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_velocity/cppad_generated/RR_foot_velocity_lib.so
+[ruby $(which gz) sim-4] [CppAdInterface] Loading Shared Library: /home/lee/ocs2_cpp_ad/cyberdog/RR_foot_orientation/cppad_generated/RR_foot_orientation_lib.so
+[elevation_mapping-5] [ERROR] [1794927563.714327294] [elevation_mapping]: Could not get pose information from robot for time 0.397000. Buffer empty?
+[ruby $(which gz) sim-4] buildGeom done!
+[ruby $(which gz) sim-4] [INFO] [1794927563.722646533] [gait_manager]: GaitManager is ready.
+[ruby $(which gz) sim-4] [INFO] [1794927563.725015590] [ocs2_quadruped_controller]: MRT initialized. MPC thread started.
+[ruby $(which gz) sim-4] [INFO] [1794927563.729542036] [ocs2_quadruped_controller]: ContactEstimator initialized successfully.
+[ruby $(which gz) sim-4] [INFO] [1794927563.731775841] [ocs2_quadruped_controller]: Using Kalman Filter Estimator with MPC gait phase
+[spawner-13] [INFO] [1794927563.743948669] [spawner_ocs2_quadruped_controller]: [94mLoaded [1mocs2_quadruped_controller[0m
+[elevation_mapping-5] [ERROR] [1794927563.744501618] [elevation_mapping]: Could not get pose information from robot for time 0.430000. Buffer empty?
+[ruby $(which gz) sim-4] [INFO] [1794927563.744800899] [controller_manager]: Configuring controller 'ocs2_quadruped_controller'
+[spawner-13] [INFO] [1794927563.750474638] [spawner_ocs2_quadruped_controller]: [92mConfigured and activated [1mocs2_quadruped_controller[0m
+[parameter_bridge-1] [INFO] [1794927563.754862421] [ros_gz_bridge]: Passing message from ROS nav_msgs/msg/Odometry to Gazebo gz.msgs.Odometry (showing msg only once per type)
+[ruby $(which gz) sim-4] [INFO] [1794927563.765390077] [ocs2_quadruped_controller]: Switched from passive to OCS2 State
+[ruby $(which gz) sim-4] [INFO] [1794927563.770724846] [ocs2_quadruped_controller]: Waiting for the initial policy ...
+[ruby $(which gz) sim-4] [INFO] [1794927563.771325129] [GaitManager]: Switch to gait: stance
+[ruby $(which gz) sim-4] [INFO] [1794927563.785699857] [ocs2_quadruped_controller]: Initial policy has been received.
+[INFO] [spawner-13]: process has finished cleanly [pid 492716]
+[ruby $(which gz) sim-4] [ERROR] [1794927564.382614814] [ocs2_quadruped_controller]: WBC QP invalid: status=64 nWSR=20 residual=1.33901; entering passive
+[ruby $(which gz) sim-4] [INFO] [1794927564.382694563] [ocs2_quadruped_controller]: Switched from OCS2 State to passive
+[ruby $(which gz) sim-4] [INFO] [1794927564.403478707] [GaitManager]: Switch to gait: stance
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+[static_transform_publisher-10] [INFO] [1794927564.526652485] [rclcpp]: signal_handler(signum=2)
+[elevation_mapping-5] [INFO] [1794927564.526650854] [rclcpp]: signal_handler(signum=2)
+[static_transform_publisher-9] [INFO] [1794927564.526651673] [rclcpp]: signal_handler(signum=2)
+[robot_state_publisher-2] [INFO] [1794927564.526655679] [rclcpp]: signal_handler(signum=2)
+[INFO] [static_transform_publisher-10]: sending signal 'SIGINT' to process[static_transform_publisher-10]
+[INFO] [static_transform_publisher-9]: sending signal 'SIGINT' to process[static_transform_publisher-9]
+[INFO] [static_transform_publisher-8]: sending signal 'SIGINT' to process[static_transform_publisher-8]
+[ERROR] [static_transform_publisher-10]: process has died [pid 492393, exit code -2, cmd '/opt/ros/humble/lib/tf2_ros/static_transform_publisher 0.0 0.0 0.0 0.0 0.0 0.0 1.0 map odom --ros-args -r __node:=map_to_odom_tf_publisher'].
+[INFO] [static_transform_publisher-7]: sending signal 'SIGINT' to process[static_transform_publisher-7]
+[INFO] [convex_plane_decomposition_ros_node-6]: sending signal 'SIGINT' to process[convex_plane_decomposition_ros_node-6]
+[ERROR] [static_transform_publisher-9]: process has died [pid 492390, exit code -2, cmd '/opt/ros/humble/lib/tf2_ros/static_transform_publisher 0 0 0 0 0 0 1 world map --ros-args -r __node:=world_to_map_tf_publisher'].
+[ERROR] [static_transform_publisher-8]: process has died [pid 492388, exit code -2, cmd '/opt/ros/humble/lib/tf2_ros/static_transform_publisher 0 0 0 0 0 0 1 world map --ros-args -r __node:=world2map_tf_publisher'].
+[INFO] [elevation_mapping-5]: sending signal 'SIGINT' to process[elevation_mapping-5]
+[ERROR] [static_transform_publisher-7]: process has died [pid 492386, exit code -2, cmd '/opt/ros/humble/lib/tf2_ros/static_transform_publisher 0 0 0 0 0 0 1 map odom --ros-args -r __node:=odom_tf_publisher'].
+[INFO] [ruby $(which gz) sim-4]: sending signal 'SIGINT' to process[ruby $(which gz) sim-4]
+[INFO] [robot_state_publisher-2]: sending signal 'SIGINT' to process[robot_state_publisher-2]
+[INFO] [parameter_bridge-1]: sending signal 'SIGINT' to process[parameter_bridge-1]
+[parameter_bridge-1] [INFO] [1794927564.526676829] [rclcpp]: signal_handler(signum=2)
+[ruby $(which gz) sim-4] [INFO] [1794927564.526680717] [rclcpp]: signal_handler(signum=2)
+[static_transform_publisher-8] [INFO] [1794927564.526680171] [rclcpp]: signal_handler(signum=2)
+[static_transform_publisher-7] [INFO] [1794927564.526685716] [rclcpp]: signal_handler(signum=2)
+[convex_plane_decomposition_ros_node-6] [INFO] [1794927564.528773376] [rclcpp]: signal_handler(signum=2)
+[ERROR] [robot_state_publisher-2]: process has died [pid 492375, exit code -2, cmd '/opt/ros/humble/lib/robot_state_publisher/robot_state_publisher --ros-args -r __node:=robot_state_publisher --params-file /tmp/launch_params_9qo9eotx'].
+[elevation_mapping-5] [INFO] [1794927564.538464352] [rclcpp]: signal_handler(signum=2)
+[parameter_bridge-1] [INFO] [1794927564.540752953] [rclcpp]: signal_handler(signum=2)
+[elevation_mapping-5] 
+[elevation_mapping-5] ########################################################################
+[elevation_mapping-5] The benchmarking is computed over 15 iterations. 
+[elevation_mapping-5] Elevation Mapping Benchmarking    : Average time [ms], Max time [ms]
+[elevation_mapping-5] 	addPoint                 	:              5.53,          7.14
+[elevation_mapping-5] 	updateMapLocation        	:              0.04,          0.12
+[elevation_mapping-5] 	postprocess              	:              1.15,          2.31
+[elevation_mapping-5] 	TotalCallback            	:             36.11,         41.90
+[elevation_mapping-5] 
+[ruby $(which gz) sim-4] [INFO] [1794927564.581251215] [controller_manager]: Shutdown request received....
+[ruby $(which gz) sim-4] [INFO] [1794927564.581330050] [controller_manager]: Shutting down all controllers in the controller manager.
+[ruby $(which gz) sim-4] [INFO] [1794927564.581398268] [controller_manager]: Deactivating controller 'joint_state_broadcaster'
+[ruby $(which gz) sim-4] [INFO] [1794927564.581464458] [controller_manager]: Shutting down controller 'joint_state_broadcaster'
+[ruby $(which gz) sim-4] [INFO] [1794927564.581501442] [controller_manager]: Deactivating controller 'imu_sensor_broadcaster'
+[ruby $(which gz) sim-4] [INFO] [1794927564.581518688] [controller_manager]: Shutting down controller 'imu_sensor_broadcaster'
+[ruby $(which gz) sim-4] [INFO] [1794927564.581534846] [controller_manager]: Deactivating controller 'ocs2_quadruped_controller'
+[ruby $(which gz) sim-4] [INFO] [1794927564.581582489] [controller_manager]: Shutting down controller 'ocs2_quadruped_controller'
+[ruby $(which gz) sim-4] [INFO] [1794927564.581651015] [resource_manager]: 'deactivate' hardware 'GazeboSystem' 
+[ruby $(which gz) sim-4] [INFO] [1794927564.581672490] [resource_manager]: Successful 'deactivate' of hardware 'GazeboSystem'
+[ruby $(which gz) sim-4] [INFO] [1794927564.581675538] [resource_manager]: 'shutdown' hardware 'GazeboSystem' 
+[ruby $(which gz) sim-4] [INFO] [1794927564.581678459] [resource_manager]: Successful 'shutdown' of hardware 'GazeboSystem'
+[ruby $(which gz) sim-4] [INFO] [1794927564.581681608] [controller_manager]: Shutting down the controller manager.
+[ruby $(which gz) sim-4] terminate called after throwing an instance of 'std::runtime_error'
+[ruby $(which gz) sim-4]   what():  Node needs to be associated with an executor.
+[INFO] [parameter_bridge-1]: process has finished cleanly [pid 492373]
+[INFO] [elevation_mapping-5]: process has finished cleanly [pid 492381]
+[ruby $(which gz) sim-4] Stack trace (most recent call last):
+[ruby $(which gz) sim-4] #31   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7a387b2a5317, in 
+[ruby $(which gz) sim-4] #30   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7a387b43a30c, in rb_vm_exec
+[ruby $(which gz) sim-4] #29   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7a387b434c96, in 
+[ruby $(which gz) sim-4] #28   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7a387b431fc5, in 
+[ruby $(which gz) sim-4] #27   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7a387b42fc34, in 
+[ruby $(which gz) sim-4] #26   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7a387b03344b, in 
+[ruby $(which gz) sim-4] #25   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7a387b3fd088, in rb_nogvl
+[ruby $(which gz) sim-4] #24   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7a387b032d6b, in 
+[ruby $(which gz) sim-4] #23   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7a387ac9f492, in 
+[ruby $(which gz) sim-4] #22   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7a387aca2e2d, in 
+[ruby $(which gz) sim-4] #21   Object "/usr/lib/x86_64-linux-gnu/libgz-sim8-gz.so.8.9.0", at 0x7a3876ecd7e9, in runServer
+[ruby $(which gz) sim-4] #20   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7a3875d30334, in gz::sim::v8::Server::~Server()
+[ruby $(which gz) sim-4] #19   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7a3875d3fae4, in 
+[ruby $(which gz) sim-4] #18   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7a3875d5eaca, in 
+[ruby $(which gz) sim-4] #17   Object "/lib/x86_64-linux-gnu/libgz-plugin2.so.2", at 0x7a3876ea260c, in gz::plugin::Plugin::~Plugin()
+[ruby $(which gz) sim-4] #16   Object "/lib/x86_64-linux-gnu/libgz-plugin2.so.2", at 0x7a3876ea21f0, in 
+[ruby $(which gz) sim-4] #15   Object "/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/lib/libgz_quadruped_hardware-system.so", at 0x7a383e1c9f4b, in std::_Function_handler<void (void*), gz::plugin::detail::MakeInfo<gz_quadruped_hardware::GazeboSimQuadrupedPlugin, gz::sim::v8::System, gz::sim::v8::ISystemConfigure, gz::sim::v8::ISystemPreUpdate, gz::sim::v8::ISystemPostUpdate>()::{lambda(void*)#2}>::_M_invoke(std::_Any_data const&, void*&&)
+[ruby $(which gz) sim-4] #14   Object "/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/lib/libgz_quadruped_hardware-system.so", at 0x7a383e1d42f0, in std::enable_if<is_invocable_r_v<void, gz::plugin::detail::MakeInfo<gz_quadruped_hardware::GazeboSimQuadrupedPlugin, gz::sim::v8::System, gz::sim::v8::ISystemConfigure, gz::sim::v8::ISystemPreUpdate, gz::sim::v8::ISystemPostUpdate>()::{lambda(void*)#2}&, void*>, void>::type std::__invoke_r<void, gz::plugin::detail::MakeInfo<gz_quadruped_hardware::GazeboSimQuadrupedPlugin, gz::sim::v8::System, gz::sim::v8::ISystemConfigure, gz::sim::v8::ISystemPreUpdate, gz::sim::v8::ISystemPostUpdate>()::{lambda(void*)#2}&, void*>(gz::plugin::detail::MakeInfo<gz_quadruped_hardware::GazeboSimQuadrupedPlugin, gz::sim::v8::System, gz::sim::v8::ISystemConfigure, gz::sim::v8::ISystemPreUpdate, gz::sim::v8::ISystemPostUpdate>()::{lambda(void*)#2}&, void*&&)
+[ruby $(which gz) sim-4] #13   Object "/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/lib/libgz_quadruped_hardware-system.so", at 0x7a383e1dc11d, in void std::__invoke_impl<void, gz::plugin::detail::MakeInfo<gz_quadruped_hardware::GazeboSimQuadrupedPlugin, gz::sim::v8::System, gz::sim::v8::ISystemConfigure, gz::sim::v8::ISystemPreUpdate, gz::sim::v8::ISystemPostUpdate>()::{lambda(void*)#2}&, void*>(std::__invoke_other, gz::plugin::detail::MakeInfo<gz_quadruped_hardware::GazeboSimQuadrupedPlugin, gz::sim::v8::System, gz::sim::v8::ISystemConfigure, gz::sim::v8::ISystemPreUpdate, gz::sim::v8::ISystemPostUpdate>()::{lambda(void*)#2}&, void*&&)
+[ruby $(which gz) sim-4] #12   Object "/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/lib/libgz_quadruped_hardware-system.so", at 0x7a383e1acf3f, in gz::plugin::detail::MakeInfo<gz_quadruped_hardware::GazeboSimQuadrupedPlugin, gz::sim::v8::System, gz::sim::v8::ISystemConfigure, gz::sim::v8::ISystemPreUpdate, gz::sim::v8::ISystemPostUpdate>()::{lambda(void*)#2}::operator()(void*) const
+[ruby $(which gz) sim-4] #11   Object "/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/lib/libgz_quadruped_hardware-system.so", at 0x7a383e193461, in gz_quadruped_hardware::GazeboSimQuadrupedPlugin::~GazeboSimQuadrupedPlugin()
+[ruby $(which gz) sim-4] #10   Object "/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/lib/libgz_quadruped_hardware-system.so", at 0x7a383e1933a3, in gz_quadruped_hardware::GazeboSimQuadrupedPlugin::~GazeboSimQuadrupedPlugin()
+[ruby $(which gz) sim-4] #9    Object "/opt/ros/humble/lib/librclcpp.so", at 0x7a383dd6f618, in 
+[ruby $(which gz) sim-4] #8    Object "/lib/x86_64-linux-gnu/libgcc_s.so.1", at 0x7a3876f1358c, in _Unwind_Resume
+[ruby $(which gz) sim-4] #7    Object "/lib/x86_64-linux-gnu/libgcc_s.so.1", at 0x7a3876f12a98, in 
+[ruby $(which gz) sim-4] #6    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7a3876cb64b8, in __gxx_personality_v0
+[ruby $(which gz) sim-4] #5    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7a3876cb5d48, in 
+[ruby $(which gz) sim-4] #4    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7a3876cb6d9b, in 
+[ruby $(which gz) sim-4] #3    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7a3876ca4f25, in 
+[ruby $(which gz) sim-4] #2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7a387ae287f2, in abort
+[ruby $(which gz) sim-4] #1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7a387ae42405, in raise
+[ruby $(which gz) sim-4] #0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7a387ae9691c, in pthread_kill
+[ruby $(which gz) sim-4] Aborted (Signal sent by tkill() 492392 1000)
+[ruby $(which gz) sim-4] Aborted (core dumped)
+[ERROR] [ruby $(which gz) sim-4]: process has died [pid 492379, exit code -2, cmd 'ruby $(which gz) sim  -r -v 2 -s /home/lee/Code/quadruped_control_ws/install/gz_quadruped_playground/share/gz_quadruped_playground/worlds/stair10cm.sdf --force-version 8'].
+[INFO] [launch]: process[ruby $(which gz) sim-4] was required: shutting down launched system
+[ERROR] [convex_plane_decomposition_ros_node-6]: process[convex_plane_decomposition_ros_node-6] failed to terminate '5' seconds after receiving 'SIGINT', escalating to 'SIGTERM'
+[INFO] [convex_plane_decomposition_ros_node-6]: sending signal 'SIGTERM' to process[convex_plane_decomposition_ros_node-6]
+[convex_plane_decomposition_ros_node-6] [INFO] [1794927569.538615941] [rclcpp]: signal_handler(signum=15)

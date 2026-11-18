@@ -15,6 +15,8 @@
 #include <ocs2_legged_robot_ros/visualization/LeggedRobotVisualizer.h>
 #include <ocs2_quadruped_controller/perceptive/visualize/FootPlacementVisualization.h>
 #include <ocs2_quadruped_controller/perceptive/visualize/SphereVisualization.h>
+#include <ocs2_quadruped_controller/perceptive/visualize/TerrainCorridorVisualization.h>
+#include <std_msgs/msg/float64_multi_array.hpp>
 
 #include "TargetManager.h"
 
@@ -73,6 +75,8 @@ namespace ocs2::legged_robot
 
         std::unique_ptr<FootPlacementVisualization> footPlacementVisualizationPtr_;
         std::unique_ptr<SphereVisualization> sphereVisualizationPtr_;
+        std::unique_ptr<TerrainCorridorVisualization> terrainCorridorVisualizationPtr_;
+        rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr swingReferencePublisher_;
 
         std::vector<std::string> joint_names_;
         std::vector<std::string> feet_names_;
