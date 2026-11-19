@@ -13,6 +13,15 @@ from run_trial import stop_trial, trial_processes
 
 
 class TrialLifecycleTests(unittest.TestCase):
+    def test_invalid_domain_prevents_launch(self):
+        with patch.object(sys, 'argv', ['run_trial.py', '--scenario', 'trot', '--domain', '233',
+                                       '--output', '/tmp/not_started.json']), \
+                patch.object(run_trial.subprocess, 'Popen') as spawn, patch('sys.stderr'):
+            with self.assertRaises(SystemExit) as error:
+                run_trial.main()
+            self.assertEqual(error.exception.code, 2)
+            spawn.assert_not_called()
+
     def test_low_memory_prevents_launch(self):
         with patch.object(sys, 'argv', ['run_trial.py', '--scenario', 'trot', '--output', '/tmp/not_started.json']), \
                 patch.object(run_trial, 'available_memory_bytes', return_value=0), \

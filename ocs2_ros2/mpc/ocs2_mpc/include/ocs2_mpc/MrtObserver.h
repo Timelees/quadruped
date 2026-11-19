@@ -74,6 +74,12 @@ namespace ocs2 {
         virtual void modifyActiveSolution(const CommandData &command, PrimalSolution &primalSolution) {
         }
 
+        /** Called under the buffer mutex BEFORE any active object is changed.
+         * A veto discards this buffered package, retaining the complete active policy.
+         * Implementations must not commit observer state here: another observer may veto.
+         */
+        virtual bool acceptBufferedSolution(const CommandData&, const PrimalSolution&) { return true; }
+
         /**
          * This method is called by the MRT when a new policy is loaded into the buffer.
          * It allows the user to modify the buffered solution before it can be swapped during the updatePolicy call.

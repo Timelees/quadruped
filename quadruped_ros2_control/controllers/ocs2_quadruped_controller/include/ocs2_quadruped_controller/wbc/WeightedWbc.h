@@ -23,6 +23,7 @@ namespace ocs2::legged_robot
 
     private:
         scalar_t safetyContactForceDeviation_ = 5.0; // per-component reserve around baseline support [N]
+        scalar_t safetyAccelerationDeviation_ = 20.0; // per-axis reserve around feasible baseline foot acceleration [m/s²]
         scalar_t weightSwingLeg_;       // 摆动腿任务的权重，控制摆动腿运动的优先级
         scalar_t weightBaseAccel_;      // 基座加速度任务的权重，控制基座运动的优先级
         scalar_t weightContactForce_;   // 接触力任务的权重，控制足端力的优化优先级

@@ -163,8 +163,15 @@ target_link_libraries(swing_replan_selfcheck
         ${PROJECT_NAME}
         Eigen3::Eigen)
 
+add_executable(swing_update_experiment test/swing_update_experiment.cpp)
+target_link_libraries(swing_update_experiment ${PROJECT_NAME} Eigen3::Eigen)
+
+add_executable(execution_contract_selfcheck test/execution_contract_selfcheck.cpp)
+target_link_libraries(execution_contract_selfcheck ${PROJECT_NAME} Eigen3::Eigen)
+
 if (BUILD_TESTING)
     add_test(NAME swing_replan_selfcheck COMMAND swing_replan_selfcheck)
+    add_test(NAME execution_contract_selfcheck COMMAND execution_contract_selfcheck)
     find_package(ament_lint_auto REQUIRED)
     # the following line skips the linter which checks for copyrights
     # comment the line when a copyright and license is added to all source files

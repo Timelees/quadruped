@@ -35,11 +35,11 @@ struct SwingTrajectoryQpConfig {
     double calfLength = 0.09;
     double calfSlope = 0.6;
     int calfSamples = 3;
-    // Executability rows on the correction curve. Without them the QP happily
-    // returns corrections the NMPC/WBC chain cannot track.
+    // Position correction box, and physical per-axis TOTAL trajectory derivatives.
     double maxCorrection = 0.10;
     double maxVelocity = 2.0;
     double maxAcceleration = 80.0;
+    double maxJerk = 12000.0;
     double hessianRegularization = 1e-8;
     int qpMaxWorkingSetRecalculations = 200;
     std::string elevationLayer = "elevation";
@@ -67,6 +67,7 @@ class SwingTrajectoryQpOptimizer {
         TerrainSafetyCorridor corridor;
         bool corridorCertified = false;  // all six hull vertices, non-contact interval only
         double corridorMaxViolation = std::numeric_limits<double>::infinity();
+        Eigen::Matrix3d derivativeBounds = Eigen::Matrix3d::Constant(std::numeric_limits<double>::quiet_NaN());
         bool valid() const { return solved && static_cast<bool>(bspline); }
     };
     using HeightBounds = std::function<Eigen::Vector2d(double, const Eigen::Vector3d&)>;

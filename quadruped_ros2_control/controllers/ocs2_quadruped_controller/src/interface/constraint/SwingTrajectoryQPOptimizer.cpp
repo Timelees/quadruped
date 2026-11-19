@@ -39,39 +39,27 @@ double binomial(int n, int k) {
     }
     return value;
 }
-// B-spline derivative control points are linear in the position control
-// points, and the derivative curve lies in their convex hull. Bounding each of
-// them therefore bounds the whole swing. The bound is applied to the correction
-// (solution - reference), so the reference's own motion is never clipped.
-void appendCorrectionDerivativeRows(const Eigen::VectorXd &knots, int derivativeOrder, double limit,
-                                    const Eigen::VectorXd &refControlZ,
-                                    std::vector<Eigen::RowVectorXd> &rows,
-                                    std::vector<double> &bounds) {
-    const int n = static_cast<int>(knots.size()) - 6;
-    std::vector<Eigen::VectorXd> coefficients(n);
-    for (int i = 0; i < n; ++i) {
-        coefficients[i] = Eigen::VectorXd::Unit(n, i);
-    }
-    Eigen::VectorXd currentKnots = knots;
-    int degree = 5;
-    for (int order = 0; order < derivativeOrder; ++order) {
-        std::vector<Eigen::VectorXd> next(coefficients.size() - 1);
-        for (size_t i = 0; i + 1 < coefficients.size(); ++i) {
-            const double span = currentKnots[static_cast<int>(i) + degree + 1] -
-                                currentKnots[static_cast<int>(i) + 1];
-            next[i] = degree * (coefficients[i + 1] - coefficients[i]) / span;
+// Bernstein derivative rows constrain the total curve in physical time.
+void appendDerivativeRows(const BSpline& curve, double duration,
+                          const Eigen::Vector3d& limits,
+                          std::vector<Eigen::RowVectorXd>& rows, std::vector<double>& bounds) {
+    for (const auto& span : ocs2::legged_robot::extractPolynomialSegments(curve)) {
+        const auto halves = span.bisect();
+        for (const auto& piece : {halves.first, halves.second}) {
+            Eigen::MatrixXd derivative = piece.bezierMap;
+            for (int order=1; order<=3; ++order) {
+                derivative = ((6-order)/(duration*(piece.end-piece.start)) *
+                    (derivative.bottomRows(derivative.rows()-1)-derivative.topRows(derivative.rows()-1))).eval();
+                for (int i=0; i<derivative.rows(); ++i) {
+                    // Scale short-span jerk rows before the condensed QP.
+                    const double scale = std::max(1.0, derivative.row(i).norm());
+                    rows.push_back(derivative.row(i)/scale);
+                    bounds.push_back(-limits[order-1]/scale);
+                    rows.push_back(-derivative.row(i)/scale);
+                    bounds.push_back(-limits[order-1]/scale);
+                }
+            }
         }
-        currentKnots = currentKnots.segment(1, currentKnots.size() - 2);
-        coefficients = std::move(next);
-        --degree;
-    }
-    for (const auto &coefficient : coefficients) {
-        const Eigen::RowVectorXd row = coefficient.transpose();
-        const double reference = row.dot(refControlZ);
-        rows.push_back(row);
-        bounds.push_back(reference - limit);
-        rows.push_back(-row);
-        bounds.push_back(-reference - limit);
     }
 }
 // C2 contact-compatible envelope: maximum*smoothstep(2*min(s,1-s)).
@@ -153,6 +141,8 @@ SwingTrajectoryQpOptimizer::SwingTrajectoryQpOptimizer(SwingTrajectoryQpConfig c
             throw std::invalid_argument("Swing weights/geometry must be finite and nonnegative.");
         }
     }
+    for (double limit : {config_.maxVelocity, config_.maxAcceleration, config_.maxJerk})
+        if (!std::isfinite(limit) || limit <= 0.0) throw std::invalid_argument("Invalid swing derivative bound.");
     if (config_.hessianRegularization == 0) {
         throw std::invalid_argument("Positive QP regularization is required.");
     }
@@ -577,16 +567,8 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
                 }
             }
         }
-        // Executability: keep the correction inside a box and bound its rate
-        // through the derivative control points. Without them the QP will
-        // happily return a 0.5 m foot lift on a 0.3 s swing, which the NMPC/WBC
-        // chain cannot track and which shows up downstream as a collision or a
-        // body upset. The box itself is a variable bound, not a row: it keeps
-        // every subset QP bounded. Only the first derivative is bounded: the
-        // second one over-constrains valid corrections (measured median
-        // shortfall 13.5 in s-units on the 60 mm obstacle).
-        const Eigen::VectorXd knots = curve.getKnots();
-        appendCorrectionDerivativeRows(knots, 1, config_.maxVelocity * duration, z, rows, bounds);
+        appendDerivativeRows(curve, duration,
+            Eigen::Vector3d(config_.maxVelocity, config_.maxAcceleration, config_.maxJerk), rows, bounds);
         if (workspace) {
             // guardrail: sampled IK sections remain a kinematic approximation, not a
             // continuous certificate.
@@ -690,6 +672,16 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
         result.corridorCertified = true;
     }
     curve.setControlPoints(x, y, solution);
+    auto physicalCurve = curve;
+    physicalCurve.setKnots(physicalCurve.generateKnots(n, start, end));
+    result.derivativeBounds = swingDerivativeBounds(physicalCurve);
+    if (!result.derivativeBounds.allFinite() ||
+        result.derivativeBounds.row(0).maxCoeff() > config_.maxVelocity + 1e-7 ||
+        result.derivativeBounds.row(1).maxCoeff() > config_.maxAcceleration + 1e-7 ||
+        result.derivativeBounds.row(2).maxCoeff() > config_.maxJerk + 1e-7) {
+        result.corridorCertified = false;
+        return result;
+    }
     // Certify actual output independently of QP rows; certifier uses the original
     // obstacle prisms.
     if (config_.verifyOutput) {

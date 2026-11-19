@@ -22,6 +22,7 @@ struct SwingReplanConfig {
     double correctionDuration = 0.08;
     // Predicted latency between the update request and the actual activation.
     double activationDelay = 0.0;
+    double maxActivationDelay = 0.10; // actual reference age accepted at MRT [s]
     // State deviations that are rejected before building anything.
     double maxPositionDeviation = 0.06;
     double maxVelocityDeviation = 0.40;

@@ -105,7 +105,16 @@ def main():
     p.add_argument('--safety-max-correction', type=float, help='Per-axis safety acceleration correction budget [m/s²]')
     p.add_argument('--safety-contact-force-deviation', type=float,
                    help='Per-component contact force deviation from baseline WBC [N]')
+    p.add_argument('--safety-tube-rate', type=float, help='Tube barrier rate for an isolated tuning trial')
+    p.add_argument('--safety-extra-sample-rate', type=float, help='Extra tube sample reserve beyond exact hold constraints')
+    p.add_argument('--safety-disturbance-bound', type=float, help='Empirical acceleration disturbance budget [m/s²]')
+    p.add_argument('--safety-hocbf-gain', type=float, help='Set both HOCBF gains in an isolated calibration trial')
+    p.add_argument('--wrench-force', type=float, default=0., help='Downward force on FL knee [N], isolated Gazebo wrench plugin')
+    p.add_argument('--wrench-duration', type=float, default=.06, help='Requested pulse duration in simulation seconds')
     args = p.parse_args()
+    args.output = args.output.with_suffix('.json')
+    if not 0 <= args.domain <= 232:
+        p.error('--domain must be in [0,232] for the default Fast DDS port mapping')
     # Keep headroom for the desktop; do not wait until swap is exhausted.
     memory_reserve = 1024 * 1024 * 1024
     if available_memory_bytes() < memory_reserve:
@@ -131,6 +140,23 @@ def main():
         if not math.isfinite(args.safety_contact_force_deviation) or args.safety_contact_force_deviation <= 0:
             p.error('--safety-contact-force-deviation must be positive and finite')
         settings['safetyContactForceDeviation'] = str(args.safety_contact_force_deviation)
+    if args.safety_tube_rate is not None:
+        if not math.isfinite(args.safety_tube_rate) or args.safety_tube_rate <= 0:
+            p.error('--safety-tube-rate must be positive and finite')
+        settings['safetyFilterTubeRate'] = str(args.safety_tube_rate)
+    if args.safety_extra_sample_rate is not None:
+        if not math.isfinite(args.safety_extra_sample_rate) or args.safety_extra_sample_rate < 0:
+            p.error('--safety-extra-sample-rate must be nonnegative and finite')
+        settings['safetyFilterTubeSampleRate'] = str(args.safety_extra_sample_rate)
+    if args.safety_disturbance_bound is not None:
+        if not math.isfinite(args.safety_disturbance_bound) or args.safety_disturbance_bound < 0:
+            p.error('--safety-disturbance-bound must be nonnegative and finite')
+        settings['safetyFilterDisturbanceBound'] = str(args.safety_disturbance_bound)
+    if args.safety_hocbf_gain is not None:
+        if not math.isfinite(args.safety_hocbf_gain) or args.safety_hocbf_gain <= 0:
+            p.error('--safety-hocbf-gain must be positive and finite')
+        for key in ('safetyFilterHocbfGain1', 'safetyFilterHocbfGain2'):
+            settings[key] = str(args.safety_hocbf_gain)
     config = override_task(env, description, args.output, settings)
     for name in ['task.info', 'gait.info', 'reference.info']:
         args.output.with_suffix('.'+name).write_text((config/name).read_text())
@@ -146,23 +172,38 @@ def main():
                 controller/'src/wbc/WeightedWbc.cpp', controller/'src/wbc/WbcBase.cpp',
                 controller/'src/FSM/StateOCS2.cpp', controller/'src/interface/constraint/SwingTrajectoryPlanner.cpp',
                 controller/'src/interface/constraint/SwingOnlineReplanner.cpp',
-                controller/'src/interface/constraint/SwingSafetyFilter.cpp']
+                controller/'src/interface/constraint/SwingSafetyFilter.cpp',
+                controller/'src/perceptive/synchronize/PlanarTerrainReceiver.cpp',
+                workspace/'src/ocs2_ros2/mpc/ocs2_mpc/src/MRT_BASE.cpp',
+                workspace/'src/ocs2_ros2/submodules/plane_segmentation_ros2/convex_plane_decomposition/src/GridMapPreprocessing.cpp']
     manifest = {str(path.resolve().relative_to(workspace)): hashlib.sha256(path.read_bytes()).hexdigest()
                 for path in sources}
     manifest['trial.task.info'] = hashlib.sha256((config/'task.info').read_bytes()).hexdigest()
     binary = workspace/'install/ocs2_quadruped_controller/lib/ocs2_quadruped_controller/libocs2_quadruped_controller.so'
     if binary.is_file():
         manifest[str(binary.relative_to(workspace))] = hashlib.sha256(binary.read_bytes()).hexdigest()
+    terrain_node = workspace/'install/convex_plane_decomposition_ros/lib/convex_plane_decomposition_ros/convex_plane_decomposition_ros_node'
+    if terrain_node.is_file():
+        manifest[str(terrain_node.relative_to(workspace))] = hashlib.sha256(terrain_node.read_bytes()).hexdigest()
     world = 'stair10cm'
     world_file = workspace/'src/quadruped_ros2_control/libraries/gz_quadruped_playground/worlds/stair10cm.sdf'
-    if args.obstacle_height is not None:
-        if not 0.0 < args.obstacle_height <= .3:
+    if args.obstacle_height is not None or args.wrench_force:
+        if args.obstacle_height is not None and not 0.0 < args.obstacle_height <= .3:
             p.error('--obstacle-height must be in (0, .3] metres')
         tree = ET.parse(world_file)
         obstacle = tree.getroot().find(".//model[@name='thin_obstacle']")
-        obstacle.find('pose').text = f'-1.2 0 {args.obstacle_height/2} 0 0 0'
-        for size in obstacle.findall('.//geometry/box/size'):
-            size.text = f'0.03 1.0 {args.obstacle_height}'
+        if args.obstacle_height is not None:
+            obstacle.find('pose').text = f'-1.2 0 {args.obstacle_height/2} 0 0 0'
+            for size in obstacle.findall('.//geometry/box/size'):
+                size.text = f'0.03 1.0 {args.obstacle_height}'
+        if args.wrench_force:
+            if not 0 < args.wrench_force <= 10 or not .005 <= args.wrench_duration <= .2:
+                p.error('Force must be in (0,10] N and duration in [0.005,0.2] s')
+            # Explicit plugins preserve the default server systems in this copy.
+            world_element = tree.getroot().find('world')
+            for filename, name in [('physics','Physics'), ('user-commands','UserCommands'),
+                                   ('scene-broadcaster','SceneBroadcaster'), ('apply-link-wrench','ApplyLinkWrench')]:
+                ET.SubElement(world_element, 'plugin', filename=f'gz-sim-{filename}-system', name=f'gz::sim::systems::{name}')
         destination = args.output.resolve().with_suffix('.world.sdf')
         tree.write(destination, encoding='unicode')
         world = str(destination.with_suffix(''))
@@ -172,6 +213,7 @@ def main():
         'pose': [float(v) for v in obstacle.find('pose').text.split()],
         'collision_box_size': [float(v) for v in obstacle.find('.//collision/geometry/box/size').text.split()],
     }
+    manifest['trial.wrench'] = {'force_z_N': -args.wrench_force, 'requested_duration_s': args.wrench_duration, 'link': 'robot::FL_knee'}
     manifest['trial.world.sdf'] = hashlib.sha256(world_file.read_bytes()).hexdigest()
     manifest['trial.spawn'] = {'x': args.x, 'y': args.y, 'yaw': args.yaw}
     args.output.with_suffix('.manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')
@@ -195,7 +237,9 @@ def main():
             resource_limited = False
             probe = subprocess.Popen([sys.executable, str(Path(__file__).with_name('scenario_probe.py')),
                                     '--scenario', args.scenario, '--output', str(args.output),
-                                    '--speed', str(args.speed), '--sim-seconds', str(args.sim_seconds)], env=env)
+                                    '--speed', str(args.speed), '--sim-seconds', str(args.sim_seconds),
+                                    '--record-gz-poses', '--wrench-force', str(args.wrench_force),
+                                    '--wrench-duration', str(args.wrench_duration)], env=env)
             while probe.poll() is None and launch.poll() is None:
                 if available_memory_bytes() < memory_reserve:
                     resource_limited = True
@@ -237,6 +281,16 @@ def main():
                                         velocity_error=float(v_error)))
                 args.output.with_suffix('.replans.json').write_text(
                     json.dumps({'decisions': records, 'applied': applies}, indent=2)+'\n')
+                activation_checks = []
+                for match in re.finditer(
+                        r'Swing activation accepted=(\d+) leg=(\d+) activation=(\S+) now=(\S+) delay=(\S+) p_error=(\S+) v_error=(\S+) reason=(\S+)', trial_log):
+                    accepted, leg, activation, now, delay, position, velocity, reason = match.groups()
+                    activation_checks.append(dict(leg_pass=bool(int(accepted)), leg=int(leg), activation=float(activation),
+                        actual_time=float(now), delay_s=float(delay), position_error_m=float(position),
+                        velocity_error_mps=float(velocity), reason=reason))
+                args.output.with_suffix('.activation.json').write_text(json.dumps(activation_checks, indent=2)+'\n')
+                result['activation_leg_checks'] = len(activation_checks)
+                result['activation_leg_rejections'] = sum(not row['leg_pass'] for row in activation_checks)
                 result['replan_logged_decisions'] = len(records)
                 result['replan_applied'] = len(applies)
                 result['obstacle_height'] = args.obstacle_height

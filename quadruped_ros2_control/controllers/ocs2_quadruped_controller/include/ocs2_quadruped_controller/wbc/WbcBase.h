@@ -35,6 +35,10 @@ namespace ocs2::legged_robot
 
         // Columns are measured p/v and MPC p/v, in world coordinates, per leg.
         const Eigen::Matrix<scalar_t, 12, 4>& footTracking() const { return foot_tracking_; }
+        Eigen::Matrix<scalar_t, 6, 4> measureFeet(const vector_t& rbdStateMeasured);
+        struct SwingReference { vector3_t position, velocity, acceleration; };
+        using SwingReferenceCallback = std::function<bool(size_t, SwingReference&)>;
+        void setSwingReferenceCallback(SwingReferenceCallback callback) { swing_reference_callback_ = std::move(callback); }
         bool solutionValid() const { return solution_valid_; }
         int solverStatus() const { return solver_status_; }
         int solverIterations() const { return solver_iterations_; }
@@ -44,6 +48,10 @@ namespace ocs2::legged_robot
         void setSwingSafetyCallback(SwingSafetyCallback callback) { swing_safety_callback_ = std::move(callback); }
         const auto& safetyResults() const { return safety_results_; }
         const auto& safetyResiduals() const { return safety_residuals_; }
+        const auto& commandedFootAcceleration() const { return commanded_foot_acceleration_; }
+        const auto& referenceFootAcceleration() const { return reference_foot_acceleration_; }
+        const auto& nominalFootAcceleration() const { return nominal_foot_acceleration_; }
+        const auto& baselineFootAcceleration() const { return baseline_foot_acceleration_; }
 
     protected:
         void updateMeasured(const vector_t& rbdStateMeasured);
@@ -81,10 +89,13 @@ namespace ocs2::legged_robot
         size_t num_contacts_{};
         Eigen::Matrix<scalar_t, 12, 4> foot_tracking_ = Eigen::Matrix<scalar_t, 12, 4>::Zero();
         SwingSafetyCallback swing_safety_callback_;
+        SwingReferenceCallback swing_reference_callback_;
         Task swing_safety_constraints_;
         std::array<SafetyFilterResult, 4> safety_results_;
         std::array<double, 4> safety_residuals_;
         vector_t nominal_swing_target_;
+        Eigen::Matrix<scalar_t,3,4> commanded_foot_acceleration_, reference_foot_acceleration_, nominal_foot_acceleration_,
+            baseline_foot_acceleration_;
         bool solution_valid_ = true;
         int solver_status_ = 0, solver_iterations_ = 0;
         scalar_t constraint_violation_ = 0.0;

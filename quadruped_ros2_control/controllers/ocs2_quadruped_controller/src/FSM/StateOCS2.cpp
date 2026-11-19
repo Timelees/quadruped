@@ -13,20 +13,89 @@
 
 namespace ocs2::legged_robot
 {
-    // Use the same MRT buffer swap for a policy and its swing references.
-    // The active snapshot is subsequently read only by the control thread.
+    // The admission hook runs under MRT's buffer mutex, before the policy swap.
     class StateOCS2::SwingPolicyObserver final : public MrtObserver
     {
     public:
-        explicit SwingPolicyObserver(const std::shared_ptr<SwingTrajectoryPlanner>& planner) : planner_(planner) {}
+        SwingPolicyObserver(StateOCS2& owner, std::shared_ptr<SwingTrajectoryPlanner> planner)
+            : owner_(owner), planner_(std::move(planner)) {}
         void modifyBufferedSolution(const CommandData&, PrimalSolution&) override {
             buffered_ = planner_->executionSwings();
         }
-        void modifyActiveSolution(const CommandData&, PrimalSolution&) override { active_ = buffered_; }
-        std::shared_ptr<const SwingTrajectoryPlanner::ExecutionSwings> active() const { return active_; }
+        bool acceptBufferedSolution(const CommandData&, const PrimalSolution& policy) override {
+            checked_ = buffered_;
+            if (!active_ || !buffered_) return true; // initial stand policy has no executing update
+            const double now=owner_.ctrl_component_->observation_.time;
+            if (policy.timeTrajectory_.empty() || now > policy.timeTrajectory_.back()) return false;
+            const auto map=planner_->certificationTerrain();
+            std::shared_ptr<SwingTrajectoryPlanner::ExecutionSwings> checked;
+            Eigen::Matrix<scalar_t,6,4> measured;
+            bool measuredReady=false;
+            for (size_t leg=0; leg<4; ++leg) {
+                for (size_t i=0; i<(*buffered_)[leg].size(); ++i) {
+                    const auto& swing=(*buffered_)[leg][i];
+                    const double activation=swing.reference.getKnots()[0];
+                    if (now<swing.start || now>=swing.end) continue;
+                    const SwingTrajectoryPlanner::ExecutionSwing* previous=nullptr;
+                    for (const auto& old:(*active_)[leg])
+                        if (std::abs(old.start-swing.start)<1e-8 && std::abs(old.end-swing.end)<1e-8) previous=&old;
+                    if (previous && previous->reference.getControlPoints().rows()==swing.reference.getControlPoints().rows() &&
+                        (previous->reference.getKnots()-swing.reference.getKnots()).norm()<1e-10 &&
+                        (previous->reference.getControlPoints()-swing.reference.getControlPoints()).norm()<1e-10) continue;
+                    // A package generated before the last commit can still carry
+                    // the original spline. Reverting an executing update is a
+                    // reference change too, and must pass the same actual gate.
+                    if (!previous && activation<=swing.start+1e-9) continue;
+                    if (!measuredReady) { measured=owner_.wbc_->measureFeet(owner_.ctrl_component_->measured_rbd_state_); measuredReady=true; }
+                    SwingTrajectoryPlanner::ActivationCheck verdict;
+                    if (map) verdict=planner_->checkActivation(swing,previous,now,period_,
+                        measured.col(leg).head<3>(),measured.col(leg).tail<3>(),*map);
+                    else verdict.reason="activation_map_missing";
+                    RCLCPP_INFO(owner_.node_->get_logger(),
+                        "Swing activation accepted=%d leg=%zu activation=%.9f now=%.9f delay=%.6f p_error=%.6g v_error=%.6g reason=%s",
+                        verdict.accepted,leg,activation,now,verdict.delay,verdict.positionError,verdict.velocityError,verdict.reason.c_str());
+                    if (!verdict.accepted) {
+                        planner_->rejectExecutionUpdate(leg,swing.end);
+                        ++rejected_;
+                        return false;
+                    }
+                    if (!checked) checked=std::make_shared<SwingTrajectoryPlanner::ExecutionSwings>(*buffered_);
+                    (*checked)[leg][i].corridor=std::move(verdict.corridor);
+                }
+            }
+            if (checked) checked_=std::move(checked);
+            ++accepted_;
+            return true;
+        }
+        void modifyActiveSolution(const CommandData&, PrimalSolution&) override {
+            active_=checked_;
+            planner_->setActiveExecutionSwings(active_);
+            lastMap_.reset();
+        }
+        void refresh(double period) {
+            period_=period;
+            const auto map=planner_->certificationTerrain();
+            if (!active_ || !map || map==lastMap_) return;
+            const double now=owner_.ctrl_component_->observation_.time;
+            auto refreshed=std::make_shared<SwingTrajectoryPlanner::ExecutionSwings>(*active_);
+            for (auto& leg:*refreshed) for (auto& swing:leg) {
+                if (now<swing.start || now>=swing.end) continue;
+                swing.corridor=planner_->certifyReference(swing.reference,swing.start,swing.end,now,*map);
+            }
+            active_=std::move(refreshed);
+            planner_->setActiveExecutionSwings(active_);
+            lastMap_=map;
+        }
+        auto active() const { return active_; }
+        size_t accepted() const { return accepted_; }
+        size_t rejected() const { return rejected_; }
     private:
+        StateOCS2& owner_;
         std::shared_ptr<SwingTrajectoryPlanner> planner_;
-        std::shared_ptr<const SwingTrajectoryPlanner::ExecutionSwings> buffered_, active_;
+        std::shared_ptr<const SwingTrajectoryPlanner::ExecutionSwings> active_, buffered_, checked_;
+        std::shared_ptr<const SwingTrajectoryPlanner::TerrainSnapshot> lastMap_;
+        double period_=0.005;
+        size_t accepted_=0,rejected_=0;
     };
 
     StateOCS2::StateOCS2(CtrlInterfaces& ctrl_interfaces,
@@ -65,7 +134,7 @@ namespace ocs2::legged_robot
                 safety_filter_ = std::make_unique<SwingSafetyFilter>(config.safetyFilterConfig);
             }
             if (config.safetyFilterConfig.enabled || config.replanConfig.enabled) {
-                swing_policy_observer_ = std::make_shared<SwingPolicyObserver>(swing_planner_);
+                swing_policy_observer_ = std::make_shared<SwingPolicyObserver>(*this, swing_planner_);
                 ctrl_component_->mpc_mrt_interface_->addMrtObserver(swing_policy_observer_);
             }
         }
@@ -77,9 +146,22 @@ namespace ocs2::legged_robot
     void StateOCS2::applySafetyFilter(double period)
     {
         wbc_->setSwingSafetyCallback({});
+        wbc_->setSwingReferenceCallback({});
         if (!safety_filter_ || !safety_filter_->config().enabled) return;
         const auto snapshot = swing_policy_observer_->active();
         const double now = ctrl_component_->observation_.time;
+        wbc_->setSwingReferenceCallback([snapshot,now](size_t leg,WbcBase::SwingReference& result) {
+            if (!snapshot) return false;
+            for (const auto& swing:(*snapshot)[leg]) {
+                if (!swing.corridor.valid || now<swing.start || now>=swing.end ||
+                    now<swing.reference.getKnots()[0] || now>swing.corridor.mapTiming.validUntil) continue;
+                result.position=swing.reference.getPosition(now)+swing.corridor.footRadius*vector3_t::UnitZ();
+                result.velocity=swing.reference.getVelocity(now);
+                result.acceleration=swing.reference.getAcceleration(now);
+                return true;
+            }
+            return false;
+        });
         wbc_->setSwingSafetyCallback([this, snapshot, now, period](size_t leg,
                 const vector3_t& position, const vector3_t& velocity, const vector3_t& nominal) {
             SafetyFilterResult result;
@@ -96,6 +178,7 @@ namespace ocs2::legged_robot
                 state.positionError = position - desired;
                 state.velocityError = velocity - swing.reference.getVelocity(now);
                 state.referenceAcceleration = swing.reference.getAcceleration(now);
+                state.reference = &swing.reference; state.referenceTime=now;
                 result = safety_filter_->filter(swing.corridor, state, nominal,
                     (now - swing.start) / (swing.end - swing.start), period, swing.end - now);
                 if (result.failed()) {
@@ -124,8 +207,11 @@ namespace ocs2::legged_robot
             return;
         }
 
-        // Load the latest MPC policy
+        // Revalidate the old reference on the newest immutable synchronized map.
+        // Policy, references and observer state change only after a successful gate.
+        if (swing_policy_observer_) swing_policy_observer_->refresh(period.seconds());
         ctrl_component_->mpc_mrt_interface_->updatePolicy();
+        if (swing_policy_observer_) swing_policy_observer_->refresh(period.seconds());
 
         // Evaluate the current policy
         size_t planned_mode = 0; // The mode that is active at the time the policy is evaluated at.
@@ -185,7 +271,7 @@ namespace ocs2::legged_robot
                                                                 getCentroidalModelInfo());
 
         if (diagnostics_pub_->get_subscription_count() > 0 &&
-            ctrl_component_->observation_.time - last_diagnostics_time_ >= 0.01) {
+            ctrl_component_->observation_.time - last_diagnostics_time_ >= 0.004) {
             last_diagnostics_time_ = ctrl_component_->observation_.time;
             std_msgs::msg::Float64MultiArray msg;
             // [time, mode, QP status, nWSR, violation, valid, tau(12), F(12), feet(4*12)].
@@ -208,6 +294,14 @@ namespace ocs2::legged_robot
                     static_cast<double>(result.tubeStatus)});
             }
             msg.data.push_back(wbc_timer_.getLastIntervalInMilliseconds());
+            // Append-only schema: the original 113 entries retain their indices.
+            for (const auto* values : {&wbc_->commandedFootAcceleration(), &wbc_->referenceFootAcceleration(),
+                                       &wbc_->nominalFootAcceleration()})
+                msg.data.insert(msg.data.end(), values->data(), values->data()+values->size());
+            msg.data.push_back(swing_policy_observer_ ? swing_policy_observer_->accepted() : 0);
+            msg.data.push_back(swing_policy_observer_ ? swing_policy_observer_->rejected() : 0);
+            const auto& baselineAcceleration = wbc_->baselineFootAcceleration();
+            msg.data.insert(msg.data.end(), baselineAcceleration.data(), baselineAcceleration.data() + baselineAcceleration.size());
             diagnostics_pub_->publish(msg);
         }
 

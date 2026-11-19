@@ -143,6 +143,12 @@ namespace ocs2 {
         if (lock.owns_lock()) {
             mrtTrylockWarningCount_ = 0;
             if (newPolicyInBuffer_) {
+                for (const auto& observer : observerPtrArray_) {
+                    if (observer && !observer->acceptBufferedSolution(*bufferCommandPtr_, *bufferPrimalSolutionPtr_)) {
+                        newPolicyInBuffer_ = false;
+                        return false;
+                    }
+                }
                 // update the active solution from buffer
                 activeCommandPtr_.swap(bufferCommandPtr_);
                 activePrimalSolutionPtr_.swap(bufferPrimalSolutionPtr_);

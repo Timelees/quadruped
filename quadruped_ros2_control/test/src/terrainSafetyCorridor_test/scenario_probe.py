@@ -38,6 +38,9 @@ def main():
     p.add_argument('--sim-seconds', type=float, default=100)
     p.add_argument('--wall-seconds', type=float, default=600)
     p.add_argument('--target', type=float, help='Base target: stairs x=4.95, platform y=4.0; obstacle uses the far side')
+    p.add_argument('--record-gz-poses', action='store_true')
+    p.add_argument('--wrench-force', type=float, default=0.)
+    p.add_argument('--wrench-duration', type=float, default=.06)
     args = p.parse_args()
     longitudinal = args.scenario in ('stairs', 'obstacle')
     targets = {'stairs': 4.95, 'platform': 4.0, 'obstacle': -.35, 'trench': 5.85, 'piles': 8.15}
@@ -73,7 +76,7 @@ def main():
         rows.append(latest + [phase])
 
     def diag(m):
-        if len(m.data) in (78, 83, 112, 113):
+        if len(m.data) in (78, 83, 112, 113, 151, 163):
             wbc.append(list(m.data))
 
     def reference(m):
@@ -114,6 +117,33 @@ def main():
     node.create_subscription(GridMap, '/elevation_map_raw', maps, 1)
     node.create_subscription(Float64MultiArray, '/swing_reference', reference, 10)
     node.create_subscription(MarkerArray, '/terrain_safety_corridor', markers, 1)
+    gz_poses, wrench_events = [], []
+    wrench_link_id = None
+    wrench_start = None
+    wrench_finished = False
+    transport = None
+    if args.record_gz_poses or args.wrench_force:
+        from gz.transport13 import Node as TransportNode
+        from gz.msgs10.pose_v_pb2 import Pose_V
+        from gz.msgs10.entity_wrench_pb2 import EntityWrench
+        from gz.msgs10.entity_pb2 import Entity
+        transport = TransportNode()
+        def poses(message):
+            nonlocal wrench_link_id
+            stamp = message.header.stamp.sec + message.header.stamp.nsec*1e-9
+            for pose in message.pose:
+                if any(token in pose.name for token in ('robot', 'body', 'FL_', 'FR_', 'RL_', 'RR_')):
+                    if pose.name == 'FL_knee':
+                        wrench_link_id = pose.id
+                    position, orientation = pose.position, pose.orientation
+                    parent = '|'.join(','.join(item.value) for item in pose.header.data if item.key == 'frame_id')
+                    gz_poses.append([stamp,pose.id,pose.name,parent,position.x,position.y,position.z,
+                                     orientation.x,orientation.y,orientation.z,orientation.w])
+        if args.record_gz_poses:
+            transport.subscribe(Pose_V, '/world/stair10cm/dynamic_pose/info', poses)
+        if args.wrench_force:
+            wrench_pub = transport.advertise('/world/stair10cm/wrench/persistent', EntityWrench)
+            clear_pub = transport.advertise('/world/stair10cm/wrench/clear', Entity)
     last_report = -10
     try:
         while rclpy.ok() and time.monotonic() - start_wall < args.wall_seconds:
@@ -130,6 +160,25 @@ def main():
                 targets['obstacle'] = -.35 if obstacle_direction == 1 else -2.05
             heading = (0.0 if args.scenario == 'stairs' or obstacle_direction == 1 else
                        math.pi if args.scenario == 'obstacle' else math.pi/2)
+            if args.wrench_force and not wrench_finished and t > 12 and wbc:
+                # Trigger once during an observed LF swing away from the ground.
+                lf_swing = not (int(wbc[-1][1]) & 8) and wbc[-1][32] > .06
+                if wrench_start is None and lf_swing and wrench_link_id is not None:
+                    pulse = EntityWrench()
+                    pulse.entity.name = 'robot::FL_knee'; pulse.entity.type = Entity.LINK
+                    pulse.entity.id = wrench_link_id
+                    pulse.wrench.force.z = -args.wrench_force
+                    ok = wrench_pub.publish(pulse)
+                    wrench_start = latest[0]
+                    wrench_events.append(dict(event='start',sim_time=wrench_start,force_z_N=-args.wrench_force,
+                                              entity_id=wrench_link_id,published=ok))
+                elif wrench_start is not None and latest[0]-wrench_start >= args.wrench_duration:
+                    entity = Entity(); entity.name = 'robot::FL_knee'; entity.type = Entity.LINK
+                    entity.id = wrench_link_id
+                    ok = clear_pub.publish(entity)
+                    wrench_events.append(dict(event='clear',sim_time=latest[0],published=ok,
+                                              observed_duration_s=latest[0]-wrench_start))
+                    wrench_finished = True
             if t > args.sim_seconds:
                 stable_trot = hold_since is not None and t - hold_since >= 3 and any(
                     row[1] in (6, 9) and row[5] == 1 for row in wbc)
@@ -216,6 +265,10 @@ def main():
         result = 'probe_error'
         raise
     finally:
+        # Stop native callbacks before freezing CSV data and before interpreter
+        # shutdown; otherwise Gazebo's transport thread can outlive Python.
+        if transport is not None and args.record_gz_poses:
+            transport.unsubscribe('/world/stair10cm/dynamic_pose/info')
         msg = Inputs()
         msg.command = 1
         if rclpy.ok():
@@ -237,14 +290,31 @@ def main():
         if wbc and len(wbc[0]) >= 112:
             names += ['control_period'] + [f'{leg}_{field}' for leg in ['LF','RF','LH','RH']
                 for field in ['safety_status','clearance','psi1','tube_slack','correction','wbc_safety_residual','tube_status']]
-        if wbc and len(wbc[0]) == 113:
+        if wbc and len(wbc[0]) >= 113:
             names.append('wbc_compute_ms')
+        if wbc and len(wbc[0]) >= 151:
+            names += [f'{leg}_{quantity}_{axis}' for quantity in ['command_accel','reference_accel','nominal_accel']
+                      for leg in ['LF','RF','LH','RH'] for axis in 'xyz']
+            names += ['policy_accepted','policy_rejected']
+        if wbc and len(wbc[0]) >= 163:
+            names += [f'{leg}_baseline_accel_{axis}' for leg in ['LF','RF','LH','RH'] for axis in 'xyz']
         with args.output.with_name(args.output.stem+'_wbc.csv').open('w') as f:
             writer = csv.writer(f); writer.writerow(names); writer.writerows(wbc)
         with args.output.with_name(args.output.stem+'_reference.csv').open('w') as f:
             writer = csv.writer(f)
             writer.writerow(['sim_time']+[f'{leg}_{q}_{axis}' for leg in ['LF','RF','LH','RH'] for q in ['p','v'] for axis in 'xyz'])
             writer.writerows(references)
+        if args.wrench_force and wrench_start is not None and not wrench_finished:
+            entity = Entity(); entity.name='robot::FL_knee'; entity.type=Entity.LINK
+            entity.id = wrench_link_id
+            clear_pub.publish(entity)
+            wrench_events.append(dict(event='cleanup_clear',sim_time=latest[0] if latest else None))
+        args.output.with_suffix('.wrench.json').write_text(json.dumps(wrench_events,indent=2)+'\n')
+        if args.record_gz_poses:
+            with args.output.with_name(args.output.stem+'_gz_poses.csv').open('w') as stream:
+                writer=csv.writer(stream)
+                writer.writerow(['sim_time','id','name','parent_frame','x','y','z','qx','qy','qz','qw'])
+                writer.writerows(gz_poses)
         summary = dict(result=result, scenario=args.scenario, speed_normalized=args.speed,
                        obstacle_direction=obstacle_direction,
                        wall_seconds=time.monotonic()-start_wall, samples=len(rows), wbc_samples=len(wbc),
@@ -256,6 +326,7 @@ def main():
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
+        transport = None
     return 0 if result == 'passed' else 1
 
 

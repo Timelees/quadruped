@@ -114,6 +114,12 @@ void plannerChecks() {
     require((planner.getPositionConstraint(0,1.21)-before).norm()<1e-12,"rejection replaced the old reference");
     require(planner.getReplanStats().attempts==planner.getReplanStats().admitted+4,"activation rejection stats");
     terrain->available = true;
+    const int attempts=planner.getReplanStats().attempts;
+    for (size_t leg=0;leg<4;++leg) planner.rejectExecutionUpdate(leg,1.4);
+    planner.updateTerrain(schedule,heights,heights,positions,positions,1.27,1.5,p,v,a);
+    require(planner.getReplanStats().attempts==attempts,"actual veto repeatedly proposed the rejected swing");
+    require((planner.getPositionConstraint(0,1.28)-planner.executionSwings()->at(0).at(0).reference.getPosition(1.28)-
+        Eigen::Vector3d(0,0,config.footRadius)).norm()<1e-10,"veto recovery policy/reference mismatch");
     const auto terminalReference = reference();
     require(terminalReference.getVelocity(3.4).z() < -0.01, "terminal fixture has no descent");
     SwingTrajectoryQpOptimizer terminalBaseline(config.terrainQpConfig, terrain);

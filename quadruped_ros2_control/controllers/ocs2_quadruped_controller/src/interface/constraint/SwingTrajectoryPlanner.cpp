@@ -135,6 +135,111 @@ namespace ocs2::legged_robot {
             std::move(qpConfig), std::move(terrainInterface));
     }
 
+    void SwingTrajectoryPlanner::setMapTiming(TerrainMapTiming timing) {
+        mapTiming_ = timing;
+        if (terrainInterface_) {
+            auto terrain = terrainInterface_->snapshot();
+            if (terrain) {
+                std::atomic_store(&certificationTerrain_, std::make_shared<const TerrainSnapshot>(
+                    TerrainSnapshot{std::move(terrain), timing}));
+            }
+        }
+    }
+
+    TerrainSafetyCorridor SwingTrajectoryPlanner::certifyReference(const BSpline& reference,
+            double start, double end, double after, const TerrainSnapshot& map) const {
+        TerrainSafetyCorridor invalid;
+        if (!map.terrain || end <= start || after >= end || end > map.timing.validUntil) {
+            invalid.failureReason = "Missing or expired terrain snapshot";
+            return invalid;
+        }
+        const auto derivative = swingDerivativeBounds(reference);
+        const auto& bounds = config_.terrainQpConfig;
+        if (!derivative.allFinite() || derivative.row(0).maxCoeff() > bounds.maxVelocity+1e-7 ||
+            derivative.row(1).maxCoeff() > bounds.maxAcceleration+1e-7 ||
+            derivative.row(2).maxCoeff() > bounds.maxJerk+1e-7) {
+            invalid.failureReason = "Total trajectory derivative bound";
+            return invalid;
+        }
+        const double origin = reference.getKnots()[0];
+        if (origin >= end) return invalid;
+        auto normalized = reference;
+        normalized.setKnots(((reference.getKnots().array()-origin)/(end-origin)).matrix());
+        auto config = bounds.corridorConfig;
+        config.contactPhase = 0.0;
+        auto corridor = buildTerrainSafetyCorridor(*map.terrain, normalized, config,
+            bounds.subdivisionsPerSpan, HullBasis::Minvo, map.timing, end);
+        if (!corridor.valid) return corridor;
+        const double upper = 1.0-bounds.corridorConfig.contactPhase;
+        const double lower = std::max(bounds.corridorConfig.contactPhase,
+            std::min((after-start)/(end-start), upper-1e-9));
+        std::vector<CorridorPolytope> remaining;
+        for (auto cell : corridor.cells) {
+            cell.start = std::max(lower, (origin-start+cell.start*(end-origin))/(end-start));
+            cell.end = std::min(upper, (origin-start+cell.end*(end-origin))/(end-start));
+            if (cell.end > cell.start+1e-12) remaining.push_back(std::move(cell));
+        }
+        corridor.cells = std::move(remaining);
+        corridor.start = lower;
+        corridor.end = upper;
+        corridor = SwingOnlineReplanner::remapCorridor(reference, corridor, start, end);
+        if (corridor.valid) {
+            const auto rows = corridorControlPointConstraints(corridor);
+            const auto controls = reference.getControlPoints();
+            vector_t q(controls.size()); q << controls.col(0),controls.col(1),controls.col(2);
+            corridor.valid = (rows.A*q-rows.b).maxCoeff() <= 1e-9;
+            if (!corridor.valid) corridor.failureReason = "Final reference leaves planning corridor";
+        }
+        if (corridor.valid && config_.safetyFilterConfig.enabled) {
+            buildLandingCorridor(corridor, *map.terrain, reference, bounds.corridorConfig,
+                start, end, config_.safetyFilterConfig.landingPositionWindow);
+        }
+        return corridor;
+    }
+
+    SwingTrajectoryPlanner::ActivationCheck SwingTrajectoryPlanner::checkActivation(
+            const ExecutionSwing& swing, const ExecutionSwing* previous, double now, double period,
+            const Eigen::Vector3d& position, const Eigen::Vector3d& velocity, const TerrainSnapshot& map) const {
+        ActivationCheck result;
+        const auto reject = [&](const char* reason) { result.reason=reason; return result; };
+        const double activation = swing.reference.getKnots()[0];
+        result.delay = now-activation;
+        if (!std::isfinite(now) || !position.allFinite() || !velocity.allFinite() ||
+            now < activation || now >= swing.end || result.delay > config_.replanConfig.maxActivationDelay)
+            return reject("activation_age");
+        if (!previous || std::abs(previous->start-swing.start)>1e-8 || std::abs(previous->end-swing.end)>1e-8 ||
+            (previous->reference.getPosition(swing.end)-swing.reference.getPosition(swing.end)).norm()>1e-8 ||
+            (previous->reference.getVelocity(swing.end)-swing.reference.getVelocity(swing.end)).norm()>1e-7 ||
+            (previous->reference.getAcceleration(swing.end)-swing.reference.getAcceleration(swing.end)).norm()>1e-6)
+            return reject("terminal_changed");
+        const Eigen::Vector3d desired = swing.reference.getPosition(now) +
+            config_.footRadius*Eigen::Vector3d::UnitZ();
+        const Eigen::Vector3d dp = position-desired, dv = velocity-swing.reference.getVelocity(now);
+        result.positionError = dp.norm(); result.velocityError = dv.norm();
+        if (result.positionError > config_.replanConfig.maxPositionDeviation ||
+            result.velocityError > config_.replanConfig.maxVelocityDeviation)
+            return reject("activation_state");
+        result.corridor = certifyReference(swing.reference, swing.start, swing.end, now, map);
+        if (!result.corridor.valid) return reject("activation_geometry");
+        try {
+            const auto target = swing.reference.getPosition(swing.end);
+            if (std::abs(map.terrain->getHeight(target.x(),target.y())-target.z()) >
+                config_.terrainQpConfig.landingPositionWindow) return reject("activation_target");
+        } catch (const TerrainUnavailable&) { return reject("activation_target"); }
+        if (config_.safetyFilterConfig.enabled) {
+            SwingSafetyFilter::FootState state;
+            state.position=position; state.velocity=velocity;
+            state.positionError=dp; state.velocityError=dv;
+            state.referenceAcceleration=swing.reference.getAcceleration(now);
+            state.reference=&swing.reference; state.referenceTime=now;
+            const auto control = SwingSafetyFilter(config_.safetyFilterConfig).filter(result.corridor,
+                state, state.referenceAcceleration, (now-swing.start)/(swing.end-swing.start),period,swing.end-now);
+            if (!control.active()) return reject(("activation_control_"+std::to_string(static_cast<int>(control.status))).c_str());
+        }
+        result.accepted=true; result.reason="accepted";
+        return result;
+    }
+
     vector3_t SwingTrajectoryPlanner::getVelocityConstraint(size_t leg, scalar_t time) const {
         const auto index = lookup::findIndexInTimeArray(feetHeightTrajectoriesEvents_[leg], time);
         return feetHeightTrajectories_[leg][index].getVelocity(time);
@@ -199,6 +304,7 @@ namespace ocs2::legged_robot {
                     updateFootSchedule(eesContactFlagStocks[leg]);
         }
 
+        const auto activeSwings = std::atomic_load(&activeExecutionSwings_);
         for (size_t j = 0; j < numFeet_; j++) {
             const auto previous = std::move(feetHeightTrajectories_[j]);
             feetHeightTrajectories_[j].clear();
@@ -212,7 +318,17 @@ namespace ocs2::legged_robot {
 
                     const scalar_t swingStartTime = eventTimes[swingStartIndex];
                     const scalar_t swingFinalTime = eventTimes[swingFinalIndex];
-                    if (const auto* frozen = executingSwing(previous, swingStartTime, swingFinalTime, initTime)) {
+                    const BSpline* frozen = nullptr;
+                    if (activeSwings && initTime >= swingStartTime && initTime < swingFinalTime) {
+                        for (const auto& swing : (*activeSwings)[j]) {
+                            if (std::abs(swing.start-swingStartTime)<1e-8 && std::abs(swing.end-swingFinalTime)<1e-8) {
+                                frozen = &swing.reference;
+                                break;
+                            }
+                        }
+                    }
+                    if (!frozen) frozen = executingSwing(previous, swingStartTime, swingFinalTime, initTime);
+                    if (frozen) {
                         feetHeightTrajectories_[j].push_back(*frozen);
                         continue;
                     }
@@ -314,6 +430,7 @@ namespace ocs2::legged_robot {
                     updateFootSchedule(eesContactFlagStocks[leg]);
         }
 
+        const auto activeSwings = std::atomic_load(&activeExecutionSwings_);
         for (size_t j = 0; j < numFeet_; j++) {
             const auto previous = std::move(feetHeightTrajectories_[j]);
             feetHeightTrajectories_[j].clear();
@@ -337,7 +454,17 @@ namespace ocs2::legged_robot {
 
                     const scalar_t swingStartTime = eventTimes[swingStartIndex];
                     const scalar_t swingFinalTime = eventTimes[swingFinalIndex];
-                    if (const auto* frozen = executingSwing(previous, swingStartTime, swingFinalTime, initTime)) {
+                    const BSpline* frozen = nullptr;
+                    if (activeSwings && initTime >= swingStartTime && initTime < swingFinalTime) {
+                        for (const auto& swing : (*activeSwings)[j]) {
+                            if (std::abs(swing.start-swingStartTime)<1e-8 && std::abs(swing.end-swingFinalTime)<1e-8) {
+                                frozen = &swing.reference;
+                                break;
+                            }
+                        }
+                    }
+                    if (!frozen) frozen = executingSwing(previous, swingStartTime, swingFinalTime, initTime);
+                    if (frozen) {
                         for (size_t i = 0; i < previousCorridors.size(); ++i) {
                             if (std::abs(previousStarts[i] - swingStartTime) < 1e-8 &&
                                 std::abs(previousEnds[i] - swingFinalTime) < 1e-8) {
@@ -346,6 +473,10 @@ namespace ocs2::legged_robot {
                                 terrainCorridorEnds_[j].push_back(swingFinalTime);
                                 break;
                             }
+                        }
+                        if (!terrainCorridorEnds_[j].empty() && terrainCorridorEnds_[j].back()==swingFinalTime) {
+                            terrainCorridors_[j].back() = certifyReference(*frozen, swingStartTime, swingFinalTime,
+                                initTime, TerrainSnapshot{terrainInterface_, mapTiming_});
                         }
                         // Section 4.4: the executing swing may be replaced by a
                         // state-corrected candidate when the admission check passes.
@@ -475,6 +606,13 @@ namespace ocs2::legged_robot {
                                       << std::to_string(swingFinalTime) << "].\n";
                         }
                         feetHeightTrajectories_[j].push_back(referenceSpline);
+                        terrainCorridors_[j].back() = certifyReference(referenceSpline,
+                            swingStartTime, swingFinalTime, swingStartTime,
+                            TerrainSnapshot{terrainInterface_, mapTiming_});
+                        if (config_.terrainQpConfig.verbose) {
+                            std::cerr << "Swing fallback certified=" << terrainCorridors_[j].back().valid
+                                      << " reason=" << terrainCorridors_[j].back().failureReason << '\n';
+                        }
                     } else {
                         feetHeightTrajectories_[j].push_back(*optimized.bspline);
 
@@ -513,7 +651,8 @@ namespace ocs2::legged_robot {
         const auto& cfg = replanner_.config();
         const auto replanStart = std::chrono::steady_clock::now();
         if (!cfg.enabled || !config_.terrainQpConfig.safetyCorridorEnabled ||
-            swingFinalTime - initTime < cfg.minRemainingTime || initTime < executing.getKnots()[0]) return executing;
+            swingFinalTime - initTime < cfg.minRemainingTime || initTime < executing.getKnots()[0] ||
+            std::abs(rejectedSwingEnd_[leg].load(std::memory_order_relaxed)-swingFinalTime)<1e-8) return executing;
         const double phase = (initTime - swingStartTime) / (swingFinalTime - swingStartTime);
         const double contactPhase = config_.terrainQpConfig.corridorConfig.contactPhase;
         if (phase < contactPhase || phase >= 1.0 - contactPhase) return executing;
@@ -821,6 +960,7 @@ namespace ocs2::legged_robot {
         loadOptional(config.terrainQpConfig.maxCorrection, "terrainMaxCorrection");
         loadOptional(config.terrainQpConfig.maxVelocity, "terrainMaxVelocity");
         loadOptional(config.terrainQpConfig.maxAcceleration, "terrainMaxAcceleration");
+        loadOptional(config.terrainQpConfig.maxJerk, "terrainMaxJerk");
         loadOptional(config.terrainQpConfig.qpMaxWorkingSetRecalculations, "terrainQpMaxWorkingSetRecalculations");
         loadOptional(config.terrainQpConfig.hessianRegularization, "terrainHessianRegularization");
         loadOptional(config.terrainQpConfig.elevationLayer, "terrainElevationLayer");
@@ -845,6 +985,7 @@ namespace ocs2::legged_robot {
         loadOptional(config.replanConfig.enabled, "swingOnlineReplanEnabled");
         loadOptional(config.replanConfig.correctionDuration, "swingReplanCorrectionDuration");
         loadOptional(config.replanConfig.activationDelay, "swingReplanActivationDelay");
+        loadOptional(config.replanConfig.maxActivationDelay, "swingReplanMaxActivationDelay");
         loadOptional(config.replanConfig.maxPositionDeviation, "swingReplanMaxPositionDeviation");
         loadOptional(config.replanConfig.maxVelocityDeviation, "swingReplanMaxVelocityDeviation");
         loadOptional(config.replanConfig.maxMarginFraction, "swingReplanMaxMarginFraction");

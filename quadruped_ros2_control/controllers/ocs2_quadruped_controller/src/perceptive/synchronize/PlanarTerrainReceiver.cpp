@@ -3,6 +3,7 @@
 //
 
 #include "ocs2_quadruped_controller/perceptive/synchronize/PlanarTerrainReceiver.h"
+#include "ocs2_quadruped_controller/interface/constraint/TerrainGeometry.h"
 
 #include <convex_plane_decomposition_ros/MessageConversion.h>
 #include <grid_map_ros/GridMapRosConverter.hpp>
@@ -119,8 +120,9 @@ namespace ocs2::legged_robot
             return false;
         }
 
+        preserveObservationLayer(planarTerrain.gridMap, sdfElevationLayer_);
         auto& elevationData = planarTerrain.gridMap.get(sdfElevationLayer_);
-        if (elevationData.hasNaN())
+        if (!elevationData.array().isFinite().all())
         {
             if (!elevationData.array().isFinite().any())
             {
@@ -136,6 +138,19 @@ namespace ocs2::legged_robot
             elevationData = elevationData.unaryExpr([=](float v) { return std::isfinite(v) ? v : inpaint; });
         }
         return true;
+    }
+
+    void PlanarTerrainReceiver::preserveObservationLayer(grid_map::GridMap& map, const std::string& layer)
+    {
+        const auto name = certifiedElevationLayer(layer);
+        // The decomposition pipeline may already carry pre-inpainting evidence.
+        if (map.exists(name)) return;
+        map.add(name);
+        // Unknown cells remain unknown in safety queries even when the SDF
+        // requires a dense layer. Never promote an inpainted value to evidence.
+        map.get(name) = map.get(layer).unaryExpr([](float h) {
+            return std::isfinite(h) ? h : std::numeric_limits<float>::quiet_NaN();
+        });
     }
 
     bool PlanarTerrainReceiver::acceptTimestamp(grid_map::Time timestamp) const
@@ -258,6 +273,16 @@ namespace ocs2::legged_robot
         }
         // Keep the candidate center and start index: its planar regions and all
         // other layers already refer to this geometry.
+        const auto upper = certifiedElevationLayer(layer);
+        if (current.exists(upper)) {
+            // A fresh observed rise must not be reduced by the smooth cost map.
+            // Do not fill unknown observations from history: no per-cell age is available.
+            auto& certified = current.get(upper);
+            const auto& smooth = current.get(layer);
+            certified = certified.binaryExpr(smooth, [](float raw, float filtered) {
+                return std::isfinite(raw) ? std::max(raw, filtered) : raw;
+            });
+        }
     }
 
     double PlanarTerrainReceiver::getOrDeclareDoubleParameter(

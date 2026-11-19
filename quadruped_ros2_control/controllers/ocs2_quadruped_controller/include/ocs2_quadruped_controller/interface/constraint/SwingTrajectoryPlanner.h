@@ -29,6 +29,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <array>
+#include <atomic>
 #include <limits>
 #include <memory>
 
@@ -120,7 +122,7 @@ namespace ocs2::legged_robot {
                        const SwingFootState &footPosition, const SwingFootState &footVelocity,
                        const SwingFootState &footAcceleration);
 
-        void setMapTiming(TerrainMapTiming timing) { mapTiming_ = timing; }
+        void setMapTiming(TerrainMapTiming timing);
         void setTerrainInterface(std::shared_ptr<TerrainInterface> terrainInterface);
         using Workspace = std::function<Eigen::Vector2d(size_t, double, const Eigen::Vector3d&)>;
         void setWorkspace(Workspace workspace) { workspace_ = std::move(workspace); }
@@ -149,6 +151,35 @@ namespace ocs2::legged_robot {
             double start = 0.0, end = 0.0;
         };
         using ExecutionSwings = feet_array_t<std::vector<ExecutionSwing>>;
+        struct TerrainSnapshot {
+            std::shared_ptr<TerrainInterface> terrain;
+            TerrainMapTiming timing;
+        };
+        std::shared_ptr<const TerrainSnapshot> certificationTerrain() const {
+            return std::atomic_load(&certificationTerrain_);
+        }
+        // Whole-interval check using an immutable synchronized map, also used
+        // for nominal fallback and actual activation. No trajectory QP runs here.
+        TerrainSafetyCorridor certifyReference(const BSpline&, double start, double end,
+            double after, const TerrainSnapshot&) const;
+        struct ActivationCheck {
+            bool accepted = false;
+            std::string reason;
+            double delay = 0.0, positionError = 0.0, velocityError = 0.0;
+            TerrainSafetyCorridor corridor;
+        };
+        ActivationCheck checkActivation(const ExecutionSwing& candidate, const ExecutionSwing* previous,
+            double now, double period, const Eigen::Vector3d& position, const Eigen::Vector3d& velocity,
+            const TerrainSnapshot& map) const;
+        void setActiveExecutionSwings(std::shared_ptr<const ExecutionSwings> swings) {
+            std::atomic_store(&activeExecutionSwings_, std::move(swings));
+        }
+        // After an actual activation veto, recompute the next MPC policy using
+        // the accepted reference until touchdown; do not repeatedly stall MRT
+        // with new proposals for the same rejected execution window.
+        void rejectExecutionUpdate(size_t leg, double swingEnd) {
+            rejectedSwingEnd_.at(leg).store(swingEnd, std::memory_order_relaxed);
+        }
         std::shared_ptr<const ExecutionSwings> executionSwings() const {
             return std::atomic_load(&executionSwings_);
         }
@@ -183,12 +214,15 @@ namespace ocs2::legged_robot {
         Workspace workspace_;
         const Config config_;
         const size_t numFeet_;
+        std::array<std::atomic<double>, 4> rejectedSwingEnd_{};
 
         std::shared_ptr<SwingTrajectoryQpOptimizer> swingTrajectoryQpOptimizer_;
         TerrainMapTiming mapTiming_;
         std::shared_ptr<TerrainInterface> terrainInterface_;  // For adaptive swing height
         SwingOnlineReplanner replanner_;
         std::shared_ptr<const ExecutionSwings> executionSwings_;
+        std::shared_ptr<const ExecutionSwings> activeExecutionSwings_;
+        std::shared_ptr<const TerrainSnapshot> certificationTerrain_;
         std::shared_ptr<const FootFeedback> footFeedback_;
         feet_array_t<double> lastReplanTime_{{-INFINITY, -INFINITY, -INFINITY, -INFINITY}};
         feet_array_t<double> pendingActivation_{{INFINITY, INFINITY, INFINITY, INFINITY}};

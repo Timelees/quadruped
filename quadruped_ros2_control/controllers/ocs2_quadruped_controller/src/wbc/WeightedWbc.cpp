@@ -68,6 +68,13 @@ namespace ocs2::legged_robot
         const vector_t filteredTarget = swingTask.b_;
         swingTask.b_ = nominal_swing_target_;
         solution_valid_ = solve(dynamics);
+        baseline_foot_acceleration_.setConstant(std::numeric_limits<double>::quiet_NaN());
+        if (solution_valid_) {
+            for (size_t i = 0; i < info_.numThreeDofContacts; ++i) {
+                baseline_foot_acceleration_.col(i) = j_.middleRows<3>(3 * i) *
+                    qpSol.head(info_.generalizedCoordinatesNum) + dj_.middleRows<3>(3 * i) * v_measured_;
+            }
+        }
         if (solution_valid_ && constrained) {
             // First preserve the feasible baseline's body acceleration. Merely
             // adding foot rows to a weighted objective allows them to sacrifice
@@ -88,8 +95,18 @@ namespace ocs2::legged_robot
                           -baseline.segment(info_.generalizedCoordinatesNum, nForces);
             forceBounds.array() += safetyContactForceDeviation_;
             const Task preserveSupport(matrix_t(), vector_t(), forceBox, forceBounds);
+            // The reference PD+feedforward target can already differ from the
+            // original MPC/WBC task. Its correction box alone does not bound
+            // how far the safety solve moves the feasible baseline output.
+            matrix_t footBox(2 * swingTask.a_.rows(), getNumDecisionVars());
+            footBox << swingTask.a_, -swingTask.a_;
+            const vector_t baselineFoot = swingTask.a_ * baseline;
+            vector_t footBounds(footBox.rows());
+            footBounds << baselineFoot, -baselineFoot;
+            footBounds.array() += safetyAccelerationDeviation_;
+            const Task preserveSwing(matrix_t(), vector_t(), footBox, footBounds);
             swingTask.b_ = filteredTarget;
-            if (!solve(dynamics + preserveBody + preserveSupport + swing_safety_constraints_)) {
+            if (!solve(dynamics + preserveBody + preserveSupport + preserveSwing + swing_safety_constraints_)) {
                 for (auto& result : safety_results_) {
                     if (result.active()) result.status = SafetyFilterStatus::JointInfeasible;
                 }
@@ -110,6 +127,13 @@ namespace ocs2::legged_robot
             }
         }
         if (!solution_valid_) qpSol.setZero();
+        commanded_foot_acceleration_.setConstant(std::numeric_limits<double>::quiet_NaN());
+        if (solution_valid_) {
+            for (size_t i=0;i<info_.numThreeDofContacts;++i) {
+                commanded_foot_acceleration_.col(i)=j_.middleRows<3>(3*i)*qpSol.head(info_.generalizedCoordinatesNum)+
+                    dj_.middleRows<3>(3*i)*v_measured_;
+            }
+        }
         return qpSol;
     }
 
@@ -126,8 +150,12 @@ namespace ocs2::legged_robot
         boost::property_tree::ptree pt;
         read_info(taskFile, pt);
         safetyContactForceDeviation_ = pt.get<scalar_t>("swingLegTask.safetyContactForceDeviation", 5.0);
+        safetyAccelerationDeviation_ = pt.get<scalar_t>("swing_trajectory_config.safetyFilterMaxCorrection", 20.0);
         if (!std::isfinite(safetyContactForceDeviation_) || safetyContactForceDeviation_ <= 0.0) {
             throw std::invalid_argument("swingLegTask.safetyContactForceDeviation must be positive.");
+        }
+        if (!std::isfinite(safetyAccelerationDeviation_) || safetyAccelerationDeviation_ <= 0.0) {
+            throw std::invalid_argument("swing_trajectory_config.safetyFilterMaxCorrection must be positive.");
         }
         const std::string prefix = "weight.";
         if (verbose)

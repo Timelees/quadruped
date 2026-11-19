@@ -133,4 +133,19 @@ Eigen::MatrixXd hullMap(const PolynomialSegment &segment, HullBasis basis) {
     }();
     return transform * segment.bezierMap;
 }
+Eigen::Matrix3d swingDerivativeBounds(const BSpline& spline) {
+    Eigen::Matrix3d bounds = Eigen::Matrix3d::Zero();
+    for (const auto& span : extractPolynomialSegments(spline)) {
+        const auto halves = span.bisect();
+        for (const auto& piece : {halves.first, halves.second}) {
+            Eigen::MatrixXd derivative = piece.bezierMap * spline.getControlPoints();
+            for (int order = 1; order <= 3; ++order) {
+                derivative = ((6-order) / (piece.end-piece.start) *
+                    (derivative.bottomRows(derivative.rows()-1) - derivative.topRows(derivative.rows()-1))).eval();
+                bounds.row(order-1) = bounds.row(order-1).cwiseMax(derivative.cwiseAbs().colwise().maxCoeff());
+            }
+        }
+    }
+    return bounds;
+}
 }  // namespace ocs2::legged_robot

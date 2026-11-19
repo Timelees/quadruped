@@ -41,6 +41,7 @@ namespace ocs2::legged_robot
         // Fuse only corresponding world cells; rolling-buffer indices are not coordinates.
         static void filterHeightLayer(grid_map::GridMap& current, const grid_map::GridMap& previous,
                                       const std::string& layer, double alpha);
+        static void preserveObservationLayer(grid_map::GridMap& map, const std::string& layer);
 
     private:
         bool sanitizeElevationLayer(convex_plane_decomposition::PlanarTerrain& planarTerrain) const;

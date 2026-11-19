@@ -238,6 +238,16 @@ namespace ocs2::legged_robot
         return {a, b, matrix_t(), vector_t()};
     }
 
+    Eigen::Matrix<scalar_t, 6, 4> WbcBase::measureFeet(const vector_t& state) {
+        updateMeasured(state);
+        ee_kinematics_->setPinocchioInterface(pinocchio_interface_measured_);
+        const auto p = ee_kinematics_->getPosition(vector_t());
+        const auto v = ee_kinematics_->getVelocity(vector_t(),vector_t());
+        Eigen::Matrix<scalar_t, 6, 4> feet;
+        for (size_t i=0; i<4; ++i) feet.col(i) << p[i],v[i];
+        return feet;
+    }
+
     Task WbcBase::formulateSwingLegTask()
     {
         ee_kinematics_->setPinocchioInterface(pinocchio_interface_measured_);
@@ -258,6 +268,8 @@ namespace ocs2::legged_robot
         swing_safety_constraints_ = Task(num_decision_vars_);
         safety_residuals_.fill(std::numeric_limits<double>::quiet_NaN());
         nominal_swing_target_.resize(b.size());
+        reference_foot_acceleration_.setConstant(std::numeric_limits<double>::quiet_NaN());
+        nominal_foot_acceleration_.setConstant(std::numeric_limits<double>::quiet_NaN());
         size_t j = 0;
         for (size_t i = 0; i < info_.numThreeDofContacts; ++i)
         {
@@ -266,11 +278,24 @@ namespace ocs2::legged_robot
             if (contact_flag_[i]) filtered.status = SafetyFilterStatus::Contact;
             if (!contact_flag_[i])
             {
+                // Preserve the original MPC/WBC target for support allocation
+                // and for every interval where the safety contract is unavailable.
+                const vector3_t baselineAccel = swing_kp_ * (posDesired[i] - posMeasured[i]) +
+                    swing_kd_ * (velDesired[i] - velMeasured[i]);
+                SwingReference reference;
+                vector3_t feedforward = vector3_t::Zero();
+                if (swing_reference_callback_ && swing_reference_callback_(i,reference)) {
+                    posDesired[i]=reference.position; velDesired[i]=reference.velocity;
+                    feedforward=reference.acceleration;
+                    reference_foot_acceleration_.col(i)=feedforward;
+                    foot_tracking_.col(i).tail<6>() << posDesired[i],velDesired[i];
+                }
                 vector3_t accel = swing_kp_ * (posDesired[i] - posMeasured[i]) + swing_kd_ * (
-                    velDesired[i] - velMeasured[i]);
+                    velDesired[i] - velMeasured[i]) + feedforward;
                 const auto jacobian = j_.block(3 * i, 0, 3, info_.generalizedCoordinatesNum);
+                nominal_foot_acceleration_.col(i)=accel;
                 const vector3_t bias = dj_.block(3 * i, 0, 3, info_.generalizedCoordinatesNum) * v_measured_;
-                nominal_swing_target_.segment<3>(3 * j) = accel - bias;
+                nominal_swing_target_.segment<3>(3 * j) = baselineAccel - bias;
                 if (swing_safety_callback_) {
                     filtered = swing_safety_callback_(i, posMeasured[i], velMeasured[i], accel);
                     if (filtered.active()) {
@@ -281,6 +306,7 @@ namespace ocs2::legged_robot
                             filtered.accelerationB - filtered.accelerationA * bias);
                     }
                 }
+                if (!filtered.active()) accel = baselineAccel;
                 a.block(3 * j, 0, 3, info_.generalizedCoordinatesNum) = jacobian;
                 b.segment(3 * j, 3) = accel - bias;
                 j++;

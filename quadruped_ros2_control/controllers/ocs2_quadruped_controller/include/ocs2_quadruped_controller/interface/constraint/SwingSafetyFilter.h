@@ -2,6 +2,7 @@
 
 #include <Eigen/Core>
 #include <limits>
+#include "ocs2_quadruped_controller/interface/constraint/BSpline.h"
 
 namespace ocs2::legged_robot {
 struct TerrainSafetyCorridor;
@@ -57,6 +58,10 @@ class SwingSafetyFilter {
         Eigen::Vector3d positionError = Eigen::Vector3d::Zero();
         Eigen::Vector3d velocityError = Eigen::Vector3d::Zero();
         Eigen::Vector3d referenceAcceleration = Eigen::Vector3d::Zero();
+        // Optional exact reference over the zero-order hold. Without it the
+        // caller explicitly supplies a constant-acceleration reference model.
+        const BSpline* reference = nullptr;
+        double referenceTime = 0.0;
     };
     explicit SwingSafetyFilter(SafetyFilterConfig config = {});
     const SafetyFilterConfig& config() const { return config_; }

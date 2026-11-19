@@ -6,15 +6,50 @@
 
 #include <grid_map_filters_rsl/inpainting.hpp>
 #include <grid_map_filters_rsl/smoothing.hpp>
+#include <grid_map_core/iterators/GridMapIterator.hpp>
+#include <grid_map_core/iterators/SubmapIterator.hpp>
+#include <limits>
 
 namespace convex_plane_decomposition {
 
 GridMapPreprocessing::GridMapPreprocessing(const PreprocessingParameters& parameters) : parameters_(parameters) {}
 
 void GridMapPreprocessing::preprocess(grid_map::GridMap& gridMap, const std::string& layer) const {
+  const auto observed = gridMap;
   inpaint(gridMap, layer);
   denoise(gridMap, layer);
   changeResolution(gridMap, layer);
+
+  // Keep observation evidence before either inpainting or median/resolution
+  // filtering. The dense planning map and the certification layer have
+  // different contracts; a filled pixel must never become an observation.
+  const auto certified = layer + "_certified";
+  const auto source = observed.exists(certified) ? certified : layer;
+  gridMap.add(certified);
+  auto& upper = gridMap.get(certified);
+  upper.setConstant(std::numeric_limits<float>::quiet_NaN());
+  // Include every source vertex of every bilinear patch adjacent to this
+  // output vertex. Maximum height and unknown propagation remain conservative
+  // when downsampling, upsampling, or using a shifted circular buffer.
+  const double support = gridMap.getResolution() + observed.getResolution();
+  for (grid_map::GridMapIterator cell(gridMap); !cell.isPastEnd(); ++cell) {
+    grid_map::Position position;
+    gridMap.getPosition(*cell, position);
+    if (!observed.isInside((position.array() + support).matrix()) ||
+        !observed.isInside((position.array() - support).matrix())) continue;
+    bool success = false;
+    const grid_map::SubmapGeometry region(observed, position,
+                                         grid_map::Length::Constant(2 * support), success);
+    if (!success) continue;
+    float maximum = -std::numeric_limits<float>::infinity();
+    bool known = true;
+    for (grid_map::SubmapIterator vertex(region); !vertex.isPastEnd(); ++vertex) {
+      const float height = observed.at(source, *vertex);
+      if (!std::isfinite(height)) { known = false; break; }
+      maximum = std::max(maximum, height);
+    }
+    if (known && std::isfinite(maximum)) upper((*cell)(0), (*cell)(1)) = maximum;
+  }
 }
 
 void GridMapPreprocessing::denoise(grid_map::GridMap& gridMap, const std::string& layer) const {

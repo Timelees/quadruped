@@ -23,6 +23,49 @@ std::vector<TubeRow> tubeRows(const SafetyFilterConfig& config) {
     }
     return rows;
 }
+struct HoldPiece { double offset, duration; Eigen::Matrix<double,6,3> position,velocity,acceleration; };
+Eigen::MatrixXd elevate(Eigen::MatrixXd controls) {
+    while (controls.rows()<6) {
+        const int degree=controls.rows()-1;
+        Eigen::MatrixXd next(degree+2,3);
+        next.row(0)=controls.row(0); next.bottomRows(1)=controls.bottomRows(1);
+        for (int i=1;i<=degree;++i) {
+            const double alpha=double(i)/(degree+1);
+            next.row(i)=alpha*controls.row(i-1)+(1-alpha)*controls.row(i);
+        }
+        controls=std::move(next);
+    }
+    return controls;
+}
+std::vector<HoldPiece> referenceHold(const SwingSafetyFilter::FootState& state,double period) {
+    std::vector<HoldPiece> result;
+    if (state.reference) {
+        const auto& reference=*state.reference;
+        const Eigen::Vector3d offset=state.position-state.positionError-reference.getPosition(state.referenceTime);
+        for (auto piece:extractPolynomialSegments(reference)) {
+            const double lo=std::max(piece.start,state.referenceTime),hi=std::min(piece.end,state.referenceTime+period);
+            if (hi<=lo) continue;
+            if (lo>piece.start) piece=piece.split(lo).second;
+            if (hi<piece.end) piece=piece.split(hi).first;
+            const Eigen::MatrixXd p=piece.bezierMap*reference.getControlPoints();
+            const Eigen::MatrixXd v=5.0/(hi-lo)*(p.bottomRows(5)-p.topRows(5));
+            const Eigen::MatrixXd a=4.0/(hi-lo)*(v.bottomRows(4)-v.topRows(4));
+            result.push_back({lo-state.referenceTime,hi-lo,
+                p.rowwise()+offset.transpose(),elevate(v),elevate(a)});
+        }
+    } else {
+        HoldPiece piece; piece.offset=0.0;piece.duration=period;
+        const Eigen::Vector3d p=state.position-state.positionError,v=state.velocity-state.velocityError;
+        for (int i=0;i<6;++i) {
+            const double t=period*i/5.0,tt=period*period*i*(i-1)/20.0;
+            piece.position.row(i)=(p+t*v+0.5*tt*state.referenceAcceleration).transpose();
+            piece.velocity.row(i)=(v+t*state.referenceAcceleration).transpose();
+            piece.acceleration.row(i)=state.referenceAcceleration.transpose();
+        }
+        result.push_back(std::move(piece));
+    }
+    return result;
+}
 }  // namespace
 
 SwingSafetyFilter::SwingSafetyFilter(SafetyFilterConfig config) : config_(config) {
@@ -66,8 +109,11 @@ SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corrid
     std::vector<Eigen::Vector3d> rows;
     std::vector<double> bounds;
     constexpr double tolerance = 1e-8;
+    const double nextPhase=timeToTouchdown>0.0 ? phase+period*(1.0-phase)/timeToTouchdown : phase;
     for (const auto& cell : landing ? corridor.approachCells : corridor.cells) {
-        if (phase < cell.start - 1e-10 || phase > cell.end + 1e-10) continue;
+        // Include an upcoming cell if this hold crosses its boundary. Requiring
+        // both entry sets now is conservative and avoids an unchecked switch.
+        if (nextPhase < cell.start - 1e-10 || phase > cell.end + 1e-10) continue;
         for (const auto& plane : cell.halfSpaces) {
             const double supportE = config_.positionBound * plane.normal.lpNorm<1>();
             marginValid &= supportE <= plane.geometricOffset - plane.planningOffset + tolerance;
@@ -75,14 +121,22 @@ SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corrid
             const double hdot = -plane.normal.dot(state.velocity);
             clearance = std::min(clearance, h);
             psi1 = std::min(psi1, hdot + config_.hocbfGain1 * h);
-            rows.push_back(plane.normal);
-            bounds.push_back((config_.hocbfGain1 + config_.hocbfGain2) * hdot +
-                config_.hocbfGain1 * config_.hocbfGain2 * h -
-                config_.disturbanceBound * plane.normal.norm() - config_.hocbfSampleRate * period);
+            // The robust HOCBF residual over a held acceleration is quadratic.
+            // Its three Bernstein coefficients lower-bound the entire hold,
+            // including a bounded, time-varying acceleration disturbance.
+            const double sum=config_.hocbfGain1+config_.hocbfGain2;
+            const double product=config_.hocbfGain1*config_.hocbfGain2;
+            for (int i=0;i<3;++i) {
+                const double t=period*i/2.0,tt=i==2 ? period*period : 0.0;
+                const double gain=1.0+sum*t+0.5*product*tt;
+                rows.push_back(gain*plane.normal);
+                bounds.push_back((sum+product*t)*hdot+product*h-
+                    gain*config_.disturbanceBound*plane.normal.norm()-config_.hocbfSampleRate*period);
+            }
         }
     }
     if (rows.empty()) { result.status = SafetyFilterStatus::NoActiveSwing; return result; }
-    const int nHocbf = rows.size();
+    int nHocbf = rows.size();
     const auto tube = tubeRows(config_);
     for (const auto& row : tube) {
         tubeSlack = std::min(tubeSlack, row.bound - row.position.dot(state.positionError) -
@@ -102,38 +156,41 @@ SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corrid
             return result;
         }
     }
-    for (const auto& row : tube) {
-        if (result.tubeStatus != SafetyFilterStatus::Solved) break;
-        const double slack = row.bound - row.position.dot(state.positionError) -
-                             row.velocity.dot(state.velocityError);
-        // e'' = u - p_d'' + w. The reference acceleration MUST be subtracted.
-        const double outwardRate = row.position.dot(state.velocityError);
-        const double periodReserve = config_.tubeSampleRate * period;
-        if (row.velocity.isZero()) {
-            // The position face has no instantaneous acceleration authority.
-            // Check its entry derivative, then enforce the full sample hold:
-            // each of the quadratic error's three Bernstein coefficients stays
-            // inside the face under the bounded acceleration residual.
-            const double midpointSlack = slack - 0.5 * period * outwardRate;
-            if (config_.tubeRate * slack - outwardRate < -tolerance || midpointSlack < -tolerance) {
-                result.tubeStatus = SafetyFilterStatus::TubeRate;
-                continue;
+    if (config_.tubeEnabled) {
+        const auto hold=referenceHold(state,period);
+        double covered=0.0;
+        for (const auto& piece:hold) covered+=piece.duration;
+        if (covered<period-1e-9) { result.status=SafetyFilterStatus::InvalidState; return result; }
+        for (const auto& row:tube) {
+            const Eigen::Vector3d velocityWeight=config_.tubeRate*row.velocity+row.position;
+            for (const auto& piece:hold) {
+                const double end=piece.offset+piece.duration;
+                const double uncertainty=config_.disturbanceBound*(row.velocity.norm()+
+                    0.5*config_.tubeRate*row.position.norm()*end*end+velocityWeight.norm()*end);
+                for (int i=0;i<6;++i) {
+                    const double t=piece.offset+piece.duration*i/5.0;
+                    const double tt=piece.offset*piece.offset+2*piece.offset*piece.duration*i/5.0+
+                        piece.duration*piece.duration*i*(i-1)/20.0;
+                    const Eigen::Vector3d freePosition=state.position+t*state.velocity-piece.position.row(i).transpose();
+                    const Eigen::Vector3d freeVelocity=state.velocity-piece.velocity.row(i).transpose();
+                    const Eigen::Vector3d coefficients=0.5*config_.tubeRate*tt*row.position+t*velocityWeight+row.velocity;
+                    const double bound=config_.tubeRate*row.bound-config_.tubeRate*row.position.dot(freePosition)-
+                        velocityWeight.dot(freeVelocity)+row.velocity.dot(piece.acceleration.row(i).transpose())-
+                        uncertainty-config_.tubeSampleRate*period;
+                    if (coefficients.norm()<1e-12) {
+                        if (bound<-tolerance) { result.tubeStatus=SafetyFilterStatus::TubeRate; }
+                    } else {
+                        rows.push_back(coefficients); bounds.push_back(bound);
+                    }
+                }
             }
-            rows.push_back(row.position);
-            bounds.push_back(2.0 * (slack - period*outwardRate) / (period*period) +
-                row.position.dot(state.referenceAcceleration) - config_.disturbanceBound - periodReserve);
-        } else {
-            rows.push_back(row.velocity);
-            bounds.push_back(config_.tubeRate * slack - outwardRate +
-                row.velocity.dot(state.referenceAcceleration) - config_.disturbanceBound * row.velocity.norm() -
-                periodReserve);
         }
     }
     if (config_.tubeEnabled && result.tubeStatus != SafetyFilterStatus::Solved) {
         result.status = result.tubeStatus;
         return result;
     }
-    const int nSafety = rows.size();
+    int nSafety = rows.size();
     if (landing) {
         // Predict terminal error with constant error acceleration. The target
         // patch permits finite-time contact, while the other cells' HOCBF rows
@@ -163,6 +220,28 @@ SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corrid
         rows.push_back(-Eigen::Vector3d::Unit(axis));
         bounds.push_back(std::min(config_.maxAcceleration, -nominal[axis] + config_.maxCorrection));
     }
+    // Tube Bernstein coefficients are axis-aligned; merge co-directed rows
+    // within each diagnostic group to avoid inflating the final whole-body QP.
+    std::vector<Eigen::Vector3d> compactRows;
+    std::vector<double> compactBounds;
+    const auto compact=[&](int begin,int end) {
+        const int first=compactRows.size();
+        for (int i=begin;i<end;++i) {
+            const double norm=rows[i].norm();
+            const Eigen::Vector3d normal=rows[i]/norm;
+            bool merged=false;
+            for (size_t j=first;j<compactRows.size();++j) {
+                if ((compactRows[j]-normal).norm()<1e-10) {
+                    compactBounds[j]=std::min(compactBounds[j],bounds[i]/norm); merged=true;break;
+                }
+            }
+            if (!merged) {compactRows.push_back(normal);compactBounds.push_back(bounds[i]/norm);}
+        }
+    };
+    const int oldHocbf=nHocbf,oldSafety=nSafety;
+    compact(0,oldHocbf); nHocbf=compactRows.size();
+    compact(oldHocbf,oldSafety); nSafety=compactRows.size();
+    compact(oldSafety,rows.size()); rows=std::move(compactRows);bounds=std::move(compactBounds);
     const auto solve = [&]() {
         const int nRows = rows.size();
         using Matrix = Eigen::Matrix<qpOASES::real_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;

@@ -13,13 +13,19 @@ GridMapTerrainInterface::GridMapTerrainInterface(
     }
 }
 
+std::shared_ptr<TerrainInterface> GridMapTerrainInterface::snapshot() const {
+    return std::make_shared<GridMapTerrainInterface>(
+        std::make_shared<convex_plane_decomposition::PlanarTerrain>(*terrain_), layer_);
+}
+
 std::vector<TerrainPrism> GridMapTerrainInterface::getPrisms(const Eigen::Vector2d& minXY,
                                                              const Eigen::Vector2d& maxXY) const {
     const auto& map = terrain_->gridMap;
+    const auto layer = map.exists(certifiedElevationLayer(layer_)) ? certifiedElevationLayer(layer_) : layer_;
     if (!minXY.allFinite() || !maxXY.allFinite() || (minXY.array() > maxXY.array()).any()) {
         throw std::invalid_argument("Invalid terrain query rectangle.");
     }
-    if (!map.exists(layer_)) {
+    if (!map.exists(layer)) {
         throw TerrainUnavailable("Missing terrain layer: " + layer_);
     }
     const double r = map.getResolution();
@@ -38,7 +44,7 @@ std::vector<TerrainPrism> GridMapTerrainInterface::getPrisms(const Eigen::Vector
             double upper = -std::numeric_limits<double>::infinity();
             for (int dx = 0; dx < 2; ++dx) {
                 for (int dy = 0; dy < 2; ++dy) {
-                    const double z = map.atPosition(layer_, lower + r * Eigen::Vector2d(dx, dy));
+                    const double z = map.atPosition(layer, lower + r * Eigen::Vector2d(dx, dy));
                     if (!std::isfinite(z)) {
                         throw TerrainUnavailable("Unknown terrain interpolation patch.");
                     }
@@ -56,12 +62,13 @@ double GridMapTerrainInterface::getHeight(double x, double y) const {
     const Eigen::Vector2d xy(x, y);
     const auto patch = getPrisms(xy, xy).front();
     const double r = terrain_->gridMap.getResolution();
+    const auto layer = terrain_->gridMap.exists(certifiedElevationLayer(layer_)) ? certifiedElevationLayer(layer_) : layer_;
     const Eigen::Vector2d uv = (xy - patch.minXY) / r;
     double height = 0.0;
     for (int i = 0; i < 2; ++i) {
         for (int j = 0; j < 2; ++j) {
             height += (i ? uv.x() : 1 - uv.x()) * (j ? uv.y() : 1 - uv.y()) *
-                      terrain_->gridMap.atPosition(layer_, patch.minXY + r * Eigen::Vector2d(i, j));
+                      terrain_->gridMap.atPosition(layer, patch.minXY + r * Eigen::Vector2d(i, j));
         }
     }
     return height;

@@ -20,4 +20,7 @@ std::vector<PolynomialSegment> extractPolynomialSegments(const BSpline& spline);
 Eigen::MatrixXd hullMap(const PolynomialSegment& segment, HullBasis basis);
 const Eigen::Matrix<double, 6, 6>& minvoBasisMatrix();  // descending powers on [-1,1]
 
+// Per-axis Bernstein bounds in the spline's physical time, rows v/a/jerk.
+Eigen::Matrix3d swingDerivativeBounds(const BSpline& spline);
+
 }  // namespace ocs2::legged_robot

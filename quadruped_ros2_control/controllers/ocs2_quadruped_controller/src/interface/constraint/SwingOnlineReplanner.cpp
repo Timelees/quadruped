@@ -171,7 +171,7 @@ SwingOnlineReplanner::SwingOnlineReplanner(SwingReplanConfig config) : config_(s
     for (double value : positive) {
         if (!std::isfinite(value) || value <= 0.0) throw std::invalid_argument("Invalid swing replan bound.");
     }
-    const double nonnegative[] = {config_.activationDelay, config_.maxPositionDeviation,
+    const double nonnegative[] = {config_.activationDelay, config_.maxActivationDelay, config_.maxPositionDeviation,
         config_.maxVelocityDeviation, config_.positionUncertainty, config_.velocityUncertainty, config_.disturbanceBound,
         config_.nominalTrackingWeight, config_.previousTrackingWeight};
     for (double value : nonnegative) {
