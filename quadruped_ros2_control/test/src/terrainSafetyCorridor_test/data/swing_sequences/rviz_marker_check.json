@@ -1,0 +1,42 @@
+[
+  {
+    "scene": "flat",
+    "swings": 1,
+    "marker_count": 244,
+    "first_swing_collision_markers": 0,
+    "optimized_points_per_swing": 401,
+    "text_markers": 0,
+    "lower_boundary_style_verified": true,
+    "contact_reference_endpoints_verified": true
+  },
+  {
+    "scene": "bar",
+    "swings": 1,
+    "marker_count": 244,
+    "first_swing_collision_markers": 7,
+    "optimized_points_per_swing": 401,
+    "text_markers": 0,
+    "lower_boundary_style_verified": true,
+    "contact_reference_endpoints_verified": true
+  },
+  {
+    "scene": "pillars",
+    "swings": 4,
+    "marker_count": 973,
+    "first_swing_collision_markers": 4,
+    "optimized_points_per_swing": 401,
+    "text_markers": 0,
+    "lower_boundary_style_verified": true,
+    "contact_reference_endpoints_verified": true
+  },
+  {
+    "scene": "stairs",
+    "swings": 3,
+    "marker_count": 730,
+    "first_swing_collision_markers": 3,
+    "optimized_points_per_swing": 401,
+    "text_markers": 0,
+    "lower_boundary_style_verified": true,
+    "contact_reference_endpoints_verified": true
+  }
+]

@@ -5,6 +5,8 @@
 #ifndef PLANARTERRAINRECEIVER_H
 #define PLANARTERRAINRECEIVER_H
 
+#include "ocs2_quadruped_controller/interface/constraint/TerrainSafetyCorridor.h"
+
 #include <atomic>
 #include <mutex>
 #include <rclcpp/rclcpp.hpp>
@@ -33,6 +35,8 @@ namespace ocs2::legged_robot
         void postSolverRun(const PrimalSolution& /*primalSolution*/) override
         {
         }
+
+        TerrainMapTiming mapTiming(double controllerTime) const;
 
         // Fuse only corresponding world cells; rolling-buffer indices are not coordinates.
         static void filterHeightLayer(grid_map::GridMap& current, const grid_map::GridMap& previous,
@@ -64,6 +68,7 @@ namespace ocs2::legged_robot
         grid_map::Time lastAcceptedTimestamp_ = 0;
 
         double maxMapAge_ = 1.0;
+        double certificateAge_ = 2.0;
         double futureTimestampTolerance_ = 0.2;
         double maxCenterJump_ = 0.6;
         double centerFilterThreshold_ = 0.05;

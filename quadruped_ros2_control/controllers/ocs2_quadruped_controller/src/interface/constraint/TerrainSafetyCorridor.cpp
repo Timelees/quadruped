@@ -2,6 +2,7 @@
 
 #include <Eigen/LU>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -19,7 +20,7 @@ void addPlane(CorridorPolytope& cell, const Eigen::Vector3d& normal, double boun
     cell.halfSpaces.push_back({normal, bound, bound - trackingMargin});
 }
 
-std::vector<PolynomialSegment> pieces(const BSpline& spline, const CorridorConfig& config, int divisions) {
+std::vector<PolynomialSegment> pieces(const BSpline& spline, double start, double end, int divisions) {
     std::vector<PolynomialSegment> result;
     for (const auto& span : extractPolynomialSegments(spline)) {
         std::vector<PolynomialSegment> work{span};
@@ -33,14 +34,14 @@ std::vector<PolynomialSegment> pieces(const BSpline& spline, const CorridorConfi
             work = std::move(next);
         }
         for (auto piece : work) {
-            if (piece.end <= config.contactPhase || piece.start >= 1.0 - config.contactPhase) {
+            if (piece.end <= start || piece.start >= end) {
                 continue;
             }
-            if (piece.start < config.contactPhase) {
-                piece = piece.split(config.contactPhase).second;
+            if (piece.start < start) {
+                piece = piece.split(start).second;
             }
-            if (piece.end > 1.0 - config.contactPhase) {
-                piece = piece.split(1.0 - config.contactPhase).first;
+            if (piece.end > end) {
+                piece = piece.split(end).first;
             }
             result.push_back(std::move(piece));
         }
@@ -49,11 +50,12 @@ std::vector<PolynomialSegment> pieces(const BSpline& spline, const CorridorConfi
 }
 }  // namespace
 
-TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain, const BSpline& reference,
-                                                 const CorridorConfig& config, int subdivisionsPerSpan,
-                                                 HullBasis basis) {
+static TerrainSafetyCorridor buildCorridor(const TerrainInterface& terrain, const BSpline& reference,
+                                           const CorridorConfig& config, int subdivisionsPerSpan, HullBasis basis,
+                                           double start, double end, double touchdownWindow,
+                                           TerrainMapTiming map, double touchdownTime) {
     const double values[] = {config.lateralExtent, config.longitudinalExtent, config.verticalExtent,
-                             config.footRadius, config.mapMargin, config.geometricClearance,
+                             config.footRadius, config.mapMargin, config.terrainRiseRate, config.geometricClearance,
                              config.trackingMargin, config.numericalMargin, config.contactPhase};
     for (double value : values) {
         if (!std::isfinite(value) || value < 0.0) {
@@ -73,8 +75,17 @@ TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain
     TerrainSafetyCorridor corridor;
     corridor.footRadius = config.footRadius;
     corridor.numericalMargin = config.numericalMargin;
-    corridor.start = config.contactPhase;
-    corridor.end = 1.0 - config.contactPhase;
+    corridor.mapTiming = map;
+    if (touchdownTime > map.validUntil || (!std::isfinite(map.stamp) && config.terrainRiseRate > 0.0)) {
+        corridor.failureReason = "Terrain snapshot cannot certify the touchdown time.";
+        return corridor;
+    }
+    if (std::isfinite(map.stamp)) {
+        corridor.mapToTouchdown = std::max(0.0, touchdownTime - map.stamp);
+        corridor.mapHeightMargin = config.terrainRiseRate * corridor.mapToTouchdown;
+    }
+    corridor.start = start;
+    corridor.end = end;
     Eigen::MatrixXd controls = reference.getControlPoints();
     controls.col(2).array() += config.footRadius;
     Eigen::Vector2d direction = (controls.bottomRows(1) - controls.topRows(1)).leftCols(2).transpose();
@@ -82,7 +93,9 @@ TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain
     const Eigen::Vector3d forward(direction.x(), direction.y(), 0.0);
     const Eigen::Vector3d lateral(-direction.y(), direction.x(), 0.0);
     try {
-        const auto segments = pieces(reference, config, subdivisionsPerSpan);
+        const auto segments = pieces(reference, start, end, subdivisionsPerSpan);
+        if (segments.empty()) return corridor;
+        const Eigen::Vector3d touchdown = reference.getPosition(1.0);
         std::vector<Eigen::MatrixXd> seeds;
         std::vector<std::pair<Eigen::Vector2d, Eigen::Vector2d>> localBoxes;
         Eigen::Vector2d queryLo = Eigen::Vector2d::Constant(std::numeric_limits<double>::infinity());
@@ -122,6 +135,19 @@ TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain
                 throw TerrainUnavailable("Invalid occupied terrain prism.");
             }
         }
+        const Eigen::Vector2d targetXY = touchdown.head<2>();
+        const auto isTarget = [&](const TerrainPrism& prism) {
+            // A coplanar tile must overlap the contact footprint. Equal-height
+            // obstacles elsewhere and every taller prism keep their own rows.
+            const double footprint = config.footRadius + touchdownWindow;
+            return touchdownWindow > 0.0 && std::abs(prism.height - touchdown.z()) <= 0.005 &&
+                (prism.minXY.array() <= targetXY.array() + footprint).all() &&
+                (prism.maxXY.array() >= targetXY.array() - footprint).all();
+        };
+        if (touchdownWindow > 0.0 && std::none_of(prisms.begin(), prisms.end(), isTarget)) {
+            corridor.failureReason = "No target support in the landing footprint.";
+            return corridor;
+        }
         for (size_t index = 0; index < segments.size(); ++index) {
             const auto& piece = segments[index];
             CorridorPolytope cell;
@@ -129,10 +155,15 @@ TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain
             cell.end = piece.end;
             cell.hullMapping = hullMap(piece, basis);
             const Eigen::MatrixXd& seed = seeds[index];
-            for (const auto& axis : {forward, lateral, Eigen::Vector3d(Eigen::Vector3d::UnitZ())}) {
+            const std::array<Eigen::Vector3d, 3> axes{forward, lateral, Eigen::Vector3d::UnitZ()};
+            Eigen::Vector3d width, absProjection;
+            for (size_t directionIndex = 0; directionIndex < axes.size(); ++directionIndex) {
+                const auto& axis = axes[directionIndex];
                 const double extent = axis.z() != 0.0 ? config.verticalExtent :
                     (std::abs(axis.dot(forward)) > 0.5 ? config.longitudinalExtent : config.lateralExtent);
                 const Eigen::VectorXd projection = seed * axis;
+                width[directionIndex] = projection.maxCoeff() - projection.minCoeff() + 2.0 * extent;
+                absProjection[directionIndex] = projection.cwiseAbs().maxCoeff() + extent;
                 addPlane(cell, axis, projection.maxCoeff() + extent, config.trackingMargin);
                 addPlane(cell, -axis, -projection.minCoeff() + extent, config.trackingMargin);
             }
@@ -148,7 +179,7 @@ TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain
                 // Try lateral/longitudinal separation of the ENTIRE fixed XY
                 // hull. Choose the largest gap, never an individually safe vertex.
                 Eigen::Vector3d normal = -Eigen::Vector3d::UnitZ();
-                double bound = -(prism.height + dilation) - config.geometricClearance;
+                double bound = -(prism.height + dilation + corridor.mapHeightMargin) - config.geometricClearance;
                 double bestGap = config.trackingMargin + config.numericalMargin;
                 for (int axis = 0; axis < 2; ++axis) {
                     for (double sign : {-1.0, 1.0}) {
@@ -163,14 +194,23 @@ TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain
                         }
                     }
                 }
+                if (normal.z() < -0.5 && isTarget(prism)) continue;
                 addPlane(cell, normal, bound, config.trackingMargin);
             }
             // XY seed hull is inside every lateral planning face by construction.
             // A feasible vertical interval is therefore sufficient for nonemptiness.
             double bottom = -std::numeric_limits<double>::infinity();
             double top = std::numeric_limits<double>::infinity();
-            for (const auto& plane : cell.halfSpaces) {
-                const double bound = plane.planningOffset - config.numericalMargin;
+            for (auto& plane : cell.halfSpaces) {
+                if (basis == HullBasis::Minvo) {
+                    // Verified in Appendix A by 13 levels of Bernstein subdivision.
+                    constexpr double negativeWeight = 6.5e-8, unitSumError = 1e-12;
+                    for (size_t i = 0; i < axes.size(); ++i) {
+                        plane.basisMargin += std::abs(plane.normal.dot(axes[i])) *
+                            (negativeWeight * width[i] + unitSumError * absProjection[i]);
+                    }
+                }
+                const double bound = plane.planningOffset - plane.basisMargin - config.numericalMargin;
                 if (plane.normal.z() < -0.5) bottom = std::max(bottom, -bound);
                 if (plane.normal.z() > 0.5) top = std::min(top, bound);
             }
@@ -188,6 +228,41 @@ TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain
     return corridor;
 }
 
+TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain, const BSpline& reference,
+                                                 const CorridorConfig& config, int subdivisionsPerSpan,
+                                                 HullBasis basis, TerrainMapTiming map, double touchdownTime) {
+    return buildCorridor(terrain, reference, config, subdivisionsPerSpan, basis,
+                         config.contactPhase, 1.0 - config.contactPhase, 0.0, map, touchdownTime);
+}
+
+void buildLandingCorridor(TerrainSafetyCorridor& corridor, const TerrainInterface& terrain,
+                          const BSpline& reference, const CorridorConfig& config,
+                          double swingStart, double swingEnd, double positionWindow) {
+    corridor.approachCells.clear();
+    // A moving target needs a separate surface estimate and contact normal.
+    if (!corridor.valid || corridor.end >= 1.0 || config.terrainRiseRate > 0.0) return;
+    const double referenceStart = reference.getKnots()[0];
+    const double remaining = swingEnd - referenceStart;
+    if (remaining <= 0.0) return;
+    const double duration = swingEnd - swingStart;
+    const double approachStart = (swingStart + corridor.end * duration - referenceStart) / remaining;
+    if (approachStart < -1e-9 || approachStart >= 1.0) return;
+    BSpline normalized = reference;
+    normalized.setKnots(((reference.getKnots().array() - referenceStart) / remaining).matrix());
+    // Using the solved trajectory avoids rebuilding the terminal envelope about
+    // a nominal trajectory that the optimizer has already moved.
+    auto approach = buildCorridor(terrain, normalized, config, 2, HullBasis::Minvo,
+                                  std::max(0.0, approachStart), 1.0, positionWindow, corridor.mapTiming, swingEnd);
+    if (!approach.valid) return;
+    for (auto& cell : approach.cells) {
+        cell.start = (referenceStart - swingStart + cell.start * remaining) / duration;
+        cell.end = (referenceStart - swingStart + cell.end * remaining) / duration;
+    }
+    corridor.touchdownCentre = reference.getPosition(swingEnd) + config.footRadius * Eigen::Vector3d::UnitZ();
+    corridor.touchdownVelocity = reference.getVelocity(swingEnd);
+    corridor.approachCells = std::move(approach.cells);
+}
+
 CorridorLinearConstraints corridorControlPointConstraints(const TerrainSafetyCorridor& corridor) {
     if (!corridor.valid || corridor.cells.empty()) {
         throw std::invalid_argument("Cannot export an invalid corridor.");
@@ -203,7 +278,7 @@ CorridorLinearConstraints corridorControlPointConstraints(const TerrainSafetyCor
                 for (int axis = 0; axis < 3; ++axis) {
                     result.A.block(row, axis * n, 1, n) = plane.normal[axis] * cell.hullMapping.row(vertex);
                 }
-                result.b[row] = plane.planningOffset - corridor.numericalMargin -
+                result.b[row] = plane.planningOffset - plane.basisMargin - corridor.numericalMargin -
                     plane.normal.z() * corridor.footRadius;
             }
         }

@@ -5,6 +5,9 @@
 #define WBCBASE_H
 
 #include "Task.h"
+#include <array>
+#include <functional>
+#include "ocs2_quadruped_controller/interface/constraint/SwingSafetyFilter.h"
 
 #include <ocs2_centroidal_model/PinocchioCentroidalDynamics.h>
 #include <ocs2_legged_robot/gait/MotionPhaseDefinition.h>
@@ -36,6 +39,11 @@ namespace ocs2::legged_robot
         int solverStatus() const { return solver_status_; }
         int solverIterations() const { return solver_iterations_; }
         scalar_t constraintViolation() const { return constraint_violation_; }
+
+        using SwingSafetyCallback = std::function<SafetyFilterResult(size_t, const vector3_t&, const vector3_t&, const vector3_t&)>;
+        void setSwingSafetyCallback(SwingSafetyCallback callback) { swing_safety_callback_ = std::move(callback); }
+        const auto& safetyResults() const { return safety_results_; }
+        const auto& safetyResiduals() const { return safety_residuals_; }
 
     protected:
         void updateMeasured(const vector_t& rbdStateMeasured);
@@ -72,6 +80,11 @@ namespace ocs2::legged_robot
         contact_flag_t contact_flag_{};
         size_t num_contacts_{};
         Eigen::Matrix<scalar_t, 12, 4> foot_tracking_ = Eigen::Matrix<scalar_t, 12, 4>::Zero();
+        SwingSafetyCallback swing_safety_callback_;
+        Task swing_safety_constraints_;
+        std::array<SafetyFilterResult, 4> safety_results_;
+        std::array<double, 4> safety_residuals_;
+        vector_t nominal_swing_target_;
         bool solution_valid_ = true;
         int solver_status_ = 0, solver_iterations_ = 0;
         scalar_t constraint_violation_ = 0.0;

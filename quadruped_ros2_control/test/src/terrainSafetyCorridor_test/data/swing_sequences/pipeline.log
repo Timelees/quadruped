@@ -1,0 +1,40 @@
+Robot task=src/quadruped_ros2_control/descriptions/cyberdog_description/config/ocs2/task.info gait=src/quadruped_ros2_control/descriptions/cyberdog_description/config/ocs2/gait.info trot swing=0.4s
+PASS geometry/exports flat
+PASS geometry/exports bar
+PASS geometry/exports sides
+PASS geometry/exports stairs
+PASS geometry/exports negative
+PASS geometry/exports diagonal
+PASS geometry/exports curved
+PASS geometry/exports stationary
+PASS geometry/exports thin
+PASS unknown/NaN/empty/config rejection
+Swing QP failed: status=37, generated=1, remaining=196, row=6, residual=-0.0210652
+  reference_min_clearance=0 optimized_min_clearance=0 duration=0.4
+PASS pipeline flat_swing0 cells=20 rows=508 hull_residual=-5.79736e-05 dense_residual=-0.000747167 elapsed_ms=3.96955
+  four_leg_markers=241 marker_ms=1.17255
+  reference_min_clearance=-0.0243285 optimized_min_clearance=0 duration=0.4
+PASS pipeline bar_swing0 cells=20 rows=508 hull_residual=0 dense_residual=-0.000941041 elapsed_ms=4.38234
+  four_leg_markers=241 marker_ms=1.08628
+  reference_min_clearance=-0.0183931 optimized_min_clearance=0 duration=0.4
+PASS pipeline pillars_swing0 cells=20 rows=508 hull_residual=0 dense_residual=-0.000661822 elapsed_ms=4.04963
+  four_leg_markers=241 marker_ms=1.11735
+  reference_min_clearance=0 optimized_min_clearance=0 duration=0.4
+PASS pipeline pillars_swing1 cells=20 rows=508 hull_residual=-0.000199105 dense_residual=-0.000737162 elapsed_ms=3.92112
+  four_leg_markers=241 marker_ms=1.10628
+  reference_min_clearance=0 optimized_min_clearance=0 duration=0.4
+PASS pipeline pillars_swing2 cells=20 rows=508 hull_residual=-0.000199105 dense_residual=-0.000737162 elapsed_ms=3.95347
+  four_leg_markers=241 marker_ms=1.11726
+  reference_min_clearance=0 optimized_min_clearance=0 duration=0.4
+PASS pipeline pillars_swing3 cells=20 rows=508 hull_residual=-0.000199105 dense_residual=-0.000737162 elapsed_ms=3.89398
+  four_leg_markers=241 marker_ms=1.18443
+  reference_min_clearance=-0.018782 optimized_min_clearance=0 duration=0.4
+PASS pipeline stairs_swing0 cells=20 rows=508 hull_residual=1.38778e-17 dense_residual=-0.0003312 elapsed_ms=4.13307
+  four_leg_markers=241 marker_ms=1.12623
+  reference_min_clearance=0 optimized_min_clearance=0 duration=0.4
+PASS pipeline stairs_swing1 cells=20 rows=508 hull_residual=0 dense_residual=-0.00048046 elapsed_ms=4.20089
+  four_leg_markers=241 marker_ms=1.06628
+  reference_min_clearance=0 optimized_min_clearance=0 duration=0.4
+PASS pipeline stairs_swing2 cells=20 rows=508 hull_residual=5.55112e-17 dense_residual=-0.00048046 elapsed_ms=4.1556
+  four_leg_markers=241 marker_ms=1.14492
+All terrain corridor checks passed.

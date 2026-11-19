@@ -22,5 +22,11 @@ int main() {
     Eigen::VectorXd q(18);
     q << x, Eigen::VectorXd::Zero(6), Eigen::VectorXd::Constant(6, 0.2);
     if ((rows.A * q - rows.b).maxCoeff() > 1e-9) return 1;
+    CorridorConfig moving;
+    moving.terrainRiseRate = 0.02;
+    const auto updated = buildTerrainSafetyCorridor(Terrain{}, spline, moving, 4, HullBasis::Minvo, {3.0, 4.2}, 4.0);
+    if (!updated.valid || std::abs(updated.mapHeightMargin - 0.02) > 1e-10 ||
+        updated.cells.front().halfSpaces.front().basisMargin <= 0.0) return 1;
+    if (buildTerrainSafetyCorridor(Terrain{}, spline, moving, 4, HullBasis::Minvo, {3.0, 3.9}, 4.0).valid) return 1;
     std::cout << "3D corridor / MINVO conversion self-check passed\n";
 }

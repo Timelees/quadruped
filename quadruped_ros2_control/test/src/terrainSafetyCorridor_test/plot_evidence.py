@@ -12,12 +12,12 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
 
 P=argparse.ArgumentParser(description=__doc__)
 P.add_argument('data',type=Path)
 P.add_argument('--output',type=Path,required=True)
 P.add_argument('--audit-tools',type=Path)
+P.add_argument('--corridor-data', type=Path, help='Schema 2 corridor exports; other evidence still uses data')
 a=P.parse_args(); a.output.mkdir(parents=True,exist_ok=True)
 if a.audit_tools:
     sys.path.insert(0,str(a.audit_tools))
@@ -43,30 +43,10 @@ def finish(fig,name,axes):
     fig.savefig(a.output/(name+'.png'),dpi=600)
     plt.close(fig)
 
-# Geometry question: does a real optimized path stay between conservative
-# lower planes and the tightened ceiling? All exported cells are included.
-planes=load(a.data/'bar_planes.csv'); traj=load(a.data/'bar_trajectory.csv')
-assert np.all(np.diff(traj['phase']) > 0), 'Phase grid must increase for interpolation'
-fig,axs=plt.subplots(1,2,figsize=(7.2,2.9))
-for cell in np.unique(planes['cell']):
-    p=planes[planes['cell']==cell]; bottom=p[p['az']<-.5][0];top=p[p['az']>.5][0]
-    phase=np.array([p['start'][0],p['end'][0]])
-    xyz=np.interp(phase,traj['phase'],traj['opt_x'])
-    for ax,xx in [(axs[0],xyz),(axs[1],phase)]:
-        ax.fill_between(xx,-bottom['b_geom'],top['b_geom'],color=gray,alpha=.10,linewidth=0)
-        ax.fill_between(xx,-bottom['b_plan'],top['b_plan'],color=blue,alpha=.09,linewidth=0)
-        ax.plot(xx,[-bottom['b_geom']]*2,color=gray,lw=.7)
-        ax.plot(xx,[-bottom['b_plan']]*2,color=blue,lw=.8)
-        ax.plot(xx,[top['b_plan']]*2,color=blue,lw=.6,alpha=.7)
-for ax,x in [(axs[0],traj['opt_x']),(axs[1],traj['phase'])]:
-    ax.plot(x,traj['ref_z'],color=orange,ls='--',label='Nominal centre')
-    ax.plot(x,traj['opt_z'],color=blue,label='MINVO centre')
-    ax.set_ylabel('Foot centre height (m)');ax.set_ylim(0,.26)
-axs[0].add_patch(Rectangle((.225,0),.05,.06,color=gray,alpha=.7))
-axs[0].set(xlabel='Forward position (m)',title='Obstacle and corridor section',xlim=(-.01,.51))
-axs[1].set(xlabel='Swing phase',title='Lower boundary and trajectory',xlim=(0,1))
-axs[1].legend(loc='upper left')
-finish(fig,'corridor_constraint',axs)
+# Same per-scene plots and palette as the standalone corridor plotting command.
+from plot_corridor_sections import SCENES, plot_scene
+for scene in SCENES:
+    plot_scene(a.corridor_data or a.data, a.output, scene, audit_tools=a.audit_tools)
 
 # Comparison question: do continuous hull constraints avoid the collisions
 # missed by sparse collocation, and how much tighter is the MINVO bound?

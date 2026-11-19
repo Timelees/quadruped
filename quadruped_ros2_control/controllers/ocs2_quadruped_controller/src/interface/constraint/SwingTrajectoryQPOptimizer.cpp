@@ -140,6 +140,7 @@ SwingTrajectoryQpOptimizer::SwingTrajectoryQpOptimizer(SwingTrajectoryQpConfig c
         throw std::invalid_argument("Corridors require continuous hull mode and the same physical foot radius.");
     }
     const double values[] = {config_.controlPointTrackingWeight,
+                             config_.landingPositionWindow, config_.landingMaxDownSpeed, config_.landingMaxUpSpeed,
                              config_.positionTrackingWeight,
                              config_.velocityTrackingWeight,
                              config_.accelerationTrackingWeight,
@@ -393,7 +394,7 @@ void SwingTrajectoryQpOptimizer::sampleReferenceTrajectoryToControlPoints(
 
 SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::optimizeSwingTrajectory(
     const BSpline &reference, scalar_t start, scalar_t end, const Eigen::Vector3d &liftOff,
-    const Eigen::Vector3d &touchDown, const HeightBounds &workspace) const {
+    const Eigen::Vector3d &touchDown, const HeightBounds &workspace, TerrainMapTiming map) const {
     if (!std::isfinite(start) || !std::isfinite(end) || end <= start || !liftOff.allFinite() ||
         !touchDown.allFinite()) {
         throw std::invalid_argument("Finite endpoints and positive swing duration are required.");
@@ -475,7 +476,7 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
     if (config_.safetyCorridorEnabled) {
         result.corridor = buildTerrainSafetyCorridor(*terrainInterface_, curve, config_.corridorConfig,
             config_.subdivisionsPerSpan,
-            config_.geometryMode == SwingGeometryMode::Bezier ? HullBasis::Bezier : HullBasis::Minvo);
+            config_.geometryMode == SwingGeometryMode::Bezier ? HullBasis::Bezier : HullBasis::Minvo, map, end);
         if (!result.corridor.valid) {
             if (config_.verbose) std::cerr << "Swing corridor unavailable: " << result.corridor.failureReason << '\n';
             return result;
@@ -636,6 +637,20 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
         }
         return result;
     }
+    // Terminal box and normal speed window are rows of Eq. (22), even when
+    // the last three fixed controls make them constant in the condensed QP.
+    const auto last = extractPolynomialSegments(curve).back();
+    const Eigen::RowVectorXd pEnd = last.bezierMap.row(5);
+    const Eigen::RowVectorXd vEnd = 5.0 / (duration * (last.end - last.start)) *
+        (pEnd - last.bezierMap.row(4));
+    rows.push_back(pEnd);
+    bounds.push_back(touchDown.z() - config_.landingPositionWindow);
+    rows.push_back(-pEnd);
+    bounds.push_back(-touchDown.z() - config_.landingPositionWindow);
+    rows.push_back(vEnd);
+    bounds.push_back(-config_.landingMaxDownSpeed);
+    rows.push_back(-vEnd);
+    bounds.push_back(-config_.landingMaxUpSpeed);
     Eigen::MatrixXd A(rows.size(), n);
     Eigen::VectorXd lower(bounds.size());
     for (size_t i = 0; i < rows.size(); ++i) {
@@ -645,6 +660,11 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
     result.constraintRows = rows.size();
     Eigen::VectorXd solution;
     if (!solveQp(2 * objective, A, lower, z, solution, result.workingSetIterations)) {
+        return result;
+    }
+    // The condensed solver intentionally tolerates fixed contact-envelope rows.
+    // Terminal-set rows are a separate contract and cannot inherit that policy.
+    if ((lower.tail(4) - A.bottomRows(4) * solution).maxCoeff() > kConstraintViolationTolerance) {
         return result;
     }
     result.correctionCost = (solution - z).dot(objective * (solution - z));

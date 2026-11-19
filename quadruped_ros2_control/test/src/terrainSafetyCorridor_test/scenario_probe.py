@@ -32,13 +32,19 @@ def angle(x):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--scenario', choices=['stairs', 'platform'], required=True)
+    p.add_argument('--scenario', choices=['trot', 'stairs', 'platform', 'obstacle', 'trench', 'piles'], required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--speed', type=float, default=.5)
     p.add_argument('--sim-seconds', type=float, default=100)
     p.add_argument('--wall-seconds', type=float, default=600)
-    p.add_argument('--target', type=float, help='Base target: default stairs x=4.95, platform y=4.0')
+    p.add_argument('--target', type=float, help='Base target: stairs x=4.95, platform y=4.0; obstacle uses the far side')
     args = p.parse_args()
+    longitudinal = args.scenario in ('stairs', 'obstacle')
+    targets = {'stairs': 4.95, 'platform': 4.0, 'obstacle': -.35, 'trench': 5.85, 'piles': 8.15}
+    obstacle_direction = None
+    scan_yaw = None
+    scan_angle = 0.0
+    scan_complete = False
     rclpy.init()
     node = Node('terrain_scenario_probe')
     pub = node.create_publisher(Inputs, '/control_input', 10)
@@ -67,7 +73,7 @@ def main():
         rows.append(latest + [phase])
 
     def diag(m):
-        if len(m.data) in (78, 83):
+        if len(m.data) in (78, 83, 112, 113):
             wbc.append(list(m.data))
 
     def reference(m):
@@ -119,7 +125,16 @@ def main():
                 continue
             t = latest[0] - start_sim
             x, y, z, roll, pitch, yaw = latest[1:7]
+            if args.scenario == 'obstacle' and obstacle_direction is None:
+                obstacle_direction = 1 if x < -1.2 else -1
+                targets['obstacle'] = -.35 if obstacle_direction == 1 else -2.05
+            heading = (0.0 if args.scenario == 'stairs' or obstacle_direction == 1 else
+                       math.pi if args.scenario == 'obstacle' else math.pi/2)
             if t > args.sim_seconds:
+                stable_trot = hold_since is not None and t - hold_since >= 3 and any(
+                    row[1] in (6, 9) and row[5] == 1 for row in wbc)
+                if args.scenario == 'trot' and stable_trot:
+                    result = 'passed'
                 break
             if t > 7 and (abs(roll) > .78 or abs(pitch) > .85 or z < .10):
                 result = 'fell'
@@ -131,10 +146,13 @@ def main():
                 phase, phase_start = 'stand', t
             elif phase == 'stand' and t - phase_start > 3:
                 phase, phase_start = 'trot', t
+            elif phase == 'trot' and args.scenario == 'trot':
+                upright = abs(roll) < .2 and abs(pitch) < .25 and z > .17
+                hold_since = (t if hold_since is None else hold_since) if upright else None
             elif phase == 'trot' and t - phase_start > 2:
-                phase, phase_start = ('turn' if args.scenario == 'platform' else 'forward'), t
+                phase, phase_start = ('forward' if args.scenario == 'stairs' or obstacle_direction == 1 else 'turn'), t
             elif phase == 'turn':
-                error = angle(math.pi/2 - yaw)
+                error = angle(heading - yaw)
                 msg.rx = -clamp(.9*error, .35)
                 if abs(error) < .035:
                     turn_since = t if turn_since is None else turn_since
@@ -145,23 +163,41 @@ def main():
             elif phase == 'settle_turn' and t - phase_start > 1:
                 phase, phase_start = 'forward', t
             elif phase == 'forward':
-                target = args.target if args.target is not None else (4.95 if args.scenario == 'stairs' else 4.0)
-                remaining = target - (x if args.scenario == 'stairs' else y)
+                target = args.target if args.target is not None else targets[args.scenario]
+                direction = obstacle_direction if args.scenario == 'obstacle' else 1
+                remaining = direction * (target - (x if longitudinal else y))
                 # Keep the approach above the controller's low-speed drift; stop at the target.
                 msg.ly = min(args.speed, max(.25, remaining*2)) if remaining >= .025 else 0.
-                desired_yaw = 0 if args.scenario == 'stairs' else math.pi/2
-                msg.rx = -clamp(.6*angle(desired_yaw-yaw), .15)
+                msg.rx = -clamp(.6*angle(heading-yaw), .15)
                 # Small cross-track correction, using the existing body-frame velocity input.
-                msg.lx = clamp((y if args.scenario == 'stairs' else x)*(.7 if args.scenario == 'stairs' else -.7), .15)
-                if remaining < .025:
+                msg.lx = clamp((direction*y if longitudinal else x)*(.7 if longitudinal else -.7), .15)
+                if args.scenario in ('trench', 'piles') and not scan_complete and 4.0 <= y < 4.35:
+                    phase, phase_start = 'scan', t
+                    scan_yaw = yaw
+                elif remaining < .025:
                     phase, phase_start = 'hold', t
+            elif phase == 'scan':
+                # Reproduce the established mapping prerequisite on the platform:
+                # a complete turn before approaching the trench, then face +Y.
+                scan_angle += angle(yaw - scan_yaw)
+                scan_yaw = yaw
+                msg.rx = -.4
+                if scan_angle >= 2*math.pi-.08:
+                    scan_complete = True
+                    phase, phase_start = 'turn', t
+                    turn_since = None
             elif phase == 'hold':
                 # Continue trot without translation: success includes three seconds of support stability.
                 feet = [wbc[-1][30+12*i:33+12*i] for i in range(4)] if wbc else []
-                on_destination = len(feet) == 4 and all(
-                    (4.35 < f[0] < 6.35 and abs(f[1]) < 1.45 and f[2] > .69)
-                    if args.scenario == 'stairs' else
-                    (abs(f[0]) < .98 and 3.5 < f[1] < 4.5 and f[2] > .115) for f in feet)
+                def on_destination(f):
+                    if args.scenario == 'stairs':
+                        return 4.35 < f[0] < 6.35 and abs(f[1]) < 1.45 and f[2] > .69
+                    if args.scenario == 'obstacle':
+                        lo, hi = (-.95, .3) if obstacle_direction == 1 else (-2.7, -1.45)
+                        return lo < f[0] < hi and abs(f[1]) < .5 and f[2] > -.02
+                    lo, hi = {'trench': (5.35, 6.35), 'piles': (7.65, 8.65)}.get(args.scenario, (3.5, 4.5))
+                    return abs(f[0]) < .98 and lo < f[1] < hi and f[2] > .115
+                on_destination = len(feet) == 4 and all(on_destination(f) for f in feet)
                 stable = on_destination and abs(roll) < .2 and abs(pitch) < .25
                 hold_since = (t if hold_since is None else hold_since) if stable else None
                 if hold_since is not None and t - hold_since > 3:
@@ -174,13 +210,16 @@ def main():
             if t - last_report >= 5:
                 last_report = t
                 print(f't={t:.1f} phase={phase} xyz=({x:.3f},{y:.3f},{z:.3f}) rpy=({roll:.3f},{pitch:.3f},{yaw:.3f}) wbc={len(wbc)}', flush=True)
+    except KeyboardInterrupt:
+        result = 'interrupted'
     except Exception:
         result = 'probe_error'
         raise
     finally:
         msg = Inputs()
         msg.command = 1
-        pub.publish(msg)
+        if rclpy.ok():
+            pub.publish(msg)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         header = ['sim_time','x','y','z','roll','pitch','yaw','vx','vy','vz','wx','wy','wz','phase']
         with args.output.with_suffix('.csv').open('w') as f:
@@ -193,8 +232,13 @@ def main():
         names += [f'tau_{i}' for i in range(12)] + [f'force_{i}' for i in range(12)]
         names += [f'{leg}_{q}_{axis}' for leg in ['LF','RF','LH','RH']
                   for q in ['p','v','pd','vd'] for axis in 'xyz']
-        if wbc and len(wbc[0]) == 83:
+        if wbc and len(wbc[0]) >= 83:
             names += ['ros_time','sensor_LF','sensor_RF','sensor_LH','sensor_RH']
+        if wbc and len(wbc[0]) >= 112:
+            names += ['control_period'] + [f'{leg}_{field}' for leg in ['LF','RF','LH','RH']
+                for field in ['safety_status','clearance','psi1','tube_slack','correction','wbc_safety_residual','tube_status']]
+        if wbc and len(wbc[0]) == 113:
+            names.append('wbc_compute_ms')
         with args.output.with_name(args.output.stem+'_wbc.csv').open('w') as f:
             writer = csv.writer(f); writer.writerow(names); writer.writerows(wbc)
         with args.output.with_name(args.output.stem+'_reference.csv').open('w') as f:
@@ -202,13 +246,16 @@ def main():
             writer.writerow(['sim_time']+[f'{leg}_{q}_{axis}' for leg in ['LF','RF','LH','RH'] for q in ['p','v'] for axis in 'xyz'])
             writer.writerows(references)
         summary = dict(result=result, scenario=args.scenario, speed_normalized=args.speed,
+                       obstacle_direction=obstacle_direction,
                        wall_seconds=time.monotonic()-start_wall, samples=len(rows), wbc_samples=len(wbc),
                        final=latest, counts=counts,
                        max_abs_roll=max((abs(r[4]) for r in rows), default=None),
                        max_abs_pitch=max((abs(r[5]) for r in rows), default=None))
         args.output.with_suffix('.json').write_text(json.dumps(summary, indent=2)+'\n')
         print(json.dumps(summary), flush=True)
-        node.destroy_node(); rclpy.shutdown()
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
     return 0 if result == 'passed' else 1
 
 

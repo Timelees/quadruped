@@ -9,6 +9,7 @@
 #include <ocs2_centroidal_model/CentroidalModelRbdConversions.h>
 #include <ocs2_core/misc/Benchmark.h>
 #include <ocs2_quadruped_controller/control/CtrlComponent.h>
+#include <ocs2_quadruped_controller/interface/constraint/SwingSafetyFilter.h>
 #include <ocs2_quadruped_controller/wbc/WbcBase.h>
 #include <rclcpp/duration.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
@@ -54,6 +55,14 @@ namespace ocs2::legged_robot
 
         double default_kp_ = 0;
         double default_kd_ = 6;
+
+        // Sections 4.1-4.3 safety filter, off by default.
+        std::unique_ptr<SwingSafetyFilter> safety_filter_;
+        class SwingPolicyObserver;
+        std::shared_ptr<SwingPolicyObserver> swing_policy_observer_;
+        std::shared_ptr<SwingTrajectoryPlanner> swing_planner_;
+        void applySafetyFilter(double period);
+        std::array<double, 4> last_logged_activation_{{-1, -1, -1, -1}};
 
         vector_t optimized_state_, optimized_input_;
     };

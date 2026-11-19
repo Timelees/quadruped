@@ -109,7 +109,7 @@ namespace ocs2::legged_robot {
             if (initTime < start || initTime >= end) { return nullptr; }
             for (const auto& spline : previous) {
                 const auto& knots = spline.getKnots();
-                if (knots.size() && std::abs(knots[0] - start) < 1e-9 &&
+                if (knots.size() && knots[0] <= initTime &&
                     std::abs(knots[knots.size() - 1] - end) < 1e-9) {
                     return &spline;
                 }
@@ -120,10 +120,11 @@ namespace ocs2::legged_robot {
         BSpline createStanceHeightBSpline(scalar_t height) {
             return createHeightBSpline(Eigen::VectorXd::Constant(kStanceHeightControlPoints, height), 0.0, 1.0);
         }
+
     } // namespace
 
     SwingTrajectoryPlanner::SwingTrajectoryPlanner(Config config, size_t numFeet) : config_(config),
-        numFeet_(numFeet) {
+        numFeet_(numFeet), replanner_(config_.replanConfig) {
     }
 
     void SwingTrajectoryPlanner::setTerrainInterface(std::shared_ptr<TerrainInterface> terrainInterface) {
@@ -241,6 +242,21 @@ namespace ocs2::legged_robot {
         const feet_array_t<std::vector<Eigen::Vector3d>> &liftOffPositionSequence,
         const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence,
         scalar_t initTime, scalar_t finalTime) {
+        SwingFootState empty;
+        empty.fill(Eigen::Vector3d::Constant(std::numeric_limits<double>::quiet_NaN()));
+        updateTerrain(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, liftOffPositionSequence,
+                      touchDownPositionSequence, initTime, finalTime, empty, empty, empty);
+    }
+
+    void SwingTrajectoryPlanner::updateTerrain(
+        const ModeSchedule &modeSchedule,
+        const feet_array_t<scalar_array_t> &liftOffHeightSequence,
+        const feet_array_t<scalar_array_t> &touchDownHeightSequence,
+        const feet_array_t<std::vector<Eigen::Vector3d>> &liftOffPositionSequence,
+        const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence,
+        scalar_t initTime, scalar_t finalTime,
+        const SwingFootState &footPosition, const SwingFootState &footVelocity,
+        const SwingFootState &footAcceleration) {
         scalar_array_t heightSequence(modeSchedule.modeSequence.size());
         feet_array_t<scalar_array_t> maxHeightSequence;
         for (size_t j = 0; j < numFeet_; j++) {
@@ -250,7 +266,8 @@ namespace ocs2::legged_robot {
             maxHeightSequence[j] = heightSequence;
         }
         updateTerrain(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, maxHeightSequence,
-                  liftOffPositionSequence, touchDownPositionSequence, initTime, finalTime);
+                      liftOffPositionSequence, touchDownPositionSequence, initTime, finalTime, footPosition,
+                      footVelocity, footAcceleration);
     }
 
     void SwingTrajectoryPlanner::updateTerrain(
@@ -261,6 +278,23 @@ namespace ocs2::legged_robot {
         const feet_array_t<std::vector<Eigen::Vector3d>> &liftOffPositionSequence,
         const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence,
         scalar_t initTime, scalar_t finalTime) {
+        SwingFootState empty;
+        empty.fill(Eigen::Vector3d::Constant(std::numeric_limits<double>::quiet_NaN()));
+        updateTerrain(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, maxHeightSequence,
+                      liftOffPositionSequence, touchDownPositionSequence, initTime, finalTime, empty, empty,
+                      empty);
+    }
+
+    void SwingTrajectoryPlanner::updateTerrain(
+        const ModeSchedule &modeSchedule,
+        const feet_array_t<scalar_array_t> &liftOffHeightSequence,
+        const feet_array_t<scalar_array_t> &touchDownHeightSequence,
+        const feet_array_t<scalar_array_t> &maxHeightSequence,
+        const feet_array_t<std::vector<Eigen::Vector3d>> &liftOffPositionSequence,
+        const feet_array_t<std::vector<Eigen::Vector3d>> &touchDownPositionSequence,
+        scalar_t initTime, scalar_t finalTime,
+        const SwingFootState &footPosition, const SwingFootState &footVelocity,
+        const SwingFootState &footAcceleration) {
         if (!config_.useTerrainPlanning) {
             update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, maxHeightSequence, initTime);
             return;
@@ -284,6 +318,12 @@ namespace ocs2::legged_robot {
             const auto previous = std::move(feetHeightTrajectories_[j]);
             feetHeightTrajectories_[j].clear();
             feetHeightTrajectories_[j].reserve(modeSequence.size());
+            const auto previousCorridors = std::move(terrainCorridors_[j]);
+            const auto previousStarts = std::move(terrainCorridorStarts_[j]);
+            const auto previousEnds = std::move(terrainCorridorEnds_[j]);
+            terrainCorridors_[j].clear();
+            terrainCorridorStarts_[j].clear();
+            terrainCorridorEnds_[j].clear();
             for (int p = 0; p < modeSequence.size(); ++p) {
                 // 同一次更新中，连续非接触模式属于同一完整摆动段，只求解一次。
                 if (p > 0 && !eesContactFlagStocks[j][p] && !eesContactFlagStocks[j][p - 1]) {
@@ -298,7 +338,20 @@ namespace ocs2::legged_robot {
                     const scalar_t swingStartTime = eventTimes[swingStartIndex];
                     const scalar_t swingFinalTime = eventTimes[swingFinalIndex];
                     if (const auto* frozen = executingSwing(previous, swingStartTime, swingFinalTime, initTime)) {
-                        feetHeightTrajectories_[j].push_back(*frozen);
+                        for (size_t i = 0; i < previousCorridors.size(); ++i) {
+                            if (std::abs(previousStarts[i] - swingStartTime) < 1e-8 &&
+                                std::abs(previousEnds[i] - swingFinalTime) < 1e-8) {
+                                terrainCorridors_[j].push_back(previousCorridors[i]);
+                                terrainCorridorStarts_[j].push_back(swingStartTime);
+                                terrainCorridorEnds_[j].push_back(swingFinalTime);
+                                break;
+                            }
+                        }
+                        // Section 4.4: the executing swing may be replaced by a
+                        // state-corrected candidate when the admission check passes.
+                        feetHeightTrajectories_[j].push_back(
+                            replanExecutingSwing(j, *frozen, swingStartTime, swingFinalTime, initTime,
+                                                 footPosition, footVelocity, footAcceleration));
                         continue;
                     }
                     const scalar_t scaling = swingTrajectoryScaling(swingStartTime, swingFinalTime,
@@ -388,17 +441,28 @@ namespace ocs2::legged_robot {
                         referenceSpline, swingStartTime, swingFinalTime, liftOff, touchDown,
                         workspace_ ? SwingTrajectoryQpOptimizer::HeightBounds([&, j](double t, const Eigen::Vector3d& position) {
                             return workspace_(j, t, position);
-                        }) : SwingTrajectoryQpOptimizer::HeightBounds{});
+                        }) : SwingTrajectoryQpOptimizer::HeightBounds{}, mapTiming_);
                     if (config_.terrainQpConfig.verbose) {
                         std::cerr << "Swing planning ms=" << std::chrono::duration<double, std::milli>(
                             std::chrono::steady_clock::now() - optimizationStart).count()
                                   << " corridor_cells=" << optimized.corridor.cells.size()
                                   << " corridor_certified=" << optimized.corridorCertified
-                                  << " corridor_max_violation=" << optimized.corridorMaxViolation << '\n';
+                                  << " corridor_max_violation=" << optimized.corridorMaxViolation
+                                  << " map_to_touchdown=" << optimized.corridor.mapToTouchdown
+                                  << " map_height_margin=" << optimized.corridor.mapHeightMargin << '\n';
                     }
-                    // The last swing of the horizon is the freshest plan, so it
-                    // defines the corridor published for this leg.
-                    terrainCorridors_[j] = optimized.corridor;
+                    // Keep the corridor with the swing window it was built for. The QP may run
+                    // for several future swings in one call; the execution-layer
+                    // filter needs the one the foot is actually inside.
+                    terrainCorridors_[j].push_back(optimized.corridor);
+                    if (config_.safetyFilterConfig.enabled && optimized.valid() && optimized.corridorCertified) {
+                        buildLandingCorridor(terrainCorridors_[j].back(), *terrainInterface_, *optimized.bspline,
+                            config_.terrainQpConfig.corridorConfig, swingStartTime, swingFinalTime,
+                            config_.safetyFilterConfig.landingPositionWindow);
+                    }
+                    if (!optimized.corridorCertified) terrainCorridors_[j].back().valid = false;
+                    terrainCorridorStarts_[j].push_back(swingStartTime);
+                    terrainCorridorEnds_[j].push_back(swingFinalTime);
                     if (!optimized.valid()) {
                         // guardrail: QP infeasible or output certification failed.
                         // Fall back to the reference spline rather than aborting the
@@ -421,8 +485,196 @@ namespace ocs2::legged_robot {
             }
             feetHeightTrajectoriesEvents_[j] = eventTimes;
         }
+        auto snapshot = std::make_shared<ExecutionSwings>();
+        for (size_t leg = 0; leg < numFeet_; ++leg) {
+            for (size_t i = 0; i < terrainCorridors_[leg].size(); ++i) {
+                const double end = terrainCorridorEnds_[leg][i];
+                for (const auto& spline : feetHeightTrajectories_[leg]) {
+                    const auto& knots = spline.getKnots();
+                    if (knots.size() && std::abs(knots[knots.size()-1] - end) < 1e-8) {
+                        (*snapshot)[leg].push_back({spline, terrainCorridors_[leg][i],
+                            terrainCorridorStarts_[leg][i], end});
+                        break;
+                    }
+                }
+            }
+        }
+        std::atomic_store(&executionSwings_, std::shared_ptr<const ExecutionSwings>(std::move(snapshot)));
     }
 
+
+    // Section 4.4 / Algorithm 1 steps 2-4 for one executing swing. Returns the
+    // reference to execute: the state-corrected candidate when every admission
+    // condition holds, otherwise the unchanged previous reference.
+    BSpline SwingTrajectoryPlanner::replanExecutingSwing(
+        size_t leg, const BSpline &executing, scalar_t swingStartTime, scalar_t swingFinalTime,
+        scalar_t initTime, const SwingFootState &footPosition, const SwingFootState &footVelocity,
+        const SwingFootState &footAcceleration) {
+        const auto& cfg = replanner_.config();
+        const auto replanStart = std::chrono::steady_clock::now();
+        if (!cfg.enabled || !config_.terrainQpConfig.safetyCorridorEnabled ||
+            swingFinalTime - initTime < cfg.minRemainingTime || initTime < executing.getKnots()[0]) return executing;
+        const double phase = (initTime - swingStartTime) / (swingFinalTime - swingStartTime);
+        const double contactPhase = config_.terrainQpConfig.corridorConfig.contactPhase;
+        if (phase < contactPhase || phase >= 1.0 - contactPhase) return executing;
+        if (std::abs(pendingEnd_[leg] - swingFinalTime) > 1e-8) pendingActivation_[leg] = INFINITY;
+        const bool activating = std::isfinite(pendingActivation_[leg]) && initTime >= pendingActivation_[leg];
+        if (!activating && (std::isfinite(pendingActivation_[leg]) ||
+                           initTime - lastReplanTime_[leg] < cfg.updateInterval)) return executing;
+        lastReplanTime_[leg] = initTime;
+        if (!footPosition[leg].allFinite() || !footVelocity[leg].allFinite()) {
+            if (activating) {
+                replanner_.recordRejection(SwingReplanOutcome::RejectedActivation);
+                pendingActivation_[leg] = INFINITY;
+            }
+            return executing;
+        }
+        const Eigen::Vector3d acceleration = footAcceleration[leg].allFinite() ? footAcceleration[leg] :
+                                            executing.getAcceleration(initTime);
+        // Always re-read the synchronized terrain snapshot. An executing swing's
+        // previous map certificate must not silently become a new-map certificate.
+        const double referenceStart = executing.getKnots()[0];
+        BSpline normalized = executing;
+        normalized.setKnots(((executing.getKnots().array() - referenceStart) /
+                             (swingFinalTime - referenceStart)).matrix());
+        auto corridorConfig = config_.terrainQpConfig.corridorConfig;
+        corridorConfig.contactPhase = 0.0;
+        auto corridor = buildTerrainSafetyCorridor(*terrainInterface_, normalized,
+            corridorConfig, config_.terrainQpConfig.subdivisionsPerSpan, HullBasis::Minvo, mapTiming_, swingFinalTime);
+        for (auto& cell : corridor.cells) {
+            cell.start = (referenceStart - swingStartTime + cell.start * (swingFinalTime - referenceStart)) /
+                         (swingFinalTime - swingStartTime);
+            cell.end = (referenceStart - swingStartTime + cell.end * (swingFinalTime - referenceStart)) /
+                       (swingFinalTime - swingStartTime);
+        }
+        std::vector<CorridorPolytope> noncontact;
+        for (auto& cell : corridor.cells) {
+            if (cell.end <= contactPhase || cell.start >= 1.0-contactPhase) continue;
+            cell.start = std::max(cell.start, contactPhase);
+            cell.end = std::min(cell.end, 1.0-contactPhase);
+            noncontact.push_back(std::move(cell));
+        }
+        corridor.cells = std::move(noncontact);
+        corridor.start = contactPhase; corridor.end = 1.0-contactPhase;
+        corridor.valid = corridor.valid && !corridor.cells.empty();
+        // Current map must still support the ORIGINAL touchdown target. Do not
+        // silently redirect it to the latest foothold selector's target.
+        if (corridor.valid) {
+            try {
+                const auto terminal = executing.getPosition(swingFinalTime);
+                if (std::abs(terrainInterface_->getHeight(terminal.x(), terminal.y())-terminal.z()) > 0.025) {
+                    replanner_.recordRejection(SwingReplanOutcome::RejectedTerminal);
+                    pendingActivation_[leg] = INFINITY;
+                    return executing;
+                }
+            } catch (const TerrainUnavailable&) {
+                replanner_.recordRejection(SwingReplanOutcome::RejectedTerminal);
+                pendingActivation_[leg] = INFINITY;
+                return executing;
+            }
+        }
+        const double delay = activating ? 0.0 : cfg.activationDelay;
+        const double activation = initTime + delay;
+        auto predictionConfig = cfg;
+        // Eq. (34), including input/model mismatch in disturbanceBound.
+        predictionConfig.positionUncertainty += delay * cfg.velocityUncertainty +
+                                                0.5 * cfg.disturbanceBound * delay * delay;
+        predictionConfig.velocityUncertainty += cfg.disturbanceBound * delay;
+        SwingReplanDecision decision;
+        if (delay > 0.0) {
+            SwingOnlineReplanner prediction(predictionConfig);
+            decision = prediction.admit(executing, corridor, swingStartTime, activation, swingFinalTime,
+                footPosition[leg] + delay * footVelocity[leg] + 0.5 * delay * delay * acceleration,
+                footVelocity[leg] + delay * acceleration, acceleration);
+            if (decision.admitted()) {
+                pendingActivation_[leg] = activation;
+                pendingEnd_[leg] = swingFinalTime;
+                return executing;
+            }
+            pendingActivation_[leg] = INFINITY;
+            replanner_.recordRejection(decision.outcome);
+        } else {
+            pendingActivation_[leg] = INFINITY;
+            decision = replanner_.admit(executing, corridor, swingStartTime, initTime, swingFinalTime,
+                                       footPosition[leg], footVelocity[leg], acceleration);
+        }
+        if (decision.admitted() && config_.safetyFilterConfig.enabled) {
+            const auto& filterConfig = config_.safetyFilterConfig;
+            SwingSafetyFilter::FootState state;
+            state.position = footPosition[leg] + config_.footRadius * Eigen::Vector3d::UnitZ();
+            state.velocity = footVelocity[leg];
+            state.referenceAcceleration = decision.candidate.getAcceleration(initTime);
+            // x_d matches the measured activation state by construction. Check
+            // initial HOCBF and combined rows using the configured input box.
+            const auto control = SwingSafetyFilter(filterConfig).filter(corridor, state,
+                state.referenceAcceleration, phase, filterConfig.maxPeriod);
+            if (!control.active() || (filterConfig.tubeEnabled && control.tubeStatus != SafetyFilterStatus::Solved)) {
+                decision.outcome = SwingReplanOutcome::RejectedControl;
+                decision.reason = control.status == SafetyFilterStatus::InvalidState ?
+                    "HOCBF or tube initial state invalid" : "initial joint filter rows infeasible";
+                replanner_.revokeAdmission(decision.outcome);
+            }
+        }
+        if (decision.admitted() && workspace_) {
+            // The existing workspace API is sampled IK; do not label it a hull certificate.
+            for (int i = 0; i <= 20; ++i) {
+                const double t = initTime + (swingFinalTime - initTime) * i / 20.0;
+                const auto point = decision.candidate.getPosition(t);
+                const auto bounds = workspace_(leg, t, point);
+                if (!bounds.allFinite() || point.z() < bounds[0] - 1e-8 || point.z() > bounds[1] + 1e-8) {
+                    decision.outcome = SwingReplanOutcome::RejectedCandidate;
+                    decision.reason = "candidate outside IK workspace";
+                    replanner_.revokeAdmission(decision.outcome);
+                    break;
+                }
+            }
+        }
+        if (config_.terrainQpConfig.verbose) {
+            std::cerr << "Swing replan leg=" << leg << " activation=" << initTime
+                      << " remaining=" << swingFinalTime - initTime
+                      << " position_delta=" << (footPosition[leg] - executing.getPosition(initTime)).norm()
+                      << " outcome=" << static_cast<int>(decision.outcome) << " reason=" << decision.reason
+                      << " replan_ms=" << std::chrono::duration<double, std::milli>(
+                             std::chrono::steady_clock::now() - replanStart).count()
+                      << " stats=" << replanner_.stats().json() << '\n';
+        }
+        if (!decision.admitted()) return executing;
+        // Store only a certificate whose maps belong to the accepted knot space.
+        if (!terrainCorridorEnds_[leg].empty() && terrainCorridorEnds_[leg].back() == swingFinalTime) {
+            auto& committed = terrainCorridors_[leg].back();
+            committed = SwingOnlineReplanner::remapCorridor(
+                decision.candidate, corridor, swingStartTime, swingFinalTime);
+            if (config_.safetyFilterConfig.enabled) {
+                buildLandingCorridor(committed, *terrainInterface_, decision.candidate,
+                    config_.terrainQpConfig.corridorConfig, swingStartTime, swingFinalTime,
+                    config_.safetyFilterConfig.landingPositionWindow);
+            }
+        }
+        return decision.candidate;
+    }
+
+    feet_array_t<TerrainSafetyCorridor> SwingTrajectoryPlanner::getTerrainCorridors() const {
+        feet_array_t<TerrainSafetyCorridor> result;
+        for (size_t leg = 0; leg < numFeet_; ++leg) {
+            // The last swing of the horizon is the freshest plan; publish that one.
+            if (!terrainCorridors_[leg].empty()) {
+                result[leg] = terrainCorridors_[leg].back();
+            }
+        }
+        return result;
+    }
+
+    const TerrainSafetyCorridor& SwingTrajectoryPlanner::getTerrainCorridor(size_t leg, scalar_t time) const {
+        static const TerrainSafetyCorridor none;
+        const auto& corridors = terrainCorridors_[leg];
+        for (size_t i = 0; i < corridors.size(); ++i) {
+            if (time >= terrainCorridorStarts_[leg][i] && time < terrainCorridorEnds_[leg][i] &&
+                corridors[i].valid) {
+                return corridors[i];
+            }
+        }
+        return none;
+    }
 
     std::pair<std::vector<int>, std::vector<int> > SwingTrajectoryPlanner::updateFootSchedule(
         const std::vector<bool> &contactFlagStock) {
@@ -588,6 +840,50 @@ namespace ocs2::legged_robot {
         loadOptional(config.terrainQpConfig.collisionCheck.maxDepth, "collisionMaxDepth");
         loadOptional(config.terrainQpConfig.collisionCheck.maxSegments, "collisionMaxSegments");
 
+        // Section 4.4 online replanning: off by default, it changes the executing
+        // reference mid-swing rather than only future swings.
+        loadOptional(config.replanConfig.enabled, "swingOnlineReplanEnabled");
+        loadOptional(config.replanConfig.correctionDuration, "swingReplanCorrectionDuration");
+        loadOptional(config.replanConfig.activationDelay, "swingReplanActivationDelay");
+        loadOptional(config.replanConfig.maxPositionDeviation, "swingReplanMaxPositionDeviation");
+        loadOptional(config.replanConfig.maxVelocityDeviation, "swingReplanMaxVelocityDeviation");
+        loadOptional(config.replanConfig.maxMarginFraction, "swingReplanMaxMarginFraction");
+        loadOptional(config.replanConfig.minRemainingTime, "swingReplanMinRemainingTime");
+        loadOptional(config.replanConfig.updateInterval, "swingReplanUpdateInterval");
+        loadOptional(config.replanConfig.maxVelocity, "swingReplanMaxVelocity");
+        loadOptional(config.replanConfig.maxAcceleration, "swingReplanMaxAcceleration");
+        loadOptional(config.replanConfig.maxJerk, "swingReplanMaxJerk");
+        loadOptional(config.replanConfig.positionUncertainty, "swingReplanPositionUncertainty");
+        loadOptional(config.replanConfig.velocityUncertainty, "swingReplanVelocityUncertainty");
+        loadOptional(config.replanConfig.disturbanceBound, "swingReplanDisturbanceBound");
+        loadOptional(config.replanConfig.nominalTrackingWeight, "swingReplanNominalTrackingWeight");
+        loadOptional(config.replanConfig.previousTrackingWeight, "swingReplanPreviousTrackingWeight");
+        auto& filter = config.safetyFilterConfig;
+        loadOptional(filter.enabled, "safetyFilterEnabled");
+        loadOptional(filter.tubeEnabled, "safetyFilterTubeEnabled");
+        loadOptional(filter.hocbfGain1, "safetyFilterHocbfGain1");
+        loadOptional(filter.hocbfGain2, "safetyFilterHocbfGain2");
+        loadOptional(filter.disturbanceBound, "safetyFilterDisturbanceBound");
+        loadOptional(filter.positionBound, "safetyFilterPositionBound");
+        loadOptional(filter.velocityBound, "safetyFilterVelocityBound");
+        loadOptional(filter.couplingGain, "safetyFilterCouplingGain");
+        loadOptional(filter.couplingBound, "safetyFilterCouplingBound");
+        loadOptional(filter.tubeRate, "safetyFilterTubeRate");
+        loadOptional(filter.maxCorrection, "safetyFilterMaxCorrection");
+        loadOptional(filter.maxAcceleration, "safetyFilterMaxAcceleration");
+        loadOptional(filter.hocbfSampleRate, "safetyFilterHocbfSampleRate");
+        loadOptional(filter.tubeSampleRate, "safetyFilterTubeSampleRate");
+        loadOptional(filter.maxPeriod, "safetyFilterMaxPeriod");
+        loadOptional(filter.landingPositionWindow, "safetyFilterLandingPositionWindow");
+        loadOptional(filter.landingMaxDownSpeed, "safetyFilterLandingMaxDownSpeed");
+        loadOptional(filter.landingMaxUpSpeed, "safetyFilterLandingMaxUpSpeed");
+        config.replanConfig.landingPositionWindow = config.terrainQpConfig.landingPositionWindow =
+            filter.landingPositionWindow;
+        config.replanConfig.landingMaxDownSpeed = config.terrainQpConfig.landingMaxDownSpeed =
+            filter.landingMaxDownSpeed;
+        config.replanConfig.landingMaxUpSpeed = config.terrainQpConfig.landingMaxUpSpeed =
+            filter.landingMaxUpSpeed;
+
         // Section 3.1 terrain safety corridor: optional, off by default so the
         // existing height-based planning path is untouched unless switched on.
         loadOptional(config.terrainQpConfig.safetyCorridorEnabled, "terrainSafetyCorridorEnabled");
@@ -596,6 +892,7 @@ namespace ocs2::legged_robot {
         loadOptional(corridor.longitudinalExtent, "corridorLongitudinalExtent");
         loadOptional(corridor.verticalExtent, "corridorVerticalExtent");
         loadOptional(corridor.mapMargin, "corridorMapMargin");
+        loadOptional(corridor.terrainRiseRate, "corridorTerrainRiseRate");
         loadOptional(corridor.geometricClearance, "corridorGeometricClearance");
         loadOptional(corridor.numericalMargin, "corridorNumericalMargin");
         loadOptional(corridor.contactPhase, "corridorContactPhase");

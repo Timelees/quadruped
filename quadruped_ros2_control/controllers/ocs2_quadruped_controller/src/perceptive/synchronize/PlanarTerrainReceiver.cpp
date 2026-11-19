@@ -25,6 +25,10 @@ namespace ocs2::legged_robot
           planarTerrainPtr_(planarTerrainPtr),
           sdfPtr_(signedDistanceFieldPtr)
     {
+        certificateAge_ = getOrDeclareDoubleParameter("planar_terrain_certificate_age", certificateAge_);
+        if (!std::isfinite(certificateAge_) || certificateAge_ <= 0.0) {
+            throw std::invalid_argument("planar_terrain_certificate_age must be positive.");
+        }
         maxMapAge_ = getOrDeclareDoubleParameter("planar_terrain_max_age", maxMapAge_);
         futureTimestampTolerance_ = getOrDeclareDoubleParameter(
             "planar_terrain_future_tolerance", futureTimestampTolerance_);
@@ -92,6 +96,16 @@ namespace ocs2::legged_robot
             std::swap(*planarTerrainPtr_, pendingTerrain_);
             sdfPtr_->swap(*pendingSdf_);
         }
+    }
+
+    TerrainMapTiming PlanarTerrainReceiver::mapTiming(double controllerTime) const
+    {
+        // Called by the solver after preSolverRun commits the map/SDF pair.
+        const auto stamp = planarTerrainPtr_->gridMap.getTimestamp();
+        const double now = node_->now().seconds();
+        if (stamp == 0 || now <= 0.0) return {};
+        const double age = std::max(0.0, now - static_cast<double>(stamp) * 1e-9);
+        return {controllerTime - age, controllerTime - age + certificateAge_};
     }
 
     bool PlanarTerrainReceiver::sanitizeElevationLayer(

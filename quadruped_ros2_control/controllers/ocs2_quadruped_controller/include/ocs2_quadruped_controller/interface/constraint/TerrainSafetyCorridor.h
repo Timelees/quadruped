@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Eigen/Core>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -15,6 +16,7 @@ struct CorridorHalfSpace {
     Eigen::Vector3d normal = Eigen::Vector3d::UnitZ();  // unit length
     double geometricOffset = 0.0;
     double planningOffset = 0.0;  // geometricOffset - support_E(normal)
+    double basisMargin = 0.0;
 };
 
 struct CorridorPolytope {
@@ -23,11 +25,17 @@ struct CorridorPolytope {
     Eigen::MatrixXd hullMapping;  // six hull vertices from original spline controls
 };
 
+struct TerrainMapTiming {
+    double stamp = std::numeric_limits<double>::quiet_NaN(); // controller time
+    double validUntil = std::numeric_limits<double>::infinity();
+};
+
 struct CorridorConfig {
     double lateralExtent = 0.15;
     double longitudinalExtent = 0.04;
     double verticalExtent = 0.08;
     double footRadius = 0.019;
+    double terrainRiseRate = 0.0;   // upper height variation [m/s]
     double mapMargin = 0.0;          // isotropic map position error, obstacle dilation
     double geometricClearance = 0.001;  // strict gap to the inflated obstacle
     double trackingMargin = 0.02;  // Euclidean position error ball
@@ -39,8 +47,14 @@ struct CorridorConfig {
 
 struct TerrainSafetyCorridor {
     std::vector<CorridorPolytope> cells;
+    std::vector<CorridorPolytope> approachCells;  // execution only, no target-top clearance row
     double footRadius = 0.0;
     double numericalMargin = 0.0;
+    Eigen::Vector3d touchdownCentre = Eigen::Vector3d::Zero();
+    Eigen::Vector3d touchdownVelocity = Eigen::Vector3d::Zero();
+    TerrainMapTiming mapTiming;
+    double mapToTouchdown = 0.0;
+    double mapHeightMargin = 0.0;
     double start = 0.0, end = 0.0;
     bool valid = false;
     std::string failureReason;
@@ -55,7 +69,14 @@ TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain
                                                  const BSpline& normalizedReference,
                                                  const CorridorConfig& config,
                                                  int subdivisionsPerSpan = 4,
-                                                 HullBasis basis = HullBasis::Minvo);
+                                                 HullBasis basis = HullBasis::Minvo,
+                                                 TerrainMapTiming map = {}, double touchdownTime = 0.0);
+
+// Build the execution-only terminal cells from the accepted reference. The tip
+// position is in contact coordinates. No changes to the planning certificate.
+void buildLandingCorridor(TerrainSafetyCorridor& corridor, const TerrainInterface& terrain,
+                          const BSpline& reference, const CorridorConfig& config,
+                          double swingStart, double swingEnd, double positionWindow);
 
 // Block control order [qx(0..N-1), qy(0..N-1), qz(0..N-1)], FOOT REFERENCE
 // coordinates. Includes the sphere-centre translation and numerical reserve.

@@ -12,6 +12,7 @@
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include "ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h"
 
+#include "ocs2_quadruped_controller/perceptive/synchronize/PlanarTerrainReceiver.h"
 #include "log_save.h"
 
 #include <rclcpp/rclcpp.hpp>
@@ -111,6 +112,7 @@ namespace ocs2::legged_robot
         // here so footholds, swing references and collision costs use one snapshot.
         if (terrainReceiver_) {
             terrainReceiver_->preSolverRun(initTime, finalTime, initState, *this);
+            swingTrajectoryPtr_->setMapTiming(terrainReceiver_->mapTiming(initTime));
         }
         SwitchedModelReferenceManager::preSolverRun(initTime, finalTime, initState);
     }
@@ -267,8 +269,21 @@ namespace ocs2::legged_robot
                 }
             });
             const auto [liftOff3d, touchDown3d] = getSwingPositions3d(contactFlagStocks, allProjections);
+            SwingTrajectoryPlanner::SwingFootState footPosition, footVelocity, footAcceleration;
+            const auto measuredPositions = endEffectorKinematicsPtr_->getPosition(initState);
+            const auto feedback = swingTrajectoryPtr_->footFeedback();
+            for (size_t leg = 0; leg < info_.numThreeDofContacts; ++leg) {
+                footPosition[leg] = measuredPositions[leg];
+                footPosition[leg].z() -= swingTrajectoryPtr_->getConfig().footRadius;
+                footVelocity[leg] = Eigen::Vector3d::Constant(std::numeric_limits<scalar_t>::quiet_NaN());
+                footAcceleration[leg] = footVelocity[leg];
+                if (feedback && initTime >= feedback->time && initTime - feedback->time <= 0.03) {
+                    footVelocity[leg] = feedback->velocity[leg];
+                }
+            }
             swingTrajectoryPtr_->updateTerrain(modeSchedule, liftOffHeightSequence, touchDownHeightSequence,
-                                           liftOff3d, touchDown3d, initTime, targets.timeTrajectory.back());
+                                           liftOff3d, touchDown3d, initTime, targets.timeTrajectory.back(),
+                                           footPosition, footVelocity, footAcceleration);
             swingTrajectoryPtr_->setWorkspace({});
         }
         else

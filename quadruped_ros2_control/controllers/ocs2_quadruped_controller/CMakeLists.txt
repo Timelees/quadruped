@@ -72,6 +72,8 @@ add_library(${PROJECT_NAME} SHARED
         src/interface/constraint/QuinticSplineCpg.cpp
         src/interface/constraint/BSpline.cpp
         src/interface/constraint/SwingTrajectoryPlanner.cpp
+        src/interface/constraint/SwingOnlineReplanner.cpp
+        src/interface/constraint/SwingSafetyFilter.cpp
         src/interface/constraint/PolynomialHull.cpp
         src/interface/constraint/TerrainGeometry.cpp
         src/interface/constraint/TerrainSafetyCorridor.cpp
@@ -152,7 +154,17 @@ target_link_libraries(terrain_safety_corridor_selfcheck
         ${PROJECT_NAME}
         Eigen3::Eigen)
 
+# Runnable self-check for the section 4 online replanning admission test and the
+# section 4.1-4.3 acceleration safety filter.
+add_executable(swing_replan_selfcheck test/swing_replan_selfcheck.cpp)
+target_include_directories(swing_replan_selfcheck PRIVATE
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(swing_replan_selfcheck
+        ${PROJECT_NAME}
+        Eigen3::Eigen)
+
 if (BUILD_TESTING)
+    add_test(NAME swing_replan_selfcheck COMMAND swing_replan_selfcheck)
     find_package(ament_lint_auto REQUIRED)
     # the following line skips the linter which checks for copyrights
     # comment the line when a copyright and license is added to all source files

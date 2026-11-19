@@ -13,6 +13,8 @@
 
 namespace ocs2::legged_robot
 {
+    class PlanarTerrainReceiver;
+
     class PerceptiveLeggedReferenceManager : public SwitchedModelReferenceManager
     {
     public:
@@ -45,7 +47,7 @@ namespace ocs2::legged_robot
             jointUpper_ = std::move(upper);
         }
 
-        void setTerrainReceiver(std::shared_ptr<SolverSynchronizedModule> receiver) {
+        void setTerrainReceiver(std::shared_ptr<PlanarTerrainReceiver> receiver) {
             terrainReceiver_ = std::move(receiver);
         }
 
@@ -96,7 +98,7 @@ namespace ocs2::legged_robot
         feet_array_t<vector3_t> lastLiftoffPos_;
 
         std::shared_ptr<ConvexRegionSelector> convexRegionSelectorPtr_;
-        std::shared_ptr<SolverSynchronizedModule> terrainReceiver_;
+        std::shared_ptr<PlanarTerrainReceiver> terrainReceiver_;
         std::unique_ptr<EndEffectorKinematics<scalar_t>> endEffectorKinematicsPtr_;
 
         scalar_t comHeight_;

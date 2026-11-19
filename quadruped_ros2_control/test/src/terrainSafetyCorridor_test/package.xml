@@ -8,6 +8,8 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>ocs2_quadruped_controller</depend>
   <depend>rclcpp</depend>
+  <depend>ament_index_cpp</depend>
+  <exec_depend>cyberdog_description</exec_depend>
   <depend>grid_map_ros</depend>
   <depend>visualization_msgs</depend>
   <depend>eigen</depend>

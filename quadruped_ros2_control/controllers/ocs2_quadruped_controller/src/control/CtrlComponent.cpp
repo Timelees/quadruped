@@ -285,10 +285,9 @@ namespace ocs2::legged_robot
                                         }
                                         swingReferencePublisher_->publish(reference);
                                     }
+                                    const auto corridors = planner->getTerrainCorridors();
                                     terrainCorridorVisualizationPtr_->update(
-                                        std::vector<TerrainSafetyCorridor>(
-                                            planner->getTerrainCorridors().begin(),
-                                            planner->getTerrainCorridors().end()),
+                                        std::vector<TerrainSafetyCorridor>(corridors.begin(), corridors.end()),
                                         corridorHeader);
                                 }
                             }

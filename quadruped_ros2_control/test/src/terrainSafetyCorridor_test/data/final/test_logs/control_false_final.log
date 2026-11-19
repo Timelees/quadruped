@@ -1,8 +1,0 @@
-Internal ctest changing into directory: /home/lee/Code/quadruped_control_ws/build/minvo_test
-Test project /home/lee/Code/quadruped_control_ws/build/minvo_test
-    Start 7: control_problem_false
-1/1 Test #7: control_problem_false ............   Passed    0.11 sec
-
-100% tests passed, 0 tests failed out of 1
-
-Total Test time (real) =   0.11 sec

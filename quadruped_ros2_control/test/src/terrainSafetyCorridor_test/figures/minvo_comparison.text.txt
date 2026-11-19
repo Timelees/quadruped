@@ -1,8 +1,0 @@
-Nature Figure PDF Text Audit
-pdf: src/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/figures/minvo_comparison.pdf
-minimum required: 5 pt
-minimum found: 6.5 pt
-text runs: 12
-below minimum: 0
-verdict: PASS
-note: content-stream scanning does not replace final-size visual inspection or account for every PDF transform (e.g. Form XObject matrices)

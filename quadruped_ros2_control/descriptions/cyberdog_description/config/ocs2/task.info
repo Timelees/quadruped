@@ -20,7 +20,7 @@ swing_trajectory_config
 {
   liftOffVelocity               0.10   // 增大离地速度,更主动抬脚上楼梯
   touchDownVelocity            -0.03   // 降低落地速度以减轻触地冲击
-  swingHeight                   0.075  // 适中摆高
+  swingHeight                   0.085  // 适中摆高
   swingTimeScale                0.25   // 增大摆动时间,给robot更多时间抬脚
   footRadius                    0.019  // 接触面到足端运动学球心的高度偏移 [m]
   trackingWeight                25.0 // 完整三维摆动参考跟踪的二次代价
@@ -41,7 +41,7 @@ swing_trajectory_config
   terrainVelocityTrackingWeight 0.35
   terrainAccelerationTrackingWeight 0.2
   terrainJerkSmoothnessWeight    0.08
-  terrainGroundClearance         0.035 // C2 piecewise-quintic envelope（增大到3.5cm提高8cm障碍裕量）
+  terrainGroundClearance         0.035 // C2 piecewise-quintic envelope
   terrainQpMaxWorkingSetRecalculations 200
   terrainElevationLayer          elevation
   terrainVerbose                 true
@@ -49,17 +49,56 @@ swing_trajectory_config
   terrainMaxVelocity             2.0  // 增大速度上限
   terrainMaxAcceleration         80.0 // 增大加速度上限
 
-  ; ---- 3.1 三维地形安全走廊：固定XY，MINVO整段约束，球心坐标 ----
+  ; 三维地形安全走廊：固定XY，MINVO整段约束，球心坐标 ----
   ; 非接触认证区间由 corridorContactPhase 给出；起落脚仍用原有接触过渡约束。
   terrainSafetyCorridorEnabled   true
   corridorLateralExtent          0.15 // 每段路径横向扩展 [m]
   corridorLongitudinalExtent     0.04 // 每段路径前后扩展 [m]
   corridorVerticalExtent         0.08 // 单段参考凸包上下扩展；规划集再收缩2cm [m]
+  corridorTerrainRiseRate         0.0 // maximum upward terrain change [m/s]
   corridorMapMargin              0.0  // 地图误差的各向同性障碍膨胀 [m]，需按感知误差标定
   corridorGeometricClearance     0.001 // 膨胀障碍到几何走廊的严格间隙 [m]
   corridorNumericalMargin        0.0000001 // QP额外方向数值预算 [m]
   corridorContactPhase           0.25 // 前后各25%为接触过渡；中间区间保留完整2cm误差球
   ; corridorFootRadius / corridorTrackingMargin 默认沿用 footRadius / terrainTrackingMargin
+
+  ; P0.1: measured-state correction + exact MINVO admission, fixed touchdown.
+  swingOnlineReplanEnabled       true
+  swingReplanNominalTrackingWeight  0.15
+  swingReplanPreviousTrackingWeight 1.0
+  swingReplanCorrectionDuration   0.12
+  swingReplanActivationDelay      0.0
+  swingReplanUpdateInterval       0.06
+  swingReplanMinRemainingTime     0.12
+  swingReplanMaxPositionDeviation 0.04
+  swingReplanMaxVelocityDeviation 0.40
+  swingReplanMaxMarginFraction    0.8
+  swingReplanMaxVelocity          3.0
+  swingReplanMaxAcceleration      80.0
+  swingReplanMaxJerk              12000.0
+  swingReplanPositionUncertainty  0.001
+  swingReplanVelocityUncertainty  0.01
+  swingReplanDisturbanceBound     0.5
+
+  ; P0.2–P0.4 execution filter. Disable the tube independently for ablation.
+  safetyFilterEnabled            true
+  safetyFilterTubeEnabled        true
+  safetyFilterHocbfGain1          20.0
+  safetyFilterHocbfGain2          20.0
+  safetyFilterDisturbanceBound    0.5
+  safetyFilterPositionBound       0.01
+  safetyFilterVelocityBound       0.30
+  safetyFilterCouplingGain        10.0
+  safetyFilterCouplingBound       0.35
+  safetyFilterTubeRate            20.0
+  safetyFilterMaxCorrection       20.0
+  safetyFilterMaxAcceleration     80.0
+  safetyFilterHocbfSampleRate     20.0
+  safetyFilterTubeSampleRate      10.0
+  safetyFilterMaxPeriod           0.006 // 5 ms Gazebo WBC step plus 1 ms budget
+  safetyFilterLandingPositionWindow 0.025
+  safetyFilterLandingMaxDownSpeed   0.30
+  safetyFilterLandingMaxUpSpeed     0.10
 
 }
 
@@ -357,6 +396,7 @@ swingLegTask
 {
     kp                   400
     kd                   20    // 保持原值
+    safetyContactForceDeviation 5.0 // safety QP support reserve per component [N]
 }
 
 weight

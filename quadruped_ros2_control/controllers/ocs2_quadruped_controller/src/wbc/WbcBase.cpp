@@ -255,16 +255,34 @@ namespace ocs2::legged_robot
         vector_t b(a.rows());
         a.setZero();
         b.setZero();
+        swing_safety_constraints_ = Task(num_decision_vars_);
+        safety_residuals_.fill(std::numeric_limits<double>::quiet_NaN());
+        nominal_swing_target_.resize(b.size());
         size_t j = 0;
         for (size_t i = 0; i < info_.numThreeDofContacts; ++i)
         {
+            auto& filtered = safety_results_[i];
+            filtered = {};
+            if (contact_flag_[i]) filtered.status = SafetyFilterStatus::Contact;
             if (!contact_flag_[i])
             {
                 vector3_t accel = swing_kp_ * (posDesired[i] - posMeasured[i]) + swing_kd_ * (
                     velDesired[i] - velMeasured[i]);
-                a.block(3 * j, 0, 3, info_.generalizedCoordinatesNum) = j_.block(
-                    3 * i, 0, 3, info_.generalizedCoordinatesNum);
-                b.segment(3 * j, 3) = accel - dj_.block(3 * i, 0, 3, info_.generalizedCoordinatesNum) * v_measured_;
+                const auto jacobian = j_.block(3 * i, 0, 3, info_.generalizedCoordinatesNum);
+                const vector3_t bias = dj_.block(3 * i, 0, 3, info_.generalizedCoordinatesNum) * v_measured_;
+                nominal_swing_target_.segment<3>(3 * j) = accel - bias;
+                if (swing_safety_callback_) {
+                    filtered = swing_safety_callback_(i, posMeasured[i], velMeasured[i], accel);
+                    if (filtered.active()) {
+                        accel = filtered.acceleration;
+                        matrix_t d = matrix_t::Zero(filtered.accelerationA.rows(), num_decision_vars_);
+                        d.leftCols(info_.generalizedCoordinatesNum) = filtered.accelerationA * jacobian;
+                        swing_safety_constraints_ = swing_safety_constraints_ + Task(matrix_t(), vector_t(), d,
+                            filtered.accelerationB - filtered.accelerationA * bias);
+                    }
+                }
+                a.block(3 * j, 0, 3, info_.generalizedCoordinatesNum) = jacobian;
+                b.segment(3 * j, 3) = accel - bias;
                 j++;
             }
         }

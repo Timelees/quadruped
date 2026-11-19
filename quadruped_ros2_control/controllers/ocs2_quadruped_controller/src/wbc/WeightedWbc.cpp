@@ -18,45 +18,97 @@ namespace ocs2::legged_robot
     {
         WbcBase::update(stateDesired, inputDesired, rbdStateMeasured, mode, period);
 
-        // Constraints
-        Task constraints = formulateConstraints();
-        size_t numConstraints = constraints.b_.size() + constraints.f_.size();
-
-        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> A(numConstraints, getNumDecisionVars());
-        vector_t lbA(numConstraints), ubA(numConstraints); // clang-format off
-        A << constraints.a_,
-                constraints.d_;
-
-        lbA << constraints.b_,
-                -qpOASES::INFTY * vector_t::Ones(constraints.f_.size());
-        ubA << constraints.b_,
-                constraints.f_; // clang-format on
-
-        // Cost
-        Task weighedTask = formulateWeightedTasks(stateDesired, inputDesired, period);
-        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> H =
-            weighedTask.a_.transpose() * weighedTask.a_;
-        vector_t g = -weighedTask.a_.transpose() * weighedTask.b_;
-
-        // Solve
-        auto qpProblem = qpOASES::QProblem(getNumDecisionVars(), numConstraints);
-        qpOASES::Options options;
-        options.setToMPC();
-        options.printLevel = qpOASES::PL_NONE;
-        options.enableEqualities = qpOASES::BT_TRUE;
-        qpProblem.setOptions(options);
-        // A cold start can need >20 iterations even during standing up.
-        int nWsr = 100;
-
-        solver_status_ = qpProblem.init(H.data(), g.data(), A.data(), nullptr, nullptr, lbA.data(), ubA.data(), nWsr);
-        solver_iterations_ = nWsr;
+        // Build tracking and safety rows from the CURRENT measured/desired
+        // kinematics, before assembling either hard constraints or the cost.
+        Task swingTask = formulateSwingLegTask();
+        const Task otherTasks = formulateBaseAccelTask(stateDesired, inputDesired, period) * weightBaseAccel_ +
+            formulateContactForceTask(inputDesired) * weightContactForce_;
+        const Task dynamics = formulateConstraints();
         vector_t qpSol = vector_t::Zero(getNumDecisionVars());
-        const auto primalStatus = qpProblem.getPrimalSolution(qpSol.data());
-        const vector_t value = A * qpSol;
-        constraint_violation_ = std::max(0.0, std::max((lbA - value).maxCoeff(), (value - ubA).maxCoeff()));
-        solution_valid_ = primalStatus == qpOASES::SUCCESSFUL_RETURN && qpSol.allFinite() &&
-            constraint_violation_ <= 1e-5 &&
-            (solver_status_ == qpOASES::SUCCESSFUL_RETURN || solver_status_ == qpOASES::RET_MAX_NWSR_REACHED);
+        const auto solve = [&](const Task& constraints) {
+            const Task weighedTask = swingTask * weightSwingLeg_ + otherTasks;
+            size_t numConstraints = constraints.b_.size() + constraints.f_.size();
+
+            Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> A(numConstraints, getNumDecisionVars());
+            vector_t lbA(numConstraints), ubA(numConstraints); // clang-format off
+            A << constraints.a_,
+                    constraints.d_;
+
+            lbA << constraints.b_,
+                    -qpOASES::INFTY * vector_t::Ones(constraints.f_.size());
+            ubA << constraints.b_,
+                    constraints.f_; // clang-format on
+
+            // Cost
+            Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> H =
+                weighedTask.a_.transpose() * weighedTask.a_;
+            vector_t g = -weighedTask.a_.transpose() * weighedTask.b_;
+
+            // Solve
+            auto qpProblem = qpOASES::QProblem(getNumDecisionVars(), numConstraints);
+            qpOASES::Options options;
+            options.setToMPC();
+            options.printLevel = qpOASES::PL_NONE;
+            options.enableEqualities = qpOASES::BT_TRUE;
+            qpProblem.setOptions(options);
+            // A cold start can need >20 iterations even during standing up.
+            int nWsr = 100;
+
+            solver_status_ = qpProblem.init(H.data(), g.data(), A.data(), nullptr, nullptr, lbA.data(), ubA.data(), nWsr);
+            solver_iterations_ = nWsr;
+            qpSol.setZero();
+            const auto primalStatus = qpProblem.getPrimalSolution(qpSol.data());
+            const vector_t value = A * qpSol;
+            constraint_violation_ = std::max(0.0, std::max((lbA - value).maxCoeff(), (value - ubA).maxCoeff()));
+            return primalStatus == qpOASES::SUCCESSFUL_RETURN && qpSol.allFinite() &&
+                constraint_violation_ <= 1e-5 &&
+                (solver_status_ == qpOASES::SUCCESSFUL_RETURN || solver_status_ == qpOASES::RET_MAX_NWSR_REACHED);
+        };
+        const bool constrained = swing_safety_constraints_.f_.size() > 0;
+        const vector_t filteredTarget = swingTask.b_;
+        swingTask.b_ = nominal_swing_target_;
+        solution_valid_ = solve(dynamics);
+        if (solution_valid_ && constrained) {
+            // First preserve the feasible baseline's body acceleration. Merely
+            // adding foot rows to a weighted objective allows them to sacrifice
+            // body support even when the combined QP is mathematically feasible.
+            const vector_t baseline = qpSol;
+            const auto baselineStatus = solver_status_;
+            const auto baselineIterations = solver_iterations_;
+            const auto baselineViolation = constraint_violation_;
+            matrix_t body = matrix_t::Zero(6, getNumDecisionVars());
+            body.leftCols(6).setIdentity();
+            const Task preserveBody(body, baseline.head(6), matrix_t(), vector_t());
+            const int nForces = 3 * info_.numThreeDofContacts;
+            matrix_t forceBox = matrix_t::Zero(2 * nForces, getNumDecisionVars());
+            forceBox.block(0, info_.generalizedCoordinatesNum, nForces, nForces).setIdentity();
+            forceBox.bottomRows(nForces) = -forceBox.topRows(nForces);
+            vector_t forceBounds(2 * nForces);
+            forceBounds << baseline.segment(info_.generalizedCoordinatesNum, nForces),
+                          -baseline.segment(info_.generalizedCoordinatesNum, nForces);
+            forceBounds.array() += safetyContactForceDeviation_;
+            const Task preserveSupport(matrix_t(), vector_t(), forceBox, forceBounds);
+            swingTask.b_ = filteredTarget;
+            if (!solve(dynamics + preserveBody + preserveSupport + swing_safety_constraints_)) {
+                for (auto& result : safety_results_) {
+                    if (result.active()) result.status = SafetyFilterStatus::JointInfeasible;
+                }
+                qpSol = baseline;
+                solver_status_ = baselineStatus;
+                solver_iterations_ = baselineIterations;
+                constraint_violation_ = baselineViolation;
+            }
+        }
+        if (solution_valid_ && constrained) {
+            for (size_t i = 0; i < info_.numThreeDofContacts; ++i) {
+                const auto& result = safety_results_[i];
+                if (!result.active()) continue;
+                const vector3_t acceleration =
+                    j_.middleRows<3>(3 * i) * qpSol.head(info_.generalizedCoordinatesNum) +
+                    dj_.middleRows<3>(3 * i) * v_measured_;
+                safety_residuals_[i] = (result.accelerationB - result.accelerationA * acceleration).minCoeff();
+            }
+        }
         if (!solution_valid_) qpSol.setZero();
         return qpSol;
     }
@@ -67,20 +119,16 @@ namespace ocs2::legged_robot
             formulateNoContactMotionTask();
     }
 
-    Task WeightedWbc::formulateWeightedTasks(const vector_t& stateDesired, const vector_t& inputDesired,
-                                             scalar_t period)
-    {
-        return formulateSwingLegTask() * weightSwingLeg_ + formulateBaseAccelTask(stateDesired, inputDesired, period) *
-            weightBaseAccel_ +
-            formulateContactForceTask(inputDesired) * weightContactForce_;
-    }
-
     void WeightedWbc::loadTasksSetting(const std::string& taskFile, bool verbose)
     {
         WbcBase::loadTasksSetting(taskFile, verbose);
 
         boost::property_tree::ptree pt;
         read_info(taskFile, pt);
+        safetyContactForceDeviation_ = pt.get<scalar_t>("swingLegTask.safetyContactForceDeviation", 5.0);
+        if (!std::isfinite(safetyContactForceDeviation_) || safetyContactForceDeviation_ <= 0.0) {
+            throw std::invalid_argument("swingLegTask.safetyContactForceDeviation must be positive.");
+        }
         const std::string prefix = "weight.";
         if (verbose)
         {

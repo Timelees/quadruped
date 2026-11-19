@@ -11,7 +11,7 @@ Visualization Manager:
     Name: Ground Grid
     Cell Size: 0.05
     Plane Cell Count: 20
-    Alpha: 0.3
+    Alpha: 0.08
   - Class: grid_map_rviz_plugin/GridMap
     Enabled: true
     Name: Synthetic Elevation
@@ -24,7 +24,7 @@ Visualization Manager:
     Min Intensity: 0
     Max Intensity: 10
     Use Rainbow: false
-    Show Grid Lines: true
+    Show Grid Lines: false
     History Length: 1
     Topic:
       Value: /corridor_test/elevation_map
@@ -35,7 +35,7 @@ Visualization Manager:
     Invert Rainbow: false
     Min Color: 0; 0; 0
     Max Color: 255; 255; 255
-    Color: 200; 200; 200
+    Color: 210; 214; 218
     Value: true
   - Class: rviz_default_plugins/MarkerArray
     Enabled: true
@@ -48,7 +48,7 @@ Visualization Manager:
       Depth: 1
   Global Options:
     Fixed Frame: map
-    Background Color: 198; 198; 198
+    Background Color: 245; 245; 245
     Frame Rate: 30
   Views:
     Current:
@@ -57,9 +57,9 @@ Visualization Manager:
       Pitch: 0.55
       Yaw: 4.8
       Focal Point:
-        X: 0.34
+        X: 0.40
         Y: 0
-        Z: 0.04
+        Z: 0.20
       Target Frame: <Fixed Frame>
       Name: Current View
       Near Clip Distance: 0.005
@@ -70,9 +70,9 @@ Visualization Manager:
       Pitch: 1.5707
       Yaw: 4.71
       Focal Point:
-        X: 0.34
+        X: 0.40
         Y: 0
-        Z: 0.04
+        Z: 0.20
       Target Frame: <Fixed Frame>
       Name: Top
       Near Clip Distance: 0.005
@@ -82,9 +82,9 @@ Visualization Manager:
       Pitch: 0.02
       Yaw: 4.71
       Focal Point:
-        X: 0.34
+        X: 0.40
         Y: 0
-        Z: 0.04
+        Z: 0.20
       Target Frame: <Fixed Frame>
       Name: Side XZ
       Near Clip Distance: 0.005
@@ -94,9 +94,9 @@ Visualization Manager:
       Pitch: 0.55
       Yaw: 4.8
       Focal Point:
-        X: 0.34
+        X: 0.40
         Y: 0
-        Z: 0.04
+        Z: 0.20
       Target Frame: <Fixed Frame>
       Name: Oblique
       Near Clip Distance: 0.005

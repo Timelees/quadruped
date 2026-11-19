@@ -21,6 +21,9 @@ struct SwingTrajectoryQpConfig {
     double accelerationTrackingWeight = 0.2;
     double jerkSmoothnessWeight = 0.08;
     double groundClearance = 0.03;
+    double landingPositionWindow = 0.025;
+    double landingMaxDownSpeed = 0.30;
+    double landingMaxUpSpeed = 0.10;
     double footRadius = 0.019;
     // Section 3.1 corridor shrink: reference-to-executed tracking error the
     // terrain rows must reserve (b_bar = b - sigma_E). Applied with the same
@@ -71,7 +74,7 @@ class SwingTrajectoryQpOptimizer {
     OptimizedTrajectory optimizeSwingTrajectory(const BSpline& reference, scalar_t start, scalar_t end,
                                                 const Eigen::Vector3d& liftOff,
                                                 const Eigen::Vector3d& touchDown,
-                                                const HeightBounds& workspace = {}) const;
+                                                const HeightBounds& workspace = {}, TerrainMapTiming map = {}) const;
     const SwingTrajectoryQpConfig& getConfig() const { return config_; }
 
    private:
