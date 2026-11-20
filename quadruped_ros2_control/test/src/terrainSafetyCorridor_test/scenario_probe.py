@@ -7,6 +7,7 @@ Inputs are normalized; --speed .5 requests .175 m/s with reference.info defaults
 """
 import argparse
 import csv
+import copy
 import json
 import math
 import statistics
@@ -20,6 +21,8 @@ from nav_msgs.msg import Odometry
 from std_msgs.msg import Float64MultiArray
 from visualization_msgs.msg import MarkerArray
 from grid_map_msgs.msg import GridMap
+from convex_plane_decomposition_msgs.msg import PlanarTerrain
+from rclpy.qos import qos_profile_sensor_data
 
 
 def clamp(x, limit):
@@ -32,18 +35,33 @@ def angle(x):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--scenario', choices=['trot', 'stairs', 'platform', 'obstacle', 'trench', 'piles'], required=True)
+    p.add_argument('--scenario', choices=['trot', 'stairs', 'platform', 'obstacle', 'trench', 'piles', 'course', 'flat', 'lateral'], required=True)
+    p.add_argument('--lateral-direction', type=int, choices=[-1, 1], default=1)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--speed', type=float, default=.5)
+    p.add_argument('--swing-duration', type=float, default=.4)
     p.add_argument('--sim-seconds', type=float, default=100)
+    p.add_argument('--controlled-reveal', action='store_true')
+    p.add_argument('--controlled-map-source', choices=['perception','world-truth'], default='perception')
+    p.add_argument('--reveal-at-x', type=float, default=1.4)
+    p.add_argument('--reveal-phase', type=float, default=.25)
+    p.add_argument('--reveal-unknown', action='store_true')
+    p.add_argument('--known-course-bars', type=json.loads)
+    p.add_argument('--reveal-require-crossing', action='store_true')
+    p.add_argument('--hold-seconds', type=float, default=3.)
     p.add_argument('--wall-seconds', type=float, default=600)
     p.add_argument('--target', type=float, help='Base target: stairs x=4.95, platform y=4.0; obstacle uses the far side')
     p.add_argument('--record-gz-poses', action='store_true')
     p.add_argument('--wrench-force', type=float, default=0.)
     p.add_argument('--wrench-duration', type=float, default=.06)
+    p.add_argument('--lane-y', type=float, default=0.)
+    p.add_argument('--wrench-at-x', type=float)
     args = p.parse_args()
-    longitudinal = args.scenario in ('stairs', 'obstacle')
-    targets = {'stairs': 4.95, 'platform': 4.0, 'obstacle': -.35, 'trench': 5.85, 'piles': 8.15}
+    if not .2 <= args.swing_duration <= .8:
+        p.error('--swing-duration must be in [.2,.8] s')
+    longitudinal = args.scenario in ('stairs', 'obstacle', 'course', 'flat')
+    targets = {'stairs': 4.95, 'platform': 4.0, 'obstacle': -.35, 'trench': 5.85, 'piles': 8.15, 'course': 4.2, 'flat': 4.2}
+    targets['lateral'] = args.lane_y + args.lateral_direction * 1.0
     obstacle_direction = None
     scan_yaw = None
     scan_angle = 0.0
@@ -75,8 +93,20 @@ def main():
                   vel.linear.z, vel.angular.x, vel.angular.y, vel.angular.z]
         rows.append(latest + [phase])
 
+    lf_liftoff = None
+    lf_liftoff_x = None
+    last_lf_stance = True
+    reveal_events = []
+    revealed = False
+    reveal_arm_time = None
+
     def diag(m):
-        if len(m.data) in (78, 83, 112, 113, 151, 163):
+        nonlocal lf_liftoff, lf_liftoff_x, last_lf_stance
+        if len(m.data) in (78, 83, 112, 113, 151) or len(m.data) >= 163:
+            stance = bool(int(m.data[1]) & 8)
+            if last_lf_stance and not stance:
+                lf_liftoff, lf_liftoff_x = m.data[0], m.data[30]
+            last_lf_stance = stance
             wbc.append(list(m.data))
 
     def reference(m):
@@ -117,6 +147,73 @@ def main():
     node.create_subscription(GridMap, '/elevation_map_raw', maps, 1)
     node.create_subscription(Float64MultiArray, '/swing_reference', reference, 10)
     node.create_subscription(MarkerArray, '/terrain_safety_corridor', markers, 1)
+    certified_samples = []
+    last_certified_stamp = -float('inf')
+    def certified_map(message):
+        nonlocal last_certified_stamp
+        m = message.gridmap
+        stamp = m.header.stamp.sec + m.header.stamp.nanosec*1e-9
+        if stamp-last_certified_stamp < 1.0 or 'elevation_certified' not in m.layers:
+            return
+        last_certified_stamp = stamp
+        resolution, info = m.info.resolution, m.info
+        nx, ny = round(info.length_x/resolution), round(info.length_y/resolution)
+        data = m.data[m.layers.index('elevation_certified')]
+        dense = m.data[m.layers.index('elevation')]
+        column_major = data.layout.dim[0].label == 'column_index'
+        # Fixed spatial decimation (10 cm), including unknown samples.
+        stride = max(1, round(.1/resolution))
+        centres = [bar[0] for bar in args.known_course_bars] if args.known_course_bars else (1.1,1.8,2.5,3.2)
+        for i in range(nx):
+            for j in range(ny):
+                px = info.pose.position.x+info.length_x/2-(i+.5)*resolution
+                py = info.pose.position.y+info.length_y/2-(j+.5)*resolution
+                # Retain full 2 cm coverage near the thin obstacle and the four bars.
+                near_obstacle = abs(px+1.2) < .15 and abs(py) < .65
+                near_lane = any(abs(px-centre) < .15 for centre in centres) and abs(py+3) < .85
+                if not (near_obstacle or near_lane) and (i%stride or j%stride): continue
+                bi,bj = (i+m.outer_start_index)%nx,(j+m.inner_start_index)%ny
+                index = bi+nx*bj if column_major else bj+ny*bi
+                x = info.pose.position.x+info.length_x/2-(i+.5)*resolution
+                y = info.pose.position.y+info.length_y/2-(j+.5)*resolution
+                certified_samples.append([stamp,x,y,data.data[index],dense.data[index]])
+    node.create_subscription(PlanarTerrain, '/planar_terrain', certified_map, qos_profile_sensor_data)
+    if args.controlled_reveal:
+        from controlled_terrain import swing_spans_bar
+        bars = args.known_course_bars or [(1.1,.06,.04),(1.8,.08,.07),(2.5,.12,.05),(3.2,.06,.09)]
+        reveal_x, reveal_width, _ = bars[1][:3]
+        map_forward = node.create_publisher(PlanarTerrain, '/planar_terrain', 10)
+        source_map = None
+        def forward_map(message):
+            nonlocal source_map
+            preparation_start=time.perf_counter()
+            # Keep the upstream sample immutable. A controlled release uses this
+            # already observed map immediately, with its original timestamp.
+            source_map = message
+            message = copy.deepcopy(message)
+            m = message.gridmap
+            if args.controlled_map_source == 'world-truth':
+                from controlled_terrain import known_course_layer
+                known_course_layer(m, bars)
+            if not revealed:
+                from controlled_terrain import mask_strip
+                changed = mask_strip(m, (reveal_x-.2,reveal_x+.2,-3.7,-2.3), args.reveal_unknown)
+                if changed and not any(e['event']=='mask_applied' for e in reveal_events):
+                    reveal_events.append(dict(event='mask_applied', ros_time=m.header.stamp.sec+m.header.stamp.nanosec*1e-9, modified_cells=changed))
+                if not reveal_events:
+                    reveal_events.append(dict(event='mask_started', ros_time=m.header.stamp.sec+m.header.stamp.nanosec*1e-9,
+                                              modified_cells=changed, unknown=args.reveal_unknown))
+            from controlled_terrain import set_update_release
+            set_update_release(m,revealed)
+            map_forward.publish(message)
+            if revealed and not any(e['event']=='map_released' for e in reveal_events):
+                reveal_events.append(dict(event='map_released',
+                    map_stamp=m.header.stamp.sec+m.header.stamp.nanosec*1e-9,
+                    received_ros_time=latest[0] if latest else None,
+                    preparation_wall_s=time.perf_counter()-preparation_start))
+        from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+        latest_map_qos=QoSProfile(depth=1,reliability=ReliabilityPolicy.BEST_EFFORT,history=HistoryPolicy.KEEP_LAST)
+        node.create_subscription(PlanarTerrain, '/planar_terrain_source', forward_map, latest_map_qos)
     gz_poses, wrench_events = [], []
     wrench_link_id = None
     wrench_start = None
@@ -132,7 +229,7 @@ def main():
             nonlocal wrench_link_id
             stamp = message.header.stamp.sec + message.header.stamp.nsec*1e-9
             for pose in message.pose:
-                if any(token in pose.name for token in ('robot', 'body', 'FL_', 'FR_', 'RL_', 'RR_')):
+                if pose.name in ('robot', 'FL_foot', 'FR_foot', 'RL_foot', 'RR_foot', 'FL_knee'):
                     if pose.name == 'FL_knee':
                         wrench_link_id = pose.id
                     position, orientation = pose.position, pose.orientation
@@ -158,9 +255,26 @@ def main():
             if args.scenario == 'obstacle' and obstacle_direction is None:
                 obstacle_direction = 1 if x < -1.2 else -1
                 targets['obstacle'] = -.35 if obstacle_direction == 1 else -2.05
-            heading = (0.0 if args.scenario == 'stairs' or obstacle_direction == 1 else
+            heading = (0.0 if args.scenario in ('stairs', 'course', 'flat', 'lateral') or obstacle_direction == 1 else
                        math.pi if args.scenario == 'obstacle' else math.pi/2)
-            if args.wrench_force and not wrench_finished and t > 12 and wbc:
+            if args.controlled_reveal and reveal_arm_time is None and wbc and x >= args.reveal_at_x:
+                reveal_arm_time = wbc[-1][0]
+            if args.controlled_reveal and not revealed and wbc and lf_liftoff is not None and not last_lf_stance and reveal_arm_time is not None and lf_liftoff >= reveal_arm_time:
+                elapsed_swing = wbc[-1][0]-lf_liftoff
+                future = [row[1] for row in references[-105:] if wbc[-1][0] <= row[0] <= lf_liftoff+args.swing_duration]
+                # The frozen CyberDog collision fixture has 20 mm foot spheres.
+                crosses = swing_spans_bar(lf_liftoff_x, future, reveal_x, reveal_width)
+                if elapsed_swing >= args.swing_duration*args.reveal_phase and (not args.reveal_require_crossing or crosses):
+                    revealed = True
+                    if source_map is not None:
+                        forward_map(source_map)
+                    reveal_events.append(dict(event='trigger', ros_time=latest[0], controller_time=wbc[-1][0],
+                        liftoff=lf_liftoff, liftoff_foot_x=lf_liftoff_x, observed_phase=elapsed_swing/args.swing_duration, base_x=x,
+                        swing_duration_s=args.swing_duration,
+                        foot_x=wbc[-1][30], foot_z=wbc[-1][32], forecast_crossing=bool(crosses),
+                        barrier_x=reveal_x, barrier_width=reveal_width))
+            wrench_ready = t > 12 if args.wrench_at_x is None else phase == 'forward' and x >= args.wrench_at_x
+            if args.wrench_force and not wrench_finished and wrench_ready and wbc:
                 # Trigger once during an observed LF swing away from the ground.
                 lf_swing = not (int(wbc[-1][1]) & 8) and wbc[-1][32] > .06
                 if wrench_start is None and lf_swing and wrench_link_id is not None:
@@ -180,7 +294,7 @@ def main():
                                               observed_duration_s=latest[0]-wrench_start))
                     wrench_finished = True
             if t > args.sim_seconds:
-                stable_trot = hold_since is not None and t - hold_since >= 3 and any(
+                stable_trot = hold_since is not None and t - hold_since >= args.hold_seconds and any(
                     row[1] in (6, 9) and row[5] == 1 for row in wbc)
                 if args.scenario == 'trot' and stable_trot:
                     result = 'passed'
@@ -199,7 +313,7 @@ def main():
                 upright = abs(roll) < .2 and abs(pitch) < .25 and z > .17
                 hold_since = (t if hold_since is None else hold_since) if upright else None
             elif phase == 'trot' and t - phase_start > 2:
-                phase, phase_start = ('forward' if args.scenario == 'stairs' or obstacle_direction == 1 else 'turn'), t
+                phase, phase_start = ('forward' if args.scenario in ('stairs', 'course', 'flat', 'lateral') or obstacle_direction == 1 else 'turn'), t
             elif phase == 'turn':
                 error = angle(heading - yaw)
                 msg.rx = -clamp(.9*error, .35)
@@ -219,7 +333,11 @@ def main():
                 msg.ly = min(args.speed, max(.25, remaining*2)) if remaining >= .025 else 0.
                 msg.rx = -clamp(.6*angle(heading-yaw), .15)
                 # Small cross-track correction, using the existing body-frame velocity input.
-                msg.lx = clamp((direction*y if longitudinal else x)*(.7 if longitudinal else -.7), .15)
+                msg.lx = clamp((direction*(y-args.lane_y) if longitudinal else x)*(.7 if longitudinal else -.7), .15)
+                if args.scenario == 'lateral':
+                    remaining = args.lateral_direction * (target-y)
+                    msg.lx = -args.lateral_direction * args.speed if remaining >= .025 else 0.
+                    msg.ly = clamp(-x*.7, .15)
                 if args.scenario in ('trench', 'piles') and not scan_complete and 4.0 <= y < 4.35:
                     phase, phase_start = 'scan', t
                     scan_yaw = yaw
@@ -239,6 +357,11 @@ def main():
                 # Continue trot without translation: success includes three seconds of support stability.
                 feet = [wbc[-1][30+12*i:33+12*i] for i in range(4)] if wbc else []
                 def on_destination(f):
+                    if args.scenario == 'lateral':
+                        return abs(f[0]) < .65 and abs(f[1]-targets['lateral']) < .5 and f[2] > -.02
+                    if args.scenario in ('course', 'flat'):
+                        destination=args.target if args.target is not None else targets[args.scenario]
+                        return destination-.4 < f[0] < destination+.8 and abs(f[1]-args.lane_y) < .65 and f[2] > -.02
                     if args.scenario == 'stairs':
                         return 4.35 < f[0] < 6.35 and abs(f[1]) < 1.45 and f[2] > .69
                     if args.scenario == 'obstacle':
@@ -249,10 +372,10 @@ def main():
                 on_destination = len(feet) == 4 and all(on_destination(f) for f in feet)
                 stable = on_destination and abs(roll) < .2 and abs(pitch) < .25
                 hold_since = (t if hold_since is None else hold_since) if stable else None
-                if hold_since is not None and t - hold_since > 3:
+                if hold_since is not None and t - hold_since > args.hold_seconds:
                     result = 'passed'
                     break
-                if t - phase_start > 12:
+                if t - phase_start > args.hold_seconds + 12:
                     result = 'destination_not_stable'
                     break
             pub.publish(msg)
@@ -274,9 +397,12 @@ def main():
         if rclpy.ok():
             pub.publish(msg)
         args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.with_suffix('.reveal.json').write_text(json.dumps(reveal_events, indent=2)+'\n')
         header = ['sim_time','x','y','z','roll','pitch','yaw','vx','vy','vz','wx','wy','wz','phase']
         with args.output.with_suffix('.csv').open('w') as f:
             writer = csv.writer(f); writer.writerow(header); writer.writerows(rows)
+        with args.output.with_suffix('.certified_map.csv').open('w') as f:
+            writer = csv.writer(f);writer.writerow(['ros_time','x','y','certified_height_m','dense_height_m']);writer.writerows(certified_samples)
         with args.output.with_name(args.output.stem+'_estimate.csv').open('w') as f:
             writer = csv.writer(f); writer.writerow(['ros_time','x','y','z','qx','qy','qz','qw']); writer.writerows(estimates)
         with args.output.with_name(args.output.stem+'_map.csv').open('w') as f:
@@ -298,6 +424,16 @@ def main():
             names += ['policy_accepted','policy_rejected']
         if wbc and len(wbc[0]) >= 163:
             names += [f'{leg}_baseline_accel_{axis}' for leg in ['LF','RF','LH','RH'] for axis in 'xyz']
+        if wbc and len(wbc[0]) >= 202:
+            names += ['mrt_residence_s','mrt_dropped','actuator_model_valid']
+            names += [f'{quantity}_{i}' for quantity in ['predicted_torque','applied_torque','motor_current'] for i in range(12)]
+        if wbc and len(wbc[0]) >= 210:
+            names += [f'{leg}_certificate_state' for leg in ['LF','RF','LH','RH']]
+            names += [f'{leg}_residual_bound_lower' for leg in ['LF','RF','LH','RH']]
+        if wbc and len(wbc[0]) >= 228:
+            names += [f'desired_momentum_{axis}' for axis in ['vx','vy','vz','wx','wy','wz']]
+            names += [f'desired_base_{axis}' for axis in ['x','y','z','yaw','pitch','roll']]
+            names += [f'{kind}_com_{axis}' for kind in ['measured','desired'] for axis in 'xyz']
         with args.output.with_name(args.output.stem+'_wbc.csv').open('w') as f:
             writer = csv.writer(f); writer.writerow(names); writer.writerows(wbc)
         with args.output.with_name(args.output.stem+'_reference.csv').open('w') as f:

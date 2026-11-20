@@ -113,6 +113,13 @@ namespace ocs2::legged_robot
         if (terrainReceiver_) {
             terrainReceiver_->preSolverRun(initTime, finalTime, initState, *this);
             swingTrajectoryPtr_->setMapTiming(terrainReceiver_->mapTiming(initTime));
+            // Test-only map marker, committed with the revealed terrain. Maps
+            // without this layer keep the configured production behavior.
+            const auto& map=convexRegionSelectorPtr_->getPlanarTerrainPtr()->gridMap;
+            if (map.exists("swing_update_release_test_only")) {
+                const auto& release=map.get("swing_update_release_test_only");
+                swingTrajectoryPtr_->setOnlineReplanningReleased(release.allFinite() && release.minCoeff()>.5);
+            }
         }
         SwitchedModelReferenceManager::preSolverRun(initTime, finalTime, initState);
     }
@@ -205,7 +212,16 @@ namespace ocs2::legged_robot
         targetTrajectories = newTargetTrajectories;
 
         // Footstep — 使用 ConvexRegionSelector（凸多边形生长）
-        convexRegionSelectorPtr_->update(modeSchedule, initTime, initState, targetTrajectories);
+        feet_array_t<vector3_t> acceptedTouchdowns;
+        acceptedTouchdowns.fill(vector3_t::Constant(std::numeric_limits<scalar_t>::quiet_NaN()));
+        const auto activeSwings = swingTrajectoryPtr_->activeExecutionSwings();
+        if (activeSwings) {
+            for (size_t leg = 0; leg < info_.numThreeDofContacts; ++leg)
+                for (const auto& swing : (*activeSwings)[leg])
+                    if (initTime >= swing.start && initTime < swing.end)
+                        acceptedTouchdowns[leg] = swing.reference.getPosition(swing.end);
+        }
+        convexRegionSelectorPtr_->update(modeSchedule, initTime, initState, targetTrajectories, &acceptedTouchdowns);
 
         // Swing trajectory
         updateSwingTrajectoryPlanner(initTime, initState, modeSchedule, targetTrajectories);

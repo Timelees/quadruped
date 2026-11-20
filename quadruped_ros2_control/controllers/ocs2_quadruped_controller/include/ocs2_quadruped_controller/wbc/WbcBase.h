@@ -36,6 +36,7 @@ namespace ocs2::legged_robot
         // Columns are measured p/v and MPC p/v, in world coordinates, per leg.
         const Eigen::Matrix<scalar_t, 12, 4>& footTracking() const { return foot_tracking_; }
         Eigen::Matrix<scalar_t, 6, 4> measureFeet(const vector_t& rbdStateMeasured);
+        Eigen::Matrix<scalar_t, 6, 1> comTracking();
         struct SwingReference { vector3_t position, velocity, acceleration; };
         using SwingReferenceCallback = std::function<bool(size_t, SwingReference&)>;
         void setSwingReferenceCallback(SwingReferenceCallback callback) { swing_reference_callback_ = std::move(callback); }
@@ -46,6 +47,19 @@ namespace ocs2::legged_robot
 
         using SwingSafetyCallback = std::function<SafetyFilterResult(size_t, const vector3_t&, const vector3_t&, const vector3_t&)>;
         void setSwingSafetyCallback(SwingSafetyCallback callback) { swing_safety_callback_ = std::move(callback); }
+        // Supplied only when the hardware exports its actual current-loop state.
+        void setActuatorState(const vector_t& current, const vector_t& applied, double kp, double kd) {
+            motor_current_ = current; motor_applied_ = applied; joint_kp_ = kp; joint_kd_ = kd;
+        }
+        const auto& actuatorPrediction() const { return actuator_prediction_; }
+        bool actuatorModelValid() const { return actuator_model_valid_; }
+        void copyControlHistoryFrom(const WbcBase& other) {
+            input_last_ = other.input_last_;
+            base_task_initialized_ = other.base_task_initialized_;
+            motor_current_ = other.motor_current_; motor_applied_ = other.motor_applied_;
+            joint_kp_ = other.joint_kp_; joint_kd_ = other.joint_kd_;
+        }
+        void resetControlHistory() { base_task_initialized_ = false; }
         const auto& safetyResults() const { return safety_results_; }
         const auto& safetyResiduals() const { return safety_residuals_; }
         const auto& commandedFootAcceleration() const { return commanded_foot_acceleration_; }
@@ -70,7 +84,7 @@ namespace ocs2::legged_robot
 
         Task formulateBaseAccelTask(const vector_t& stateDesired, const vector_t& inputDesired, scalar_t period);   // 基座加速度跟踪任务
 
-        Task formulateSwingLegTask();       // 摆动腿任务（足端位置和速度跟踪）
+        Task formulateSwingLegTask(const Eigen::Matrix<scalar_t,3,4>* feasibleAcceleration = nullptr);       // 摆动腿任务（足端位置和速度跟踪）
 
         Task formulateContactForceTask(const vector_t& inputDesired) const;     // 接触力跟踪任务
 
@@ -99,6 +113,12 @@ namespace ocs2::legged_robot
         bool solution_valid_ = true;
         int solver_status_ = 0, solver_iterations_ = 0;
         scalar_t constraint_violation_ = 0.0;
+
+        vector_t motor_current_, motor_applied_, actuator_prediction_;
+        double joint_kp_ = 0.0, joint_kd_ = 0.0;
+        bool actuator_model_valid_ = false;
+        bool actuatorSafetyModel_ = true;
+        bool base_task_initialized_ = false;
 
         // Task Parameters:
         vector_t torque_limits_;

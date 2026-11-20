@@ -55,7 +55,7 @@ static TerrainSafetyCorridor buildCorridor(const TerrainInterface& terrain, cons
                                            double start, double end, double touchdownWindow,
                                            TerrainMapTiming map, double touchdownTime) {
     const double values[] = {config.lateralExtent, config.longitudinalExtent, config.verticalExtent,
-                             config.footRadius, config.mapMargin, config.terrainRiseRate, config.geometricClearance,
+                             config.footRadius, config.mapMargin, config.heightError, config.terrainRiseRate, config.geometricClearance,
                              config.trackingMargin, config.numericalMargin, config.contactPhase};
     for (double value : values) {
         if (!std::isfinite(value) || value < 0.0) {
@@ -76,13 +76,14 @@ static TerrainSafetyCorridor buildCorridor(const TerrainInterface& terrain, cons
     corridor.footRadius = config.footRadius;
     corridor.numericalMargin = config.numericalMargin;
     corridor.mapTiming = map;
+    corridor.mapHeightMargin = config.heightError;
     if (touchdownTime > map.validUntil || (!std::isfinite(map.stamp) && config.terrainRiseRate > 0.0)) {
         corridor.failureReason = "Terrain snapshot cannot certify the touchdown time.";
         return corridor;
     }
     if (std::isfinite(map.stamp)) {
         corridor.mapToTouchdown = std::max(0.0, touchdownTime - map.stamp);
-        corridor.mapHeightMargin = config.terrainRiseRate * corridor.mapToTouchdown;
+        corridor.mapHeightMargin += config.terrainRiseRate * corridor.mapToTouchdown;
     }
     corridor.start = start;
     corridor.end = end;
@@ -231,8 +232,20 @@ static TerrainSafetyCorridor buildCorridor(const TerrainInterface& terrain, cons
 TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain, const BSpline& reference,
                                                  const CorridorConfig& config, int subdivisionsPerSpan,
                                                  HullBasis basis, TerrainMapTiming map, double touchdownTime) {
+    // The swing corridor must exclude the landing surface from creating a lower
+    // bound: the foot is expected to land on it, not avoid it from above.
     return buildCorridor(terrain, reference, config, subdivisionsPerSpan, basis,
-                         config.contactPhase, 1.0 - config.contactPhase, 0.0, map, touchdownTime);
+                         config.contactPhase, 1.0 - config.contactPhase, config.landingPositionWindow,
+                         map, touchdownTime);
+}
+
+TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain, const BSpline& reference,
+    const CorridorConfig& config, int subdivisionsPerSpan, HullBasis basis, TerrainMapTiming map,
+    double touchdownTime, double start, double end) {
+    if (!std::isfinite(start) || !std::isfinite(end) || start < 0.0 || end > 1.0 || end <= start)
+        throw std::invalid_argument("Invalid remaining corridor interval.");
+    return buildCorridor(terrain, reference, config, subdivisionsPerSpan, basis,
+        start, end, 0.0, map, touchdownTime);
 }
 
 void buildLandingCorridor(TerrainSafetyCorridor& corridor, const TerrainInterface& terrain,

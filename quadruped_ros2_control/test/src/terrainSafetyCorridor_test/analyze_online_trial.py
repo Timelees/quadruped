@@ -15,7 +15,8 @@ import numpy as np
 LEGS = ('LF', 'RF', 'LH', 'RH')
 STATUS = ('Off', 'HOCBF', 'No corridor', 'Lift-off / outside', 'Foot QP infeasible',
           'Invalid state', 'Period limit', 'Barrier entry', 'Tube entry', 'Tube rate',
-          'Tube margin', 'WBC fallback', 'Stance', 'Landing', 'No landing corridor')
+          'Tube margin', 'WBC fallback', 'Stance', 'Landing', 'No landing corridor',
+          'Geometry only', 'Landing geometry only')
 AUDIT_TOOLS = None
 
 
@@ -78,7 +79,7 @@ def plot_touchdown(rows, events, stem):
     force.set(ylabel='Contact force (N)')
     velocity.plot(time, [float(r[f'{leg}_v_z']) for r in window], '.-', color='#157285', ms=3)
     velocity.set(xlabel='Time from scheduled switch (ms)', ylabel='Vertical speed (m/s)')
-    landing = [float(r.get(f'{leg}_safety_status', -1)) == 13 for r in window]
+    landing = [float(r.get(f'{leg}_safety_status', -1)) in (13, 16) for r in window]
     for ax in (force, velocity):
         ax.axvline(0, color='0.35', lw=.8, label='Scheduled switch')
         ax.axvline(event['timing_ms'], color='#a45b23', ls='--', lw=.8, label='Detected contact')
@@ -263,7 +264,7 @@ def main():
     corrections = np.array([[float(r[f'{leg}_correction']) for leg in LEGS] for r in rows]).ravel()
     residual = finite([r[f'{leg}_wbc_safety_residual'] for r in rows for leg in LEGS])
     clearance = finite([r[f'{leg}_clearance'] for r in rows for leg in LEGS])
-    filtered = np.isin(statuses, [1, 13])
+    filtered = np.isin(statuses, [1, 13, 15, 16])
     counts = Counter(int(s) for s in statuses if s != 12)
     result.update(safety_counts={STATUS[s]: n for s, n in sorted(counts.items())},
                   control_period_ms_p50_p95_p99=quantiles([1000*float(r['control_period']) for r in rows]),
@@ -280,7 +281,7 @@ def main():
         fig, ax = plt.subplots(figsize=(3.8, 2.8), layout='constrained')
         plotted = sorted(counts, key=counts.get)
         bars = ax.barh([STATUS[s] for s in plotted], [counts[s] for s in plotted], color=[
-            '#157285' if s in (1, 13) else '#a7afb6' for s in plotted])
+            '#157285' if s in (1, 13, 15, 16) else '#a7afb6' for s in plotted])
         ax.bar_label(bars, padding=3)
         ax.set(xlim=(0, 1.15*max(counts.values())), xlabel='Swing-leg samples',
                title=f'{meta["scenario"]}: safety filter outcome')

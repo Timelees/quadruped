@@ -10,6 +10,7 @@
 #include <ocs2_core/misc/LoadData.h>
 #include <pinocchio/fwd.hpp>  // forward declarations must be included first.
 #include <pinocchio/algorithm/centroidal.hpp>
+#include <pinocchio/algorithm/center-of-mass.hpp>
 #include <pinocchio/algorithm/crba.hpp>
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/rnea.hpp>
@@ -114,6 +115,17 @@ namespace ocs2::legged_robot
         forwardKinematics(model, data, qDesired, vDesired);
     }
 
+    Eigen::Matrix<scalar_t, 6, 1> WbcBase::comTracking()
+    {
+        // Reuse the kinematics already computed for this WBC tick.
+        Eigen::Matrix<scalar_t, 6, 1> result;
+        result.head<3>() = pinocchio::centerOfMass(pinocchio_interface_measured_.getModel(),
+            pinocchio_interface_measured_.getData(), false);
+        result.tail<3>() = pinocchio::centerOfMass(pinocchio_interface_desired_.getModel(),
+            pinocchio_interface_desired_.getData(), false);
+        return result;
+    }
+
     Task WbcBase::formulateFloatingBaseEomTask()
     {
         const auto& data = pinocchio_interface_measured_.getData();
@@ -214,7 +226,11 @@ namespace ocs2::legged_robot
         a.setZero();
         a.block(0, 0, 6, 6) = matrix_t::Identity(6, 6);
 
-        vector_t jointAccel = centroidal_model::getJointVelocities(inputDesired - input_last_, info_) / period;
+        vector_t jointAccel = vector_t::Zero(info_.actuatedDofNum);
+        if (base_task_initialized_ && period > 0.0) {
+            jointAccel = centroidal_model::getJointVelocities(inputDesired - input_last_, info_) / period;
+        }
+        base_task_initialized_ = true;
         input_last_ = inputDesired;
         mapping_.setPinocchioInterface(pinocchio_interface_desired_);
 
@@ -248,7 +264,7 @@ namespace ocs2::legged_robot
         return feet;
     }
 
-    Task WbcBase::formulateSwingLegTask()
+    Task WbcBase::formulateSwingLegTask(const Eigen::Matrix<scalar_t,3,4>* feasibleAcceleration)
     {
         ee_kinematics_->setPinocchioInterface(pinocchio_interface_measured_);
         std::vector<vector3_t> posMeasured = ee_kinematics_->getPosition(vector_t());
@@ -278,35 +294,42 @@ namespace ocs2::legged_robot
             if (contact_flag_[i]) filtered.status = SafetyFilterStatus::Contact;
             if (!contact_flag_[i])
             {
-                // Preserve the original MPC/WBC target for support allocation
-                // and for every interval where the safety contract is unavailable.
+                // Keep the existing MPC PD objective independent of the safety
+                // reference and of certificate availability.
                 const vector3_t baselineAccel = swing_kp_ * (posDesired[i] - posMeasured[i]) +
                     swing_kd_ * (velDesired[i] - velMeasured[i]);
                 SwingReference reference;
-                vector3_t feedforward = vector3_t::Zero();
-                if (swing_reference_callback_ && swing_reference_callback_(i,reference)) {
+                const bool haveReference = swing_reference_callback_ && swing_reference_callback_(i,reference);
+                if (haveReference) {
                     posDesired[i]=reference.position; velDesired[i]=reference.velocity;
-                    feedforward=reference.acceleration;
-                    reference_foot_acceleration_.col(i)=feedforward;
+                    reference_foot_acceleration_.col(i)=reference.acceleration;
                     foot_tracking_.col(i).tail<6>() << posDesired[i],velDesired[i];
                 }
-                vector3_t accel = swing_kp_ * (posDesired[i] - posMeasured[i]) + swing_kd_ * (
-                    velDesired[i] - velMeasured[i]) + feedforward;
+                // Paper eq. 23: u_ref = pdd_ddot - Kp*e - Kv*edot.
+                // When a safety reference is available, use the full tracking law
+                // with feedforward. Otherwise fall back to PD-only baseline.
+                const vector3_t u_ref = haveReference ?
+                    reference.acceleration + swing_kp_ * (reference.position - posMeasured[i]) +
+                        swing_kd_ * (reference.velocity - velMeasured[i]) : baselineAccel;
+                // Project the tracking-law u_ref, not the achieved acceleration.
+                // The safety filter minimises |u_f - u_ref|^2 per paper eq. 31.
+                // The whole-body projection stays nearest its feasible nominal
+                // output; the foot filter contributes hard rows, not a second
+                // tracking objective that can move otherwise unconstrained axes.
+                const vector3_t accel = feasibleAcceleration ? vector3_t(feasibleAcceleration->col(i)) : baselineAccel;
                 const auto jacobian = j_.block(3 * i, 0, 3, info_.generalizedCoordinatesNum);
-                nominal_foot_acceleration_.col(i)=accel;
+                nominal_foot_acceleration_.col(i) = accel;
                 const vector3_t bias = dj_.block(3 * i, 0, 3, info_.generalizedCoordinatesNum) * v_measured_;
                 nominal_swing_target_.segment<3>(3 * j) = baselineAccel - bias;
-                if (swing_safety_callback_) {
-                    filtered = swing_safety_callback_(i, posMeasured[i], velMeasured[i], accel);
+                if (feasibleAcceleration && swing_safety_callback_) {
+                    filtered = swing_safety_callback_(i, posMeasured[i], velMeasured[i], u_ref);
                     if (filtered.active()) {
-                        accel = filtered.acceleration;
                         matrix_t d = matrix_t::Zero(filtered.accelerationA.rows(), num_decision_vars_);
                         d.leftCols(info_.generalizedCoordinatesNum) = filtered.accelerationA * jacobian;
                         swing_safety_constraints_ = swing_safety_constraints_ + Task(matrix_t(), vector_t(), d,
                             filtered.accelerationB - filtered.accelerationA * bias);
                     }
                 }
-                if (!filtered.active()) accel = baselineAccel;
                 a.block(3 * j, 0, 3, info_.generalizedCoordinatesNum) = jacobian;
                 b.segment(3 * j, 3) = accel - bias;
                 j++;
@@ -347,6 +370,7 @@ namespace ocs2::legged_robot
         }
         boost::property_tree::ptree pt;
         read_info(taskFile, pt);
+        actuatorSafetyModel_ = pt.get<bool>("swingLegTask.actuatorSafetyModel", true);
         std::string prefix = "frictionConeTask.";
         if (verbose)
         {

@@ -6,9 +6,77 @@
 #include <ocs2_core/misc/LoadData.h>
 #include <ocs2_core/soft_constraint/StateInputSoftConstraint.h>
 #include <ocs2_quadruped_controller/interface/LeggedRobotPreComputation.h>
+#include <ocs2_quadruped_controller/wbc/WbcBase.h>
+#include <convex_plane_decomposition/GeometryUtils.h>
 #include <grid_map_core/iterators/GridMapIterator.hpp>
 #include <iostream>
 #include <stdexcept>
+
+class SwingTaskProbe final : public ocs2::legged_robot::WbcBase {
+public:
+    using WbcBase::WbcBase;
+    using WbcBase::formulateSwingLegTask;
+    const auto& safetyRows() const { return swing_safety_constraints_; }
+};
+
+void checkNominalWbc(ocs2::legged_robot::PerceptiveLeggedInterface& interface,
+                     const ocs2::vector_t& state, const std::string& taskFile) {
+    using namespace ocs2;
+    using namespace ocs2::legged_robot;
+    const auto& info = interface.getCentroidalModelInfo();
+    CentroidalModelPinocchioMapping mapping(info);
+    PinocchioEndEffectorKinematics kinematics(interface.getPinocchioInterface(), mapping,
+        interface.modelSettings().contactNames3DoF);
+    SwingTaskProbe wbc(interface.getPinocchioInterface(), info, kinematics);
+    wbc.loadTasksSetting(taskFile, false);
+    vector_t measured = vector_t::Zero(2 * info.generalizedCoordinatesNum);
+    measured.head<3>() = state.segment<3>(9);
+    measured.segment<3>(3) = state.segment<3>(6);
+    measured.segment(6, info.actuatedDofNum) = state.tail(info.actuatedDofNum);
+    wbc.update(state, vector_t::Zero(info.inputDim), measured, 9, .005);
+    const auto nominal = wbc.formulateSwingLegTask();
+    const auto feet = wbc.footTracking();
+    const vector3_t feedforward(3, -4, 5);
+    wbc.setSwingReferenceCallback([&](size_t leg, WbcBase::SwingReference& reference) {
+        reference.position = feet.col(leg).head<3>();
+        reference.velocity = feet.col(leg).segment<3>(3);
+        reference.acceleration = feedforward;
+        return true;
+    });
+    const auto withReference = wbc.formulateSwingLegTask();
+    if ((withReference.b_ - nominal.b_).norm() > 1e-10)
+        throw std::runtime_error("Safety reference changed the nominal MPC/WBC tracking objective.");
+    bool called = false;
+    wbc.setSwingSafetyCallback([&](size_t, const vector3_t&, const vector3_t&, const vector3_t& target) {
+        called = true;
+        if ((target - feedforward).norm() > 1e-10)
+            throw std::runtime_error("Safety projection lost reference acceleration feedforward.");
+        SafetyFilterResult result; result.status = SafetyFilterStatus::NoCorridor;
+        return result;
+    });
+    if ((wbc.formulateSwingLegTask().b_ - withReference.b_).norm() > 1e-10)
+        throw std::runtime_error("Enabling safety filtering changed the nominal tracking target.");
+    const Eigen::Matrix<scalar_t, 3, 4> feasible = Eigen::Matrix<scalar_t, 3, 4>::Constant(2.0);
+    const auto unavailable = wbc.formulateSwingLegTask(&feasible);
+    if (!called || (unavailable.b_ - vector_t::Constant(unavailable.b_.size(), 2.0)).norm() > 1e-10)
+        throw std::runtime_error("Unavailable safety filter changed the nominal WBC task.");
+    const vector3_t correction(.5, -.25, .75);
+    wbc.setSwingSafetyCallback([&](size_t, const vector3_t&, const vector3_t&, const vector3_t& target) {
+        SafetyFilterResult result; result.status = SafetyFilterStatus::Solved;
+        result.acceleration = target + correction;
+        result.accelerationA = matrix_t::Identity(3, 3);
+        result.accelerationB = result.acceleration;
+        return result;
+    });
+    const auto projected = wbc.formulateSwingLegTask(&feasible);
+    if ((projected.b_ - unavailable.b_).norm() > 1e-10)
+        throw std::runtime_error("Whole-body safety projection changed the feasible nominal tracking objective.");
+    if (wbc.safetyRows().f_.size() != projected.b_.size())
+        throw std::runtime_error("Safety projection lost its hard acceleration constraints.");
+    for (Eigen::Index row = 0; row < wbc.safetyRows().f_.size(); row += 3)
+        if ((wbc.safetyRows().f_.segment<3>(row) - feedforward - correction).norm() > 1e-10)
+            throw std::runtime_error("Safety projection changed its hard acceleration bounds.");
+}
 
 int main(int argc, char** argv) {
     if (argc != 4) {
@@ -51,6 +119,7 @@ int main(int argc, char** argv) {
         auto selector = manager->getConvexRegionSelectorPtr();
         ocs2::vector_t state = ocs2::vector_t::Zero(interface.getCentroidalModelInfo().stateDim);
         ocs2::loadData::loadEigenMatrix(argv[1], "initialState", state);
+        checkNominalWbc(interface, state, argv[1]);
         ocs2::TargetTrajectories targets({0.0, 3.0}, {state, state},
             {ocs2::vector_t::Zero(interface.getCentroidalModelInfo().inputDim),
              ocs2::vector_t::Zero(interface.getCentroidalModelInfo().inputDim)});
@@ -59,12 +128,23 @@ int main(int argc, char** argv) {
         schedule.modeSequence = {15, 15, 0, 15, 0, 15, 15};
         selector->update(schedule, .95, state, targets);
         const auto original = selector->getProjection(0, 1.15).positionInWorld;
+        // An accepted policy can differ from the last generated plan. Its
+        // endpoint owns both swing tracking and the committed landing region.
+        std::array<ocs2::legged_robot::vector3_t, 4> acceptedTouchdowns;
+        acceptedTouchdowns.fill(original + ocs2::legged_robot::vector3_t(.10, .03, 0));
+        selector->update(schedule, 1.02, state, targets, &acceptedTouchdowns);
+        const auto accepted = selector->getProjection(0, 1.31);
+        const auto landingSet = selector->getConvexPolygon(0, 1.31);
+        if ((accepted.positionInWorld - acceptedTouchdowns[0]).norm() > 1e-12 ||
+            !convex_plane_decomposition::isInside(accepted.positionInTerrainFrame, landingSet)) {
+            throw std::runtime_error("Committed landing region disagrees with the accepted swing endpoint.");
+        }
         auto map = selector->getPlanarTerrainPtr();
         for (double now : {1.02, 1.1, 1.2, 1.4}) {
             map->planarRegions.front().transformPlaneToWorld.translation().z() += .03;
             selector->update(schedule, now, state, targets);
             const auto retained = selector->getProjection(0, 1.31);
-            if ((retained.positionInWorld - original).norm() > 1e-12 ||
+            if ((retained.positionInWorld - acceptedTouchdowns[0]).norm() > 1e-12 ||
                 std::abs(retained.regionPtr->transformPlaneToWorld.translation().z()) > 1e-12) {
                 throw std::runtime_error("Committed touchdown changed with map replacement during swing/stance.");
             }
@@ -72,9 +152,13 @@ int main(int argc, char** argv) {
                 throw std::runtime_error("Future touchdown was frozen before its swing.");
             }
         }
-        selector->update(schedule, 1.65, state, targets);
+        acceptedTouchdowns.fill(ocs2::legged_robot::vector3_t::Constant(1000));
+        selector->update(schedule, 1.65, state, targets, &acceptedTouchdowns);
         if (selector->getProjection(0, 2.0).positionInWorld.z() < .1) {
             throw std::runtime_error("Next swing inherited the previous committed foothold.");
+        }
+        if (selector->getProjection(0, 2.0).positionInWorld.norm() > 10) {
+            throw std::runtime_error("Out-of-map endpoint created a committed landing region.");
         }
         if (terrain && manager->getSwingTrajectoryPlanner()->getConfig().trackingVerticalHardConstraint) {
             // Exercise production configuration, row extraction, linearization and clone.

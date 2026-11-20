@@ -1,0 +1,3216 @@
+<?xml version='1.0' encoding='utf-8'?>
+<sdf version="1.10">
+  <world name="stair10cm">
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+    </physics>
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.5</mu>
+                <mu2>1.5</mu2>
+              </ode>
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.800000012 0.800000012 0.800000012 1</ambient>
+            <diffuse>0.800000012 0.800000012 0.800000012 1</diffuse>
+            <specular>0.800000012 0.800000012 0.800000012 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <pose>0 0 0 0 0 0</pose>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="thin_obstacle">
+      <pose>-1.2 0 0.03 0 0 0</pose>
+      <link name="thin_obstacle_link">
+        <collision name="thin_obstacle_collision">
+          <geometry>
+            <box>
+              <size>0.03 1.0 0.10</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.5</mu>
+                <mu2>1.5</mu2>
+              </ode>
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="thin_obstacle_visual">
+          <geometry>
+            <box>
+              <size>0.03 1.0 0.10</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.1 0.1 1</ambient>
+            <diffuse>0.8 0.15 0.15 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="stair_10cm_1">
+      <pose>2.4 0 0.05 0 0 0</pose>
+      <link name="stair_10cm_1_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="stair_10cm_1_collision">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="stair_10cm_1_visual">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="stair_10cm_2">
+      <pose>2.7 0 0.15 0 0 0</pose>
+      <link name="stair_10cm_2_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="stair_10cm_2_collision">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="stair_10cm_2_visual">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="stair_10cm_3">
+      <pose>3.0 0 0.25 0 0 0</pose>
+      <link name="stair_10cm_3_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="stair_10cm_3_collision">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="stair_10cm_3_visual">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="stair_10cm_4">
+      <pose>3.3 0 0.35 0 0 0</pose>
+      <link name="stair_10cm_4_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="stair_10cm_4_collision">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="stair_10cm_4_visual">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="stair_10cm_5">
+      <pose>3.6 0 0.45 0 0 0</pose>
+      <link name="stair_10cm_5_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="stair_10cm_5_collision">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="stair_10cm_5_visual">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="stair_10cm_6">
+      <pose>3.9 0 0.55 0 0 0</pose>
+      <link name="stair_10cm_6_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="stair_10cm_6_collision">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="stair_10cm_6_visual">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="stair_10cm_7">
+      <pose>4.2 0 0.65 0 0 0</pose>
+      <link name="stair_10cm_7_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="stair_10cm_7_collision">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="stair_10cm_7_visual">
+          <geometry>
+            <box>
+              <size>0.3 3 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="stair_10cm_8">
+      <pose>5.35 0 0.65 0 0 0</pose>
+      <link name="stair_10cm_8_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="stair_10cm_8_collision">
+          <geometry>
+            <box>
+              <size>2 3 0.1</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="stair_10cm_8_visual">
+          <geometry>
+            <box>
+              <size>2 3 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="ground_plantform">
+      <pose>0 4 0.05 0 0 0</pose>
+      <link name="ground_plantform_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="ground_plantform_collision">
+          <geometry>
+            <box>
+              <size>2 1 0.15</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="ground_plantform_visual">
+          <geometry>
+            <box>
+              <size>2 1 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="trench_0">
+      <pose>0 4.75 0.05 0 0 0</pose>
+      <link name="trench_0_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="trench_0_collision">
+          <geometry>
+            <box>
+              <size>2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="trench_0_visual">
+          <geometry>
+            <box>
+              <size>2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="trench_1">
+      <pose>0 5.10 0.05 0 0 0</pose>
+      <link name="trench_1_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="trench_1_collision">
+          <geometry>
+            <box>
+              <size>2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="trench_1_visual">
+          <geometry>
+            <box>
+              <size>2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="trench_end_platform">
+      <pose>0 5.85 0.05 0 0 0</pose>
+      <link name="trench_end_platform_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="trench_end_platform_collision">
+          <geometry>
+            <box>
+              <size>2 1 0.15</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="trench_end_platform_visual">
+          <geometry>
+            <box>
+              <size>2 1 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="plum_pile_1">
+      <pose>-0.85 6.50 0.05 0 0 0</pose>
+      <link name="plum_pile_1_link">
+        <collision name="plum_pile_1_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_1_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_2">
+      <pose>-0.60 6.50 0.05 0 0 0</pose>
+      <link name="plum_pile_2_link">
+        <collision name="plum_pile_2_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_2_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_3">
+      <pose>-0.35 6.50 0.05 0 0 0</pose>
+      <link name="plum_pile_3_link">
+        <collision name="plum_pile_3_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_3_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_4">
+      <pose>-0.10 6.50 0.05 0 0 0</pose>
+      <link name="plum_pile_4_link">
+        <collision name="plum_pile_4_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_4_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_5">
+      <pose>0.15 6.50 0.05 0 0 0</pose>
+      <link name="plum_pile_5_link">
+        <collision name="plum_pile_5_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_5_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_6">
+      <pose>0.40 6.50 0.05 0 0 0</pose>
+      <link name="plum_pile_6_link">
+        <collision name="plum_pile_6_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_6_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_7">
+      <pose>0.65 6.50 0.05 0 0 0</pose>
+      <link name="plum_pile_7_link">
+        <collision name="plum_pile_7_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_7_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_8">
+      <pose>0.90 6.50 0.05 0 0 0</pose>
+      <link name="plum_pile_8_link">
+        <collision name="plum_pile_8_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_8_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_9">
+      <pose>-0.85 6.75 0.05 0 0 0</pose>
+      <link name="plum_pile_9_link">
+        <collision name="plum_pile_9_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_9_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_10">
+      <pose>-0.60 6.75 0.05 0 0 0</pose>
+      <link name="plum_pile_10_link">
+        <collision name="plum_pile_10_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_10_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_11">
+      <pose>-0.35 6.75 0.05 0 0 0</pose>
+      <link name="plum_pile_11_link">
+        <collision name="plum_pile_11_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_11_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_12">
+      <pose>-0.10 6.75 0.05 0 0 0</pose>
+      <link name="plum_pile_12_link">
+        <collision name="plum_pile_12_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_12_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_13">
+      <pose>0.15 6.75 0.05 0 0 0</pose>
+      <link name="plum_pile_13_link">
+        <collision name="plum_pile_13_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_13_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_14">
+      <pose>0.40 6.75 0.05 0 0 0</pose>
+      <link name="plum_pile_14_link">
+        <collision name="plum_pile_14_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_14_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_15">
+      <pose>0.65 6.75 0.05 0 0 0</pose>
+      <link name="plum_pile_15_link">
+        <collision name="plum_pile_15_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_15_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_16">
+      <pose>0.90 6.75 0.05 0 0 0</pose>
+      <link name="plum_pile_16_link">
+        <collision name="plum_pile_16_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_16_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_17">
+      <pose>-0.85 7.00 0.05 0 0 0</pose>
+      <link name="plum_pile_17_link">
+        <collision name="plum_pile_17_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_17_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_18">
+      <pose>-0.60 7.00 0.05 0 0 0</pose>
+      <link name="plum_pile_18_link">
+        <collision name="plum_pile_18_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_18_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_19">
+      <pose>-0.35 7.00 0.05 0 0 0</pose>
+      <link name="plum_pile_19_link">
+        <collision name="plum_pile_19_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_19_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_20">
+      <pose>-0.10 7.00 0.05 0 0 0</pose>
+      <link name="plum_pile_20_link">
+        <collision name="plum_pile_20_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_20_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_21">
+      <pose>0.15 7.00 0.05 0 0 0</pose>
+      <link name="plum_pile_21_link">
+        <collision name="plum_pile_21_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_21_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_22">
+      <pose>0.40 7.00 0.05 0 0 0</pose>
+      <link name="plum_pile_22_link">
+        <collision name="plum_pile_22_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_22_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_23">
+      <pose>0.65 7.00 0.05 0 0 0</pose>
+      <link name="plum_pile_23_link">
+        <collision name="plum_pile_23_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_23_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_24">
+      <pose>0.90 7.00 0.05 0 0 0</pose>
+      <link name="plum_pile_24_link">
+        <collision name="plum_pile_24_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_24_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_25">
+      <pose>-0.85 7.25 0.05 0 0 0</pose>
+      <link name="plum_pile_25_link">
+        <collision name="plum_pile_25_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_25_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_26">
+      <pose>-0.60 7.25 0.05 0 0 0</pose>
+      <link name="plum_pile_26_link">
+        <collision name="plum_pile_26_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_26_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_27">
+      <pose>-0.35 7.25 0.05 0 0 0</pose>
+      <link name="plum_pile_27_link">
+        <collision name="plum_pile_27_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_27_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_28">
+      <pose>-0.10 7.25 0.05 0 0 0</pose>
+      <link name="plum_pile_28_link">
+        <collision name="plum_pile_28_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_28_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_29">
+      <pose>0.15 7.25 0.05 0 0 0</pose>
+      <link name="plum_pile_29_link">
+        <collision name="plum_pile_29_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_29_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_30">
+      <pose>0.40 7.25 0.05 0 0 0</pose>
+      <link name="plum_pile_30_link">
+        <collision name="plum_pile_30_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_30_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_31">
+      <pose>0.65 7.25 0.05 0 0 0</pose>
+      <link name="plum_pile_31_link">
+        <collision name="plum_pile_31_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_31_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_32">
+      <pose>0.90 7.25 0.05 0 0 0</pose>
+      <link name="plum_pile_32_link">
+        <collision name="plum_pile_32_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_32_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_33">
+      <pose>-0.85 7.50 0.05 0 0 0</pose>
+      <link name="plum_pile_33_link">
+        <collision name="plum_pile_33_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_33_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_34">
+      <pose>-0.60 7.50 0.05 0 0 0</pose>
+      <link name="plum_pile_34_link">
+        <collision name="plum_pile_34_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_34_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_35">
+      <pose>-0.35 7.50 0.05 0 0 0</pose>
+      <link name="plum_pile_35_link">
+        <collision name="plum_pile_35_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_35_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_36">
+      <pose>-0.10 7.50 0.05 0 0 0</pose>
+      <link name="plum_pile_36_link">
+        <collision name="plum_pile_36_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_36_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_37">
+      <pose>0.15 7.50 0.05 0 0 0</pose>
+      <link name="plum_pile_37_link">
+        <collision name="plum_pile_37_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_37_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_38">
+      <pose>0.40 7.50 0.05 0 0 0</pose>
+      <link name="plum_pile_38_link">
+        <collision name="plum_pile_38_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_38_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_39">
+      <pose>0.65 7.50 0.05 0 0 0</pose>
+      <link name="plum_pile_39_link">
+        <collision name="plum_pile_39_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_39_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_40">
+      <pose>0.90 7.50 0.05 0 0 0</pose>
+      <link name="plum_pile_40_link">
+        <collision name="plum_pile_40_collision">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_40_visual">
+          <geometry>
+            <box>
+              <size>0.2 0.2 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_end_platform">
+      <pose>0 8.15 0.05 0 0 0</pose>
+      <link name="plum_end_platform_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="plum_end_platform_collision">
+          <geometry>
+            <box>
+              <size>2 1 0.15</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="plum_end_platform_visual">
+          <geometry>
+            <box>
+              <size>2 1 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="plum_pile_41">
+      <pose>-0.80 8.78 0.03 0 0 0</pose>
+      <link name="plum_pile_41_link">
+        <collision name="plum_pile_41_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_41_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_42">
+      <pose>-0.60 8.78 0.06 0 0 0</pose>
+      <link name="plum_pile_42_link">
+        <collision name="plum_pile_42_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_42_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_43">
+      <pose>-0.40 8.78 0.06 0 0 0</pose>
+      <link name="plum_pile_43_link">
+        <collision name="plum_pile_43_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_43_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_44">
+      <pose>-0.20 8.78 0.05 0 0 0</pose>
+      <link name="plum_pile_44_link">
+        <collision name="plum_pile_44_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_44_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_45">
+      <pose>0.00 8.78 0.05 0 0 0</pose>
+      <link name="plum_pile_45_link">
+        <collision name="plum_pile_45_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_45_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_46">
+      <pose>0.20 8.78 0.05 0 0 0</pose>
+      <link name="plum_pile_46_link">
+        <collision name="plum_pile_46_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_46_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_47">
+      <pose>0.40 8.78 0.05 0 0 0</pose>
+      <link name="plum_pile_47_link">
+        <collision name="plum_pile_47_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_47_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_48">
+      <pose>0.60 8.78 0.06 0 0 0</pose>
+      <link name="plum_pile_48_link">
+        <collision name="plum_pile_48_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_48_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_49">
+      <pose>0.80 8.78 0.05 0 0 0</pose>
+      <link name="plum_pile_49_link">
+        <collision name="plum_pile_49_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_49_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_50">
+      <pose>-0.80 8.97 0.05 0 0 0</pose>
+      <link name="plum_pile_50_link">
+        <collision name="plum_pile_50_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_50_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_51">
+      <pose>-0.60 8.97 0.06 0 0 0</pose>
+      <link name="plum_pile_51_link">
+        <collision name="plum_pile_51_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_51_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_52">
+      <pose>-0.40 8.97 0.03 0 0 0</pose>
+      <link name="plum_pile_52_link">
+        <collision name="plum_pile_52_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_52_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_53">
+      <pose>-0.20 8.97 0.03 0 0 0</pose>
+      <link name="plum_pile_53_link">
+        <collision name="plum_pile_53_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_53_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_54">
+      <pose>0.00 8.97 0.03 0 0 0</pose>
+      <link name="plum_pile_54_link">
+        <collision name="plum_pile_54_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_54_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_55">
+      <pose>0.20 8.97 0.03 0 0 0</pose>
+      <link name="plum_pile_55_link">
+        <collision name="plum_pile_55_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_55_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_56">
+      <pose>0.40 8.97 0.03 0 0 0</pose>
+      <link name="plum_pile_56_link">
+        <collision name="plum_pile_56_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_56_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_57">
+      <pose>0.60 8.97 0.03 0 0 0</pose>
+      <link name="plum_pile_57_link">
+        <collision name="plum_pile_57_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_57_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_58">
+      <pose>0.80 8.97 0.03 0 0 0</pose>
+      <link name="plum_pile_58_link">
+        <collision name="plum_pile_58_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_58_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_59">
+      <pose>-0.80 9.18 0.05 0 0 0</pose>
+      <link name="plum_pile_59_link">
+        <collision name="plum_pile_59_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_59_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_60">
+      <pose>-0.60 9.18 0.03 0 0 0</pose>
+      <link name="plum_pile_60_link">
+        <collision name="plum_pile_60_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_60_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_61">
+      <pose>-0.40 9.18 0.05 0 0 0</pose>
+      <link name="plum_pile_61_link">
+        <collision name="plum_pile_61_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_61_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_62">
+      <pose>-0.20 9.18 0.03 0 0 0</pose>
+      <link name="plum_pile_62_link">
+        <collision name="plum_pile_62_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_62_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_63">
+      <pose>0.00 9.18 0.05 0 0 0</pose>
+      <link name="plum_pile_63_link">
+        <collision name="plum_pile_63_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_63_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_64">
+      <pose>0.20 9.18 0.03 0 0 0</pose>
+      <link name="plum_pile_64_link">
+        <collision name="plum_pile_64_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_64_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_65">
+      <pose>0.40 9.18 0.05 0 0 0</pose>
+      <link name="plum_pile_65_link">
+        <collision name="plum_pile_65_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_65_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_66">
+      <pose>0.60 9.18 0.05 0 0 0</pose>
+      <link name="plum_pile_66_link">
+        <collision name="plum_pile_66_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_66_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_67">
+      <pose>0.80 9.18 0.06 0 0 0</pose>
+      <link name="plum_pile_67_link">
+        <collision name="plum_pile_67_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_67_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_68">
+      <pose>-0.80 9.38 0.03 0 0 0</pose>
+      <link name="plum_pile_68_link">
+        <collision name="plum_pile_68_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_68_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_69">
+      <pose>-0.60 9.38 0.05 0 0 0</pose>
+      <link name="plum_pile_69_link">
+        <collision name="plum_pile_69_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_69_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_70">
+      <pose>-0.40 9.38 0.03 0 0 0</pose>
+      <link name="plum_pile_70_link">
+        <collision name="plum_pile_70_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_70_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_71">
+      <pose>-0.20 9.38 0.03 0 0 0</pose>
+      <link name="plum_pile_71_link">
+        <collision name="plum_pile_71_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_71_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_72">
+      <pose>0.00 9.38 0.06 0 0 0</pose>
+      <link name="plum_pile_72_link">
+        <collision name="plum_pile_72_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_72_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_73">
+      <pose>0.20 9.38 0.05 0 0 0</pose>
+      <link name="plum_pile_73_link">
+        <collision name="plum_pile_73_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_73_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_74">
+      <pose>0.40 9.38 0.06 0 0 0</pose>
+      <link name="plum_pile_74_link">
+        <collision name="plum_pile_74_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_74_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_75">
+      <pose>0.60 9.38 0.06 0 0 0</pose>
+      <link name="plum_pile_75_link">
+        <collision name="plum_pile_75_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_75_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_76">
+      <pose>0.80 9.38 0.05 0 0 0</pose>
+      <link name="plum_pile_76_link">
+        <collision name="plum_pile_76_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_76_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_77">
+      <pose>-0.80 9.58 0.06 0 0 0</pose>
+      <link name="plum_pile_77_link">
+        <collision name="plum_pile_77_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_77_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_78">
+      <pose>-0.60 9.58 0.06 0 0 0</pose>
+      <link name="plum_pile_78_link">
+        <collision name="plum_pile_78_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_78_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_79">
+      <pose>-0.40 9.58 0.05 0 0 0</pose>
+      <link name="plum_pile_79_link">
+        <collision name="plum_pile_79_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_79_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_80">
+      <pose>-0.20 9.58 0.05 0 0 0</pose>
+      <link name="plum_pile_80_link">
+        <collision name="plum_pile_80_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_80_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_81">
+      <pose>0.00 9.58 0.05 0 0 0</pose>
+      <link name="plum_pile_81_link">
+        <collision name="plum_pile_81_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_81_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_82">
+      <pose>0.20 9.58 0.05 0 0 0</pose>
+      <link name="plum_pile_82_link">
+        <collision name="plum_pile_82_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_82_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_83">
+      <pose>0.40 9.58 0.03 0 0 0</pose>
+      <link name="plum_pile_83_link">
+        <collision name="plum_pile_83_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_83_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_84">
+      <pose>0.60 9.58 0.03 0 0 0</pose>
+      <link name="plum_pile_84_link">
+        <collision name="plum_pile_84_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_84_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.12</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_pile_85">
+      <pose>0.80 9.58 0.06 0 0 0</pose>
+      <link name="plum_pile_85_link">
+        <collision name="plum_pile_85_collision">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="plum_pile_85_visual">
+          <geometry>
+            <box>
+              <size>0.15 0.15 0.17</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+      </link>
+      <static>true</static>
+    </model>
+    <model name="plum_end_platform_2">
+      <pose>0 10.205 0.05 0 0 0</pose>
+      <link name="plum_end_platform_2_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="plum_end_platform_2_collision">
+          <geometry>
+            <box>
+              <size>2 1 0.15</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="plum_end_platform_2_visual">
+          <geometry>
+            <box>
+              <size>2 1 0.15</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="ramp_10deg_y_neg4">
+      <pose>0 -5.134257 0.190152 -0.174533 0 0</pose>
+      <link name="ramp_10deg_y_neg4_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="ramp_10deg_y_neg4_collision">
+          <geometry>
+            <box>
+              <size>2 2.303508 0.02</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="ramp_10deg_y_neg4_visual">
+          <geometry>
+            <box>
+              <size>2 2.303508 0.02</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="platform_20cm_y_neg4">
+      <pose>0 -6.768513 0.2 0 0 0</pose>
+      <link name="platform_20cm_y_neg4_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="platform_20cm_y_neg4_collision">
+          <geometry>
+            <box>
+              <size>2 1 0.4</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="platform_20cm_y_neg4_visual">
+          <geometry>
+            <box>
+              <size>2 1 0.4</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="platform_20cm_y_neg4_2">
+      <pose>3.6 -6.768513 0.2 0 0 0</pose>
+      <link name="platform_20cm_y_neg4_2_link">
+        <inertial>
+          <inertia>
+            <ixx>0.755208</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.0260417</iyy>
+            <iyz>0</iyz>
+            <izz>0.770833</izz>
+          </inertia>
+          <mass>1</mass>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name="platform_20cm_y_neg4_2_collision">
+          <geometry>
+            <box>
+              <size>2 1 0.4</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode />
+            </friction>
+            <bounce />
+            <contact />
+          </surface>
+        </collision>
+        <visual name="platform_20cm_y_neg4_2_visual">
+          <geometry>
+            <box>
+              <size>2 1 0.4</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.300000012 0.300000012 0.300000012 1</ambient>
+            <diffuse>0.699999988 0.699999988 0.699999988 1</diffuse>
+            <specular>1 1 1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <self_collide>false</self_collide>
+    </model>
+    <model name="safety_lane_bar_0">
+      <static>true</static>
+      <pose>1.1 -3 0.02 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.06 1.4 0.04</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.06 1.4 0.04</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>.35 .55 .65 1</ambient>
+            <diffuse>.35 .55 .65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="safety_lane_bar_1">
+      <static>true</static>
+      <pose>1.8 -3 0.035 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.08 1.4 0.07</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.08 1.4 0.07</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>.35 .55 .65 1</ambient>
+            <diffuse>.35 .55 .65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="safety_lane_bar_2">
+      <static>true</static>
+      <pose>2.5 -3 0.025 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.12 1.4 0.05</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.12 1.4 0.05</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>.35 .55 .65 1</ambient>
+            <diffuse>.35 .55 .65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="safety_lane_bar_3">
+      <static>true</static>
+      <pose>3.2 -3 0.045 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.06 1.4 0.09</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.06 1.4 0.09</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>.35 .55 .65 1</ambient>
+            <diffuse>.35 .55 .65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>

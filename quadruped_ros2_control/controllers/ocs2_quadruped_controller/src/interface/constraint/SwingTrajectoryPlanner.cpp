@@ -149,7 +149,7 @@ namespace ocs2::legged_robot {
     TerrainSafetyCorridor SwingTrajectoryPlanner::certifyReference(const BSpline& reference,
             double start, double end, double after, const TerrainSnapshot& map) const {
         TerrainSafetyCorridor invalid;
-        if (!map.terrain || end <= start || after >= end || end > map.timing.validUntil) {
+        if (!map.terrain || !std::isfinite(map.timing.stamp) || end <= start || after >= end || end > map.timing.validUntil) {
             invalid.failureReason = "Missing or expired terrain snapshot";
             return invalid;
         }
@@ -167,12 +167,15 @@ namespace ocs2::legged_robot {
         normalized.setKnots(((reference.getKnots().array()-origin)/(end-origin)).matrix());
         auto config = bounds.corridorConfig;
         config.contactPhase = 0.0;
-        auto corridor = buildTerrainSafetyCorridor(*map.terrain, normalized, config,
-            bounds.subdivisionsPerSpan, HullBasis::Minvo, map.timing, end);
-        if (!corridor.valid) return corridor;
         const double upper = 1.0-bounds.corridorConfig.contactPhase;
         const double lower = std::max(bounds.corridorConfig.contactPhase,
             std::min((after-start)/(end-start), upper-1e-9));
+        const double localLower = std::max(0.0, (start+lower*(end-start)-origin)/(end-origin));
+        const double localUpper = (start+upper*(end-start)-origin)/(end-origin);
+        if (localUpper <= localLower) return invalid;
+        auto corridor = buildTerrainSafetyCorridor(*map.terrain, normalized, config,
+            bounds.subdivisionsPerSpan, HullBasis::Minvo, map.timing, end, localLower, localUpper);
+        if (!corridor.valid) return corridor;
         std::vector<CorridorPolytope> remaining;
         for (auto cell : corridor.cells) {
             cell.start = std::max(lower, (origin-start+cell.start*(end-origin))/(end-start));
@@ -319,7 +322,11 @@ namespace ocs2::legged_robot {
                     const scalar_t swingStartTime = eventTimes[swingStartIndex];
                     const scalar_t swingFinalTime = eventTimes[swingFinalIndex];
                     const BSpline* frozen = nullptr;
-                    if (activeSwings && initTime >= swingStartTime && initTime < swingFinalTime) {
+                    // A policy solved just before lift-off may arrive after it.
+                    // Commit imminent swings over the existing delivery budget
+                    // so that delivery cannot replace their terminal state.
+                    if (activeSwings && initTime + config_.replanConfig.maxActivationDelay >= swingStartTime &&
+                        initTime < swingFinalTime) {
                         for (const auto& swing : (*activeSwings)[j]) {
                             if (std::abs(swing.start-swingStartTime)<1e-8 && std::abs(swing.end-swingFinalTime)<1e-8) {
                                 frozen = &swing.reference;
@@ -455,7 +462,8 @@ namespace ocs2::legged_robot {
                     const scalar_t swingStartTime = eventTimes[swingStartIndex];
                     const scalar_t swingFinalTime = eventTimes[swingFinalIndex];
                     const BSpline* frozen = nullptr;
-                    if (activeSwings && initTime >= swingStartTime && initTime < swingFinalTime) {
+                    if (activeSwings && initTime + config_.replanConfig.maxActivationDelay >= swingStartTime &&
+                        initTime < swingFinalTime) {
                         for (const auto& swing : (*activeSwings)[j]) {
                             if (std::abs(swing.start-swingStartTime)<1e-8 && std::abs(swing.end-swingFinalTime)<1e-8) {
                                 frozen = &swing.reference;
@@ -591,7 +599,8 @@ namespace ocs2::legged_robot {
                             config_.terrainQpConfig.corridorConfig, swingStartTime, swingFinalTime,
                             config_.safetyFilterConfig.landingPositionWindow);
                     }
-                    if (!optimized.corridorCertified) terrainCorridors_[j].back().valid = false;
+                    if (!optimized.corridorCertified || !std::isfinite(mapTiming_.stamp))
+                        terrainCorridors_[j].back().valid = false;
                     terrainCorridorStarts_[j].push_back(swingStartTime);
                     terrainCorridorEnds_[j].push_back(swingFinalTime);
                     if (!optimized.valid()) {
@@ -651,16 +660,49 @@ namespace ocs2::legged_robot {
         const auto& cfg = replanner_.config();
         const auto replanStart = std::chrono::steady_clock::now();
         if (!cfg.enabled || !config_.terrainQpConfig.safetyCorridorEnabled ||
-            swingFinalTime - initTime < cfg.minRemainingTime || initTime < executing.getKnots()[0] ||
-            std::abs(rejectedSwingEnd_[leg].load(std::memory_order_relaxed)-swingFinalTime)<1e-8) return executing;
+            swingFinalTime - initTime < cfg.minRemainingTime || initTime < executing.getKnots()[0]) return executing;
+        double rejectedEnd = rejectedSwingEnd_[leg].load(std::memory_order_relaxed);
+        if (std::abs(rejectedEnd-swingFinalTime)<1e-8) {
+            // Recover one MPC solution on the actually accepted reference, then
+            // permit bounded retries. Freezing until touchdown suppresses new
+            // terrain evidence arriving after an unrelated activation veto.
+            rejectedSwingEnd_[leg].compare_exchange_strong(rejectedEnd,
+                -std::numeric_limits<double>::infinity(), std::memory_order_relaxed);
+            pendingActivation_[leg] = INFINITY;
+            return executing;
+        }
         const double phase = (initTime - swingStartTime) / (swingFinalTime - swingStartTime);
         const double contactPhase = config_.terrainQpConfig.corridorConfig.contactPhase;
-        if (phase < contactPhase || phase >= 1.0 - contactPhase) return executing;
+        // Planning can start after lift-off. The certificate below still covers
+        // only the configured noncontact interval; waiting for that interval to
+        // begin needlessly consumes the time available to clear a new obstacle.
+        if (phase >= 1.0 - contactPhase) return executing;
         if (std::abs(pendingEnd_[leg] - swingFinalTime) > 1e-8) pendingActivation_[leg] = INFINITY;
+        // WBC handles tracking. Replan when the executing reference loses its
+        // certificate on the synchronized map, rather than for tracking noise.
+        // A pending activation must still be checked against the fresh state.
+        if (!std::isfinite(pendingActivation_[leg])) {
+            for (size_t i=0;i<terrainCorridors_[leg].size();++i)
+                if (std::abs(terrainCorridorStarts_[leg][i]-swingStartTime)<1e-8 &&
+                    std::abs(terrainCorridorEnds_[leg][i]-swingFinalTime)<1e-8 && terrainCorridors_[leg][i].valid)
+                    return executing;
+        }
         const bool activating = std::isfinite(pendingActivation_[leg]) && initTime >= pendingActivation_[leg];
         if (!activating && (std::isfinite(pendingActivation_[leg]) ||
                            initTime - lastReplanTime_[leg] < cfg.updateInterval)) return executing;
         lastReplanTime_[leg] = initTime;
+        if (config_.directReplacementTestOnly) {
+            // Deliberately solve from the original lift-off boundaries. This
+            // comparison changes an executing reference without state splicing.
+            // It is opt-in test code and never claims activation safety.
+            if (std::abs(executing.getKnots()[0]-swingStartTime)>1e-8) return executing;
+            auto result = swingTrajectoryQpOptimizer_->optimizeSwingTrajectory(executing, swingStartTime, swingFinalTime,
+                executing.getPosition(swingStartTime), executing.getPosition(swingFinalTime));
+            if (!result.valid()) return executing;
+            std::cerr << "Swing direct candidate leg=" << leg << " now=" << initTime
+                      << " reference_jump=" << (result.bspline->getPosition(initTime)-executing.getPosition(initTime)).norm() << '\n';
+            return *result.bspline;
+        }
         if (!footPosition[leg].allFinite() || !footVelocity[leg].allFinite()) {
             if (activating) {
                 replanner_.recordRejection(SwingReplanOutcome::RejectedActivation);
@@ -678,8 +720,15 @@ namespace ocs2::legged_robot {
                              (swingFinalTime - referenceStart)).matrix());
         auto corridorConfig = config_.terrainQpConfig.corridorConfig;
         corridorConfig.contactPhase = 0.0;
+        const double lower = std::max(phase, contactPhase);
+        const double upper = 1.0-contactPhase;
+        const double localLower = std::max(0.0, (swingStartTime+lower*(swingFinalTime-swingStartTime)-referenceStart)/
+            (swingFinalTime-referenceStart));
+        const double localUpper = (swingStartTime+upper*(swingFinalTime-swingStartTime)-referenceStart)/
+            (swingFinalTime-referenceStart);
         auto corridor = buildTerrainSafetyCorridor(*terrainInterface_, normalized,
-            corridorConfig, config_.terrainQpConfig.subdivisionsPerSpan, HullBasis::Minvo, mapTiming_, swingFinalTime);
+            corridorConfig, config_.terrainQpConfig.subdivisionsPerSpan, HullBasis::Minvo, mapTiming_, swingFinalTime,
+            localLower, localUpper);
         for (auto& cell : corridor.cells) {
             cell.start = (referenceStart - swingStartTime + cell.start * (swingFinalTime - referenceStart)) /
                          (swingFinalTime - swingStartTime);
@@ -694,7 +743,7 @@ namespace ocs2::legged_robot {
             noncontact.push_back(std::move(cell));
         }
         corridor.cells = std::move(noncontact);
-        corridor.start = contactPhase; corridor.end = 1.0-contactPhase;
+        corridor.start = lower; corridor.end = upper;
         corridor.valid = corridor.valid && !corridor.cells.empty();
         // Current map must still support the ORIGINAL touchdown target. Do not
         // silently redirect it to the latest foothold selector's target.
@@ -720,11 +769,15 @@ namespace ocs2::legged_robot {
                                                 0.5 * cfg.disturbanceBound * delay * delay;
         predictionConfig.velocityUncertainty += cfg.disturbanceBound * delay;
         SwingReplanDecision decision;
+        const SwingTrajectoryQpOptimizer::HeightBounds heightBounds=workspace_ ?
+            SwingTrajectoryQpOptimizer::HeightBounds([&,leg](double t,const Eigen::Vector3d& point) {
+                return workspace_(leg,t,point);
+            }) : SwingTrajectoryQpOptimizer::HeightBounds{};
         if (delay > 0.0) {
             SwingOnlineReplanner prediction(predictionConfig);
             decision = prediction.admit(executing, corridor, swingStartTime, activation, swingFinalTime,
                 footPosition[leg] + delay * footVelocity[leg] + 0.5 * delay * delay * acceleration,
-                footVelocity[leg] + delay * acceleration, acceleration);
+                footVelocity[leg] + delay * acceleration, acceleration, heightBounds);
             if (decision.admitted()) {
                 pendingActivation_[leg] = activation;
                 pendingEnd_[leg] = swingFinalTime;
@@ -735,7 +788,7 @@ namespace ocs2::legged_robot {
         } else {
             pendingActivation_[leg] = INFINITY;
             decision = replanner_.admit(executing, corridor, swingStartTime, initTime, swingFinalTime,
-                                       footPosition[leg], footVelocity[leg], acceleration);
+                                       footPosition[leg], footVelocity[leg], acceleration, heightBounds);
         }
         if (decision.admitted() && config_.safetyFilterConfig.enabled) {
             const auto& filterConfig = config_.safetyFilterConfig;
@@ -982,7 +1035,9 @@ namespace ocs2::legged_robot {
 
         // Section 4.4 online replanning: off by default, it changes the executing
         // reference mid-swing rather than only future swings.
+        config.replanConfig.maxTrajectoryCorrection = config.terrainQpConfig.maxCorrection;
         loadOptional(config.replanConfig.enabled, "swingOnlineReplanEnabled");
+        loadOptional(config.directReplacementTestOnly, "swingReplanDirectTestOnly");
         loadOptional(config.replanConfig.correctionDuration, "swingReplanCorrectionDuration");
         loadOptional(config.replanConfig.activationDelay, "swingReplanActivationDelay");
         loadOptional(config.replanConfig.maxActivationDelay, "swingReplanMaxActivationDelay");
@@ -1015,6 +1070,8 @@ namespace ocs2::legged_robot {
         loadOptional(filter.hocbfSampleRate, "safetyFilterHocbfSampleRate");
         loadOptional(filter.tubeSampleRate, "safetyFilterTubeSampleRate");
         loadOptional(filter.maxPeriod, "safetyFilterMaxPeriod");
+        loadOptional(filter.positionMeasurementError, "safetyFilterPositionMeasurementError");
+        loadOptional(filter.velocityMeasurementError, "safetyFilterVelocityMeasurementError");
         loadOptional(filter.landingPositionWindow, "safetyFilterLandingPositionWindow");
         loadOptional(filter.landingMaxDownSpeed, "safetyFilterLandingMaxDownSpeed");
         loadOptional(filter.landingMaxUpSpeed, "safetyFilterLandingMaxUpSpeed");
@@ -1033,6 +1090,7 @@ namespace ocs2::legged_robot {
         loadOptional(corridor.longitudinalExtent, "corridorLongitudinalExtent");
         loadOptional(corridor.verticalExtent, "corridorVerticalExtent");
         loadOptional(corridor.mapMargin, "corridorMapMargin");
+        loadOptional(corridor.heightError, "corridorHeightError");
         loadOptional(corridor.terrainRiseRate, "corridorTerrainRiseRate");
         loadOptional(corridor.geometricClearance, "corridorGeometricClearance");
         loadOptional(corridor.numericalMargin, "corridorNumericalMargin");

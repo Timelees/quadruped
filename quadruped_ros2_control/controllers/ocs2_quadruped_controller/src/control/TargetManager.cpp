@@ -9,6 +9,7 @@
 #include <boost/property_tree/info_parser.hpp>
 #include <stdexcept>
 #include <ocs2_core/misc/LoadData.h>
+#include <ocs2_legged_robot/gait/MotionPhaseDefinition.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
 
 #include <algorithm>
@@ -57,6 +58,32 @@ namespace ocs2::legged_robot
             });
     }
 
+    TargetTrajectories TargetManager::targetPoseToTargetTrajectories(const vector_t& targetPose,
+                                                                     const SystemObservation& observation,
+                                                                     const scalar_t& targetReachingTime)
+    {
+        vector_t currentPose = observation.state.segment<6>(6);
+        currentPose(2) = command_height_;
+        const scalar_t trajectoryDuration = targetReachingTime - observation.time;
+        const scalar_t pitchResponseDuration = std::min(kPitchResponseTime, trajectoryDuration * scalar_t(0.5));
+        const scalar_t pitchReachingTime = observation.time + pitchResponseDuration;
+        const scalar_t alpha = pitchResponseDuration / trajectoryDuration;
+
+        vector_t pitchReachedPose = currentPose + alpha * (targetPose - currentPose);
+        pitchReachedPose(4) = targetPose(4);
+
+        const scalar_array_t timeTrajectory{observation.time, pitchReachingTime, targetReachingTime};
+        vector_array_t stateTrajectory(3, vector_t::Zero(observation.state.size()));
+        stateTrajectory[0] << vector_t::Zero(6), currentPose, default_joint_state_;
+        stateTrajectory[1] << vector_t::Zero(6), pitchReachedPose, default_joint_state_;
+        stateTrajectory[2] << vector_t::Zero(6), targetPose, default_joint_state_;
+
+        // desired input trajectory (just right dimensions, they are not used)
+        const vector_array_t inputTrajectory(3, vector_t::Zero(observation.input.size()));
+
+        return {timeTrajectory, stateTrajectory, inputTrajectory};
+    }
+
     void TargetManager::update(SystemObservation& observation)
     {
         // Body-frame command: linear (vx,vy,vz), yaw rate about base z (maps to state theta_base_z).
@@ -66,7 +93,7 @@ namespace ocs2::legged_robot
         if (buffer_.readFromRT() == nullptr || twist_count <= 0)
         {
             // Body frame: vx 用前后上限，vy 用侧向上限。
-            cmdGoal[0] = ctrl_component_.control_inputs_.ly * target_displacement_velocity_;   
+            cmdGoal[0] = ctrl_component_.control_inputs_.ly * target_displacement_velocity_;
             cmdGoal[1] = -ctrl_component_.control_inputs_.lx * target_lateral_velocity_;
             cmdGoal[3] = -ctrl_component_.control_inputs_.rx * target_rotation_velocity_;
             pitch_target = ctrl_component_.control_inputs_.ry * kMaxPitchAngle;
@@ -86,9 +113,67 @@ namespace ocs2::legged_robot
             }
         }
 
-        // Linear cmd is in body frame; rotate to world. Base euler in state: [theta_z, theta_y, theta_x] (ZYX).
+        if (!use_ramped_reference_) {
+            // ===================================================================
+            // Original master-branch path: full ZYX rotation, 3-point reference.
+            // Restored for blind-walking and non-perceptive modes.
+            // ===================================================================
+            const vector_t currentPose = observation.state.segment<6>(6);
+            const Eigen::Matrix<scalar_t, 3, 1> zyx = currentPose.tail(3);
+            vector_t cmd_vel_rot = getRotationMatrixFromZyxEulerAngles(zyx) * cmdGoal.head(3);
+
+            // 航向参考：有显式 yaw 角速度时按指令积分；否则保持已锁定的世界 yaw，使 MPC 对侧走中的偏航有恢复项。
+            scalar_t yaw_target;
+            if (std::abs(cmdGoal(3)) > kYawRateDeadzone)
+            {
+                yaw_target = currentPose(3) + cmdGoal(3) * time_to_target_;
+                yaw_hold_value_ = yaw_target;
+                yaw_hold_initialized_ = true;
+                had_yaw_rate_command_ = true;
+            }
+            else
+            {
+                if (had_yaw_rate_command_ || !yaw_hold_initialized_)
+                {
+                    yaw_hold_value_ = currentPose(3);
+                    yaw_hold_initialized_ = true;
+                    had_yaw_rate_command_ = false;
+                }
+                yaw_target = currentPose(3) +
+                    angles::shortest_angular_distance(currentPose(3), yaw_hold_value_);
+            }
+
+            const vector_t targetPose = [&]
+            {
+                vector_t target(6); // [px, py, pz, theta_base_z, theta_base_y, theta_base_x]
+                target(0) = currentPose(0) + cmd_vel_rot(0) * time_to_target_;  // px
+                target(1) = currentPose(1) + cmd_vel_rot(1) * time_to_target_; // py
+                target(2) = command_height_;    // pz
+                target(3) = yaw_target;         // yaw
+                target(4) = pitch_target;       // pitch
+                target(5) = 0;                  // roll
+                return target;
+            }();
+
+            const scalar_t targetReachingTime = observation.time + time_to_target_;
+            auto trajectories =
+                targetPoseToTargetTrajectories(targetPose, observation, targetReachingTime);
+            for (auto& state : trajectories.stateTrajectory)
+            {
+                state.head(3) = cmd_vel_rot;
+            }
+
+            referenceManagerPtr_->setTargetTrajectories(std::move(trajectories));
+            return;
+        }
+
+        // ===================================================================
+        // Ramped reference path: yaw-only rotation, bounded acceleration,
+        // dense trajectory. Used by perceptive mode for smoother command
+        // following with terrain-aware planning.
+        // ===================================================================
         const vector_t currentPose = observation.state.segment<6>(6);
-        const Eigen::Matrix<scalar_t, 3, 1> zyx = currentPose.tail(3);
+        const Eigen::Matrix<scalar_t, 3, 1> zyx(currentPose(3), 0.0, 0.0);
         vector_t cmd_vel_rot = getRotationMatrixFromZyxEulerAngles(zyx) * cmdGoal.head(3);
 
         Eigen::Vector4d requested;
@@ -98,6 +183,8 @@ namespace ocs2::legged_robot
             filtered_command_.setZero();
             yaw_hold_initialized_ = false;
             had_yaw_rate_command_ = false;
+            position_hold_initialized_ = false;
+            had_translation_command_ = false;
         } else {
             for (int axis = 0; axis < 4; ++axis) {
                 filtered_command_[axis] = sampleCommandRamp(filtered_command_[axis], requested[axis],
@@ -116,6 +203,25 @@ namespace ocs2::legged_robot
             yaw_hold_initialized_ = true;
         }
         had_yaw_rate_command_ = turning;
+
+        const bool translating = requested.head<2>().norm() > 1e-6 ||
+                                 filtered_command_.head<2>().norm() > 1e-6;
+        // Stand-up initializes the estimator's world translation after the
+        // command manager is created. Never latch the pre-initialization pose.
+        // Measured all-foot contact can occur briefly in trot. It must not
+        // reset a latched world target while the robot is drifting.
+        const auto& modeSchedule = referenceManagerPtr_->getModeSchedule();
+        const bool plannedStand = !modeSchedule.modeSequence.empty() &&
+            std::all_of(modeSchedule.modeSequence.begin(), modeSchedule.modeSequence.end(),
+                [](size_t mode) { return mode == STANCE; });
+        const bool initializingStance = (ctrl_component_.control_inputs_.command == 2 || plannedStand) && !translating;
+        if (translating || initializingStance || !position_hold_initialized_ || had_translation_command_) {
+            for (int axis = 0; axis < 2; ++axis)
+                position_hold_value_[axis] = currentPose(axis) + sampleCommandRamp(
+                    filtered_command_[axis], requested[axis], linear_acceleration_, time_to_target_).displacement;
+            position_hold_initialized_ = true;
+        }
+        had_translation_command_ = translating;
 
         // Include every velocity breakpoint: interpolated pose and momentum
         // references describe the same bounded braking motion over the horizon.
@@ -141,7 +247,9 @@ namespace ocs2::legged_robot
             for (int axis = 0; axis < 3; ++axis) {
                 const auto sample = sampleCommandRamp(filtered_command_[axis], requested[axis], linear_acceleration_, t);
                 state(axis) = sample.velocity;
-                if (axis < 2) { state(6 + axis) += sample.displacement; }
+                if (axis < 2) {
+                    state(6 + axis) = translating ? currentPose(axis) + sample.displacement : position_hold_value_[axis];
+                }
             }
             state(9) = turning ? currentPose(3) +
                 sampleCommandRamp(filtered_command_[3], requested[3], yaw_acceleration_, t).displacement :

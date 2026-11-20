@@ -645,10 +645,11 @@ namespace ocs2::legged_robot
     }
 
     void ConvexRegionSelector::update(const ModeSchedule& modeSchedule, scalar_t initTime, const vector_t& initState,
-                                      TargetTrajectories& targetTrajectories)
+                                      TargetTrajectories& targetTrajectories,
+                                      const feet_array_t<vector3_t>* acceptedTouchdowns)
     {
-        // Commit the last planned touchdown when lift-off occurs, before replacing
-        // the map that owns its region pointer. Keep its region through stance too.
+        // Commit touchdown at lift-off, before replacing the map that owns its
+        // region pointer. Keep its region through stance too.
         feet_array_t<std::unique_ptr<CommittedFoothold>> retiredFootholds;
         const auto flags = extractContactFlags(modeSchedule.modeSequence);
         const size_t currentPhase = lookup::findIndexInTimeArray(modeSchedule.eventTimes, initTime);
@@ -667,8 +668,31 @@ namespace ocs2::legged_robot
             const size_t oldPhase = lookup::findIndexInTimeArray(timeEvents_[leg],
                 std::nextafter(touchdown, std::numeric_limits<scalar_t>::infinity()));
             if (oldPhase >= feetProjections_[leg].size()) { continue; }
-            const auto projection = feetProjections_[leg][oldPhase];
-            if (!projection.regionPtr || convexPolygons_[leg][oldPhase].size() < 3) { continue; }
+            auto projection = feetProjections_[leg][oldPhase];
+            auto polygon = convexPolygons_[leg][oldPhase];
+            // The last generated policy may still be in flight or vetoed. The
+            // accepted swing, rather than that speculative plan, owns touchdown.
+            if (acceptedTouchdowns && (*acceptedTouchdowns)[leg].allFinite()) {
+                const auto& endpoint = (*acceptedTouchdowns)[leg];
+                projection = getBestPlanarRegionAtPositionInWorld(
+                    endpoint, planarTerrain_.planarRegions, [](const vector3_t&) { return 0.0; });
+                if (projection.regionPtr) {
+                    projection.positionInWorld = endpoint;
+                    projection.positionInTerrainFrame = positionInPlaneFrameFromPositionInWorld(
+                        endpoint, projection.regionPtr->transformPlaneToWorld);
+                    // Region growing requires its seed inside the mapped shape.
+                    // An accepted endpoint cannot make missing terrain traversable.
+                    if (!convex_plane_decomposition::isInside(projection.positionInTerrainFrame,
+                            projection.regionPtr->boundaryWithInset.boundary)) { continue; }
+                    polygon = foot_placement::shrinkConvexPolygon(
+                        convex_plane_decomposition::growConvexPolygonInsideShape(
+                            projection.regionPtr->boundaryWithInset.boundary, projection.positionInTerrainFrame,
+                            static_cast<int>(numVertices_), 1.05));
+                    if (polygon.size() < 3 ||
+                        !convex_plane_decomposition::isInside(projection.positionInTerrainFrame, polygon)) { continue; }
+                }
+            }
+            if (!projection.regionPtr || polygon.size() < 3) { continue; }
             auto next = std::make_unique<CommittedFoothold>();
             next->touchdownTime = touchdown;
             size_t stanceEndPhase = touchdownPhase;
@@ -678,7 +702,7 @@ namespace ocs2::legged_robot
             next->region = *projection.regionPtr;
             next->projection = projection;
             next->projection.regionPtr = &next->region;
-            next->polygon = convexPolygons_[leg][oldPhase];
+            next->polygon = std::move(polygon);
             next->nominal = nominalFootholds_[leg][oldPhase];
             committed = std::move(next);
         }

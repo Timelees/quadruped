@@ -6,7 +6,7 @@
 #include <math.h>
 #include <stdio.h>
 
-#include "utilities.h"
+
 
 namespace gazebo
 {
@@ -150,6 +150,8 @@ namespace gazebo
      * @param qd     : 电机速度
      * @return double 
      */
+    double current(int index) const { return i_last_[index]; }
+
     double getActuatorI(double tauDes, double qd){
       
       double I_motor;
@@ -186,9 +188,9 @@ namespace gazebo
     double it_curve_a_;      // I-tau曲线的系数
     double it_curve_b_;      // I-tau曲线的系数
     double it_curve_c_;      // I-tau曲线的系数
-    bool first_in_[12];
-    double i_last_[12];
-    double tau_last_[12];
+    bool first_in_[12]{};
+    double i_last_[12]{};
+    double tau_last_[12]{};
     
   };
 

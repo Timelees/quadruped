@@ -75,20 +75,41 @@ SwingSafetyFilter::SwingSafetyFilter(SafetyFilterConfig config) : config_(config
         config.landingMaxDownSpeed, config.landingMaxUpSpeed};
     for (double value : positive)
         if (!std::isfinite(value) || value <= 0.0) throw std::invalid_argument("Invalid safety filter bound.");
-    const double nonnegative[] = {config.disturbanceBound, config.hocbfSampleRate, config.tubeSampleRate};
+    const double nonnegative[] = {config.disturbanceBound, config.hocbfSampleRate, config.tubeSampleRate,
+        config.positionMeasurementError, config.velocityMeasurementError};
     for (double value : nonnegative)
         if (!std::isfinite(value) || value < 0.0) throw std::invalid_argument("Invalid safety sampling budget.");
     // A per-axis box must fit inside the Euclidean corridor tracking ball.
     // This is checked against the actual corridor's shrink in filter().
 }
 
+SafetyFilterResult SwingSafetyFilter::filterExecution(const TerrainSafetyCorridor& corridor,
+        const FootState& state, const Eigen::Vector3d& nominal, double phase, double period,
+        double timeToTouchdown) const {
+    auto result = filter(corridor, state, nominal, phase, period, timeToTouchdown);
+    if (!config_.tubeEnabled || result.active()) return result;
+    const auto status = result.status;
+    if (status != SafetyFilterStatus::TubeEntry && status != SafetyFilterStatus::TubeRate &&
+        status != SafetyFilterStatus::MarginMismatch && status != SafetyFilterStatus::Infeasible) return result;
+    auto geometryConfig = config_;
+    geometryConfig.tubeEnabled = false;
+    auto geometry = SwingSafetyFilter(geometryConfig).filter(corridor, state, nominal, phase, period, timeToTouchdown);
+    if (!geometry.active()) return result;
+    geometry.tubeStatus = result.tubeStatus;
+    geometry.tubeSlack = result.tubeSlack;
+    geometry.status = geometry.status == SafetyFilterStatus::LandingSolved ?
+        SafetyFilterStatus::LandingGeometryOnly : SafetyFilterStatus::GeometryOnly;
+    return geometry;
+}
+
 SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corridor, const FootState& state,
         const Eigen::Vector3d& nominal, double phase, double period, double timeToTouchdown) const {
     SafetyFilterResult result;
     if (!config_.enabled) return result;
+    const Eigen::Vector3d correctionCentre = state.correctionCentre.value_or(nominal);
     if (!std::isfinite(phase) || !state.position.allFinite() || !state.velocity.allFinite() ||
         !state.positionError.allFinite() || !state.velocityError.allFinite() ||
-        !state.referenceAcceleration.allFinite() || !nominal.allFinite()) {
+        !state.referenceAcceleration.allFinite() || !nominal.allFinite() || !correctionCentre.allFinite()) {
         result.status = SafetyFilterStatus::InvalidState; return result;
     }
     if (!corridor.valid || corridor.cells.empty()) {
@@ -104,6 +125,9 @@ SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corrid
     if (!std::isfinite(period) || period <= 0.0 || period > config_.maxPeriod + 1e-9) {
         result.status = SafetyFilterStatus::InvalidPeriod; return result;
     }
+    // Certify the next hold against its configured maximum; the elapsed period
+    // only validates the preceding cycle and cannot predict the next duration.
+    period = config_.maxPeriod;
     double clearance = INFINITY, psi1 = INFINITY, tubeSlack = INFINITY;
     bool marginValid = true;
     std::vector<Eigen::Vector3d> rows;
@@ -117,8 +141,10 @@ SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corrid
         for (const auto& plane : cell.halfSpaces) {
             const double supportE = config_.positionBound * plane.normal.lpNorm<1>();
             marginValid &= supportE <= plane.geometricOffset - plane.planningOffset + tolerance;
-            const double h = plane.geometricOffset - plane.normal.dot(state.position);
-            const double hdot = -plane.normal.dot(state.velocity);
+            const double h = plane.geometricOffset - plane.normal.dot(state.position) -
+                config_.positionMeasurementError * plane.normal.norm();
+            const double hdot = -plane.normal.dot(state.velocity) -
+                config_.velocityMeasurementError * plane.normal.norm();
             clearance = std::min(clearance, h);
             psi1 = std::min(psi1, hdot + config_.hocbfGain1 * h);
             // The robust HOCBF residual over a held acceleration is quadratic.
@@ -140,7 +166,8 @@ SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corrid
     const auto tube = tubeRows(config_);
     for (const auto& row : tube) {
         tubeSlack = std::min(tubeSlack, row.bound - row.position.dot(state.positionError) -
-                                        row.velocity.dot(state.velocityError));
+                                        row.velocity.dot(state.velocityError) - row.position.norm()*config_.positionMeasurementError -
+                                        row.velocity.norm()*config_.velocityMeasurementError);
     }
     result.clearance = clearance;
     result.psi1 = psi1;
@@ -166,7 +193,8 @@ SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corrid
             for (const auto& piece:hold) {
                 const double end=piece.offset+piece.duration;
                 const double uncertainty=config_.disturbanceBound*(row.velocity.norm()+
-                    0.5*config_.tubeRate*row.position.norm()*end*end+velocityWeight.norm()*end);
+                    0.5*config_.tubeRate*row.position.norm()*end*end+velocityWeight.norm()*end) + config_.tubeRate*row.position.norm()*config_.positionMeasurementError +
+                    (config_.tubeRate*end*row.position.norm()+velocityWeight.norm())*config_.velocityMeasurementError;
                 for (int i=0;i<6;++i) {
                     const double t=piece.offset+piece.duration*i/5.0;
                     const double tt=piece.offset*piece.offset+2*piece.offset*piece.duration*i/5.0+
@@ -192,33 +220,34 @@ SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corrid
     }
     int nSafety = rows.size();
     if (landing) {
-        // Predict terminal error with constant error acceleration. The target
-        // patch permits finite-time contact, while the other cells' HOCBF rows
-        // above still enforce geometric clearance.
-        const double t = timeToTouchdown;
+        // Predict the held input from the measured absolute state to the exact
+        // touchdown target. The current reference acceleration cannot represent
+        // the remainder of a quintic reference. Reassess this guard each cycle.
+        // Clamp t from below to avoid division by tiny t^2 causing numerical
+        // blowup when touchdown is imminent (< 2 periods remaining).
+        const double t = std::max(timeToTouchdown, 2.0 * config_.maxPeriod);
         const double gain = 0.5 * t * t;
-        const Eigen::Vector3d error = state.positionError + t * state.velocityError -
-                                     gain * state.referenceAcceleration;
+        const Eigen::Vector3d error = state.position + t * state.velocity - corridor.touchdownCentre;
         for (int axis = 0; axis < 3; ++axis) {
-            const double uncertainty = gain * config_.disturbanceBound;
+            const double uncertainty = gain * config_.disturbanceBound +
+                config_.positionMeasurementError + t * config_.velocityMeasurementError;
             rows.push_back(Eigen::Vector3d::Unit(axis));
             bounds.push_back((config_.landingPositionWindow - error[axis] - uncertainty) / gain);
             rows.push_back(-Eigen::Vector3d::Unit(axis));
             bounds.push_back((config_.landingPositionWindow + error[axis] - uncertainty) / gain);
         }
-        const double normalVelocity = corridor.touchdownVelocity.z() + state.velocityError.z() -
-                                      t * state.referenceAcceleration.z();
+        const double normalVelocity = state.velocity.z();
         rows.push_back(Eigen::Vector3d::UnitZ());
-        bounds.push_back((config_.landingMaxUpSpeed - normalVelocity) / t - config_.disturbanceBound);
+        bounds.push_back((config_.landingMaxUpSpeed - normalVelocity) / t - config_.disturbanceBound - config_.velocityMeasurementError/t);
         rows.push_back(-Eigen::Vector3d::UnitZ());
-        bounds.push_back((config_.landingMaxDownSpeed + normalVelocity) / t - config_.disturbanceBound);
+        bounds.push_back((config_.landingMaxDownSpeed + normalVelocity) / t - config_.disturbanceBound - config_.velocityMeasurementError/t);
     }
     // Acceleration box Uhat and Delta-u box, used both here and in the final WBC.
     for (int axis = 0; axis < 3; ++axis) {
         rows.push_back(Eigen::Vector3d::Unit(axis));
-        bounds.push_back(std::min(config_.maxAcceleration, nominal[axis] + config_.maxCorrection));
+        bounds.push_back(std::min(config_.maxAcceleration, correctionCentre[axis] + config_.maxCorrection));
         rows.push_back(-Eigen::Vector3d::Unit(axis));
-        bounds.push_back(std::min(config_.maxAcceleration, -nominal[axis] + config_.maxCorrection));
+        bounds.push_back(std::min(config_.maxAcceleration, -correctionCentre[axis] + config_.maxCorrection));
     }
     // Tube Bernstein coefficients are axis-aligned; merge co-directed rows
     // within each diagnostic group to avoid inflating the final whole-body QP.

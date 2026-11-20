@@ -117,7 +117,7 @@ def execution(directory, trials, figure_trials=None):
             norm = np.linalg.norm(estimate, axis=1)
             valid &= np.isfinite(norm)
             samples.extend(norm[valid])
-            joint = np.isin(status, (1, 13))
+            joint = np.isin(status, (1, 13, 15, 16))
             active_samples.extend(norm[valid & joint[:-1] & joint[1:]])
             requested = swing & np.isfinite([float(r[f'{leg}_clearance']) for r in rows])
             residual = np.array([float(r[f'{leg}_wbc_safety_residual']) for r in rows])
@@ -128,7 +128,9 @@ def execution(directory, trials, figure_trials=None):
                     current = current+gap if selected and 0 < gap < .01 else 0.
                     longest = max(longest, current)
                 return longest
-            stats[leg] = dict(swing_samples=int(swing.sum()), joint_samples=int(np.sum(swing & np.isin(status, (1, 13)))),
+            stats[leg] = dict(swing_samples=int(swing.sum()), joint_samples=int(np.sum(swing & joint)),
+                              tube_joint_samples=int(np.sum(swing & np.isin(status, (1, 13)) &
+                                  np.array([int(float(r[f'{leg}_tube_status'])) == 1 for r in rows]))),
                               fallback_samples=int(np.sum(swing & (status == 11))),
                               residual_intervals=int(valid.sum()), requested_samples=int(requested.sum()),
                               active_fraction_of_requested=float(np.mean(joint[requested])) if requested.any() else None,

@@ -52,6 +52,8 @@ ocs2_quadruped_controller:
       - effort
       - position
       - velocity
+      - motor_current
+      - applied_torque
 
     feet:
       - FL_foot

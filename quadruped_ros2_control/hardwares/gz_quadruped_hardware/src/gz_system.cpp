@@ -94,6 +94,7 @@ struct jointData
 
     // 关节电机执行器索引
     int actuator_index = -1;
+    double motor_current = 0.0, applied_torque = 0.0;
 
     /// \brief Control method defined in the URDF for each joint.
     gz_quadruped_hardware::GazeboSimSystemInterface::ControlMethod joint_control_method;
@@ -395,6 +396,9 @@ namespace gz_quadruped_hardware
             }
 
             RCLCPP_INFO_STREAM(this->nh_->get_logger(), "\tCommand:");
+
+            this->dataPtr->state_interfaces_.emplace_back(joint_name, "motor_current", &this->dataPtr->joints_[j].motor_current);
+            this->dataPtr->state_interfaces_.emplace_back(joint_name, "applied_torque", &this->dataPtr->joints_[j].applied_torque);
 
             // register the command handles
             for (unsigned int i = 0; i < joint_info.command_interfaces.size(); ++i)
@@ -1018,6 +1022,8 @@ namespace gz_quadruped_hardware
                                                                         this->dataPtr->joints_[i].actuator_index);
                 }
                 
+                this->dataPtr->joints_[i].applied_torque = torque;
+                this->dataPtr->joints_[i].motor_current = this->dataPtr->motor_.current(this->dataPtr->joints_[i].actuator_index);
                 *jointEffortCmd = sim::components::JointForceCmd(
                     {torque});
                 

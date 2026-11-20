@@ -6,6 +6,7 @@
 #define STATEOCS2_H
 
 #include <SafetyChecker.h>
+#include <ocs2_quadruped_controller/interface/constraint/SwingTrajectoryPlanner.h>
 #include <ocs2_centroidal_model/CentroidalModelRbdConversions.h>
 #include <ocs2_core/misc/Benchmark.h>
 #include <ocs2_quadruped_controller/control/CtrlComponent.h>
@@ -47,6 +48,7 @@ namespace ocs2::legged_robot
 
         // Whole Body Control
         std::shared_ptr<WbcBase> wbc_;
+        std::shared_ptr<WbcBase> admission_wbc_;
         std::shared_ptr<SafetyChecker> safety_checker_;
         benchmark::RepeatedTimer wbc_timer_;
         scalar_t last_visualization_time_ = 0.0;
@@ -61,8 +63,13 @@ namespace ocs2::legged_robot
         class SwingPolicyObserver;
         std::shared_ptr<SwingPolicyObserver> swing_policy_observer_;
         std::shared_ptr<SwingTrajectoryPlanner> swing_planner_;
-        void applySafetyFilter(double period);
+        void applySafetyFilter(double period, WbcBase& wbc,
+            std::shared_ptr<const SwingTrajectoryPlanner::ExecutionSwings> snapshot, bool strict = false);
         std::array<double, 4> last_logged_activation_{{-1, -1, -1, -1}};
+        std::array<int,4> last_certificate_state_{{-1,-1,-1,-1}};
+        Eigen::Matrix<double,3,4> previous_foot_velocity_, previous_foot_acceleration_;
+        std::array<bool,4> previous_safety_active_{};
+        double previous_execution_time_ = -1.0;
 
         vector_t optimized_state_, optimized_input_;
     };

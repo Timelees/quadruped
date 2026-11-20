@@ -57,7 +57,8 @@ namespace ocs2::legged_robot
                              size_t numVertices);
 
         void update(const ModeSchedule& modeSchedule, scalar_t initTime, const vector_t& initState,
-                    TargetTrajectories& targetTrajectories);
+                    TargetTrajectories& targetTrajectories,
+                    const feet_array_t<vector3_t>* acceptedTouchdowns = nullptr);
 
         convex_plane_decomposition::PlanarTerrainProjection getProjection(size_t leg, scalar_t time) const;
 

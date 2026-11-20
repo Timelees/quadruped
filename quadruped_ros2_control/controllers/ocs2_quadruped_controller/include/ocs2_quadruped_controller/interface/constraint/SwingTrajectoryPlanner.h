@@ -64,6 +64,7 @@ namespace ocs2::legged_robot {
             bool trackingVerticalHardConstraint = false;
             // swing phases shorter than this time will be scaled down in height and velocity
             bool useTerrainPlanning = false;
+            bool directReplacementTestOnly = false; // causal ablation, bypasses state admission
             SwingTrajectoryQpConfig terrainQpConfig;
             SwingReplanConfig replanConfig;
             SafetyFilterConfig safetyFilterConfig;
@@ -130,6 +131,11 @@ namespace ocs2::legged_robot {
         const Config& getConfig() const { return config_; }
         bool isOnlineReplanningEnabled() const { return replanner_.config().enabled; }
         void setOnlineReplanningEnabled(bool enabled) { replanner_.setEnabled(enabled); }
+        // Controlled map-reveal experiments release all methods at the same
+        // intervention. A release cannot enable a configured frozen baseline.
+        void setOnlineReplanningReleased(bool released) {
+            replanner_.setEnabled(config_.replanConfig.enabled && released);
+        }
         const SwingReplanStats& getReplanStats() const { return replanner_.stats(); }
         // Section 4.4 admission statistics; only counted when replanning is on.
         void recordReplanStats(int& admitted, int& rejected) const {
@@ -174,9 +180,12 @@ namespace ocs2::legged_robot {
         void setActiveExecutionSwings(std::shared_ptr<const ExecutionSwings> swings) {
             std::atomic_store(&activeExecutionSwings_, std::move(swings));
         }
+        std::shared_ptr<const ExecutionSwings> activeExecutionSwings() const {
+            return std::atomic_load(&activeExecutionSwings_);
+        }
         // After an actual activation veto, recompute the next MPC policy using
-        // the accepted reference until touchdown; do not repeatedly stall MRT
-        // with new proposals for the same rejected execution window.
+        // the accepted reference for one planning cycle before bounded retries;
+        // newer terrain evidence must remain actionable before touchdown.
         void rejectExecutionUpdate(size_t leg, double swingEnd) {
             rejectedSwingEnd_.at(leg).store(swingEnd, std::memory_order_relaxed);
         }

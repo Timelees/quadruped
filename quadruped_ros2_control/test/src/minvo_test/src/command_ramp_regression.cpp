@@ -41,6 +41,50 @@ int main(int argc, char** argv) {
             const auto& b = targets.stateTrajectory[i];
             check(std::abs((b[6] - a[6]) - 0.5 * dt * (a[0] + b[0])) < 1e-10);
         }
+        // A transient measured four-foot contact in planned trot must not
+        // move the fixed world hold target to follow estimator/body drift.
+        ocs2::ModeSchedule trot;
+        trot.eventTimes = {observation.time + .2};
+        trot.modeSequence = {9, 6};
+        reference->setModeSchedule(trot);
+        reference->preSolverRun(observation.time, observation.time + 1.0, observation.state);
+        for (int i = 0; i < 300; ++i) {
+            observation.time += .005;
+            observation.mode = 9;
+            manager.update(observation);
+        }
+        reference->preSolverRun(observation.time, observation.time + 1.0, observation.state);
+        const double heldX = reference->getTargetTrajectories().stateTrajectory.back()[6];
+        observation.state[6] += .05;
+        observation.mode = 15;
+        observation.time += .005;
+        manager.update(observation);
+        reference->preSolverRun(observation.time, observation.time + 1.0, observation.state);
+        check(std::abs(reference->getTargetTrajectories().stateTrajectory.back()[6] - heldX) < 1e-10);
+        // Pure planned stance still aligns the hold with estimator startup.
+        ocs2::ModeSchedule stand;
+        stand.modeSequence = {15};
+        reference->setModeSchedule(stand);
+        reference->preSolverRun(observation.time, observation.time + 1.0, observation.state);
+        observation.time += .005;
+        manager.update(observation);
+        reference->preSolverRun(observation.time, observation.time + 1.0, observation.state);
+        check(std::abs(reference->getTargetTrajectories().stateTrajectory.back()[6] - observation.state[6]) < 1e-10);
+        // A tilted body still requests horizontal lateral motion, rotated only
+        // by yaw. Test the actual TargetManager rather than a copied formula.
+        control.control_inputs_.lx = -0.8;
+        observation.state[9] = 0.4;
+        observation.state[10] = 0.2;
+        observation.state[11] = -0.25;
+        for (int i = 0; i < 300; ++i) {
+            observation.time += .005;
+            manager.update(observation);
+        }
+        reference->preSolverRun(observation.time, observation.time + 1.0, observation.state);
+        const auto& lateral = reference->getTargetTrajectories().stateTrajectory.back();
+        check(std::abs(lateral[2]) < 1e-12);
+        check(lateral[1] > .1);
+        check(std::abs(lateral[0] + std::tan(.4)*lateral[1]) < 1e-10);
         rclcpp::shutdown();
         std::cout << "Production target braking trajectory checks passed.\n";
     }

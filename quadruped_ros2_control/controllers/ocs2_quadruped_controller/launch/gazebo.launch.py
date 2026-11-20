@@ -132,7 +132,7 @@ def launch_setup(context, *args, **kwargs):
             [PathJoinSubstitution([FindPackageShare('ocs2_quadruped_controller'),
                                    'launch',
                                    'elevation_mapping.launch.py'])]),
-  
+        launch_arguments={'controlled_terrain': LaunchConfiguration('controlled_terrain')}.items(),
     )
 
     
@@ -168,7 +168,9 @@ def launch_setup(context, *args, **kwargs):
                                        'launch',
                                        'gz_sim.launch.py'])]),
             launch_arguments=[
-                ('gz_args', [' -r -v 2 ', '' if context.launch_configurations['gui'] == 'true' else '-s ', default_sdf_path]),
+                ('gz_args', [' -r -v 2 ', '' if context.launch_configurations['gui'] == 'true' else '-s ',
+                             ('--seed '+context.launch_configurations['seed']+' ') if context.launch_configurations['seed'] else '',
+                             default_sdf_path]),
                 ('on_exit_shutdown', 'true'),
             ]),          
         RegisterEventHandler(
@@ -332,6 +334,8 @@ def generate_launch_description():
 
 
     return LaunchDescription([
+        DeclareLaunchArgument('controlled_terrain', default_value='false', description='Test-only map forwarding through the scenario probe'),
+        DeclareLaunchArgument('seed', default_value='', description='Optional Gazebo random seed for repeatable trials'),
         DeclareLaunchArgument('gui', default_value='true', description='Show Gazebo GUI'),
         DeclareLaunchArgument('rviz', default_value='true', description='Show RViz'),
         world,

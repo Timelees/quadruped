@@ -36,6 +36,7 @@ struct CorridorConfig {
     double verticalExtent = 0.08;
     double footRadius = 0.019;
     double terrainRiseRate = 0.0;   // upper height variation [m/s]
+    double heightError = 0.0;       // one-sided physical elevation error [m]
     double mapMargin = 0.0;          // isotropic map position error, obstacle dilation
     double geometricClearance = 0.001;  // strict gap to the inflated obstacle
     double trackingMargin = 0.02;  // Euclidean position error ball
@@ -43,6 +44,11 @@ struct CorridorConfig {
     // Contact transitions retain the controller's existing contact-envelope rows.
     // Only [contactPhase, 1-contactPhase] has the non-contact corridor certificate.
     double contactPhase = 0.10;
+    // Target surface exclusion radius: a prism at this distance from the touchdown
+    // position and at the same height is excluded from creating a lower bound.
+    // This lets the swing corridor be built even when the target step rises above
+    // the liftoff surface. Zero disables target exclusion (all prisms are obstacles).
+    double landingPositionWindow = 0.025;
 };
 
 struct TerrainSafetyCorridor {
@@ -71,6 +77,12 @@ TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain
                                                  int subdivisionsPerSpan = 4,
                                                  HullBasis basis = HullBasis::Minvo,
                                                  TerrainMapTiming map = {}, double touchdownTime = 0.0);
+
+// Build only a remaining normalized interval. Past/contact cells must not veto
+// a certificate for the future noncontact section after a terrain update.
+TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain,
+    const BSpline& normalizedReference, const CorridorConfig& config, int subdivisionsPerSpan,
+    HullBasis basis, TerrainMapTiming map, double touchdownTime, double start, double end);
 
 // Build the execution-only terminal cells from the accepted reference. The tip
 // position is in contact coordinates. No changes to the planning certificate.

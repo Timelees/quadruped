@@ -30,7 +30,16 @@ namespace ocs2::legged_robot
 
         void update(SystemObservation& observation);
 
+        // Enable the ramped-reference path (yaw-only rotation, bounded acceleration,
+        // dense trajectory). Default is the original 3-point reference with full ZYX
+        // rotation, matching the master branch behavior for blind walking.
+        void setUseRampedReference(bool enable) { use_ramped_reference_ = enable; }
+
     private:
+        TargetTrajectories targetPoseToTargetTrajectories(const vector_t& targetPose,
+                                                          const SystemObservation& observation,
+                                                          const scalar_t& targetReachingTime);
+
         CtrlInterfaces& ctrl_component_;
         std::shared_ptr<ReferenceManagerInterface> referenceManagerPtr_;
 
@@ -56,6 +65,9 @@ namespace ocs2::legged_robot
         bool yaw_hold_initialized_{false};
         bool had_yaw_rate_command_{false};
         scalar_t yaw_hold_value_{0};
+        bool position_hold_initialized_ = false, had_translation_command_ = false;
+        Eigen::Vector2d position_hold_value_ = Eigen::Vector2d::Zero();
+        bool use_ramped_reference_ = false; // enabled by perceptive mode for bounded acceleration
         static constexpr scalar_t kPitchResponseTime = 0.25; // [s]
         static constexpr scalar_t kYawRateDeadzone = 0.02; // [rad/s], below = treat as no yaw command
     };

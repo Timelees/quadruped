@@ -84,6 +84,8 @@ namespace ocs2::legged_robot {
             std::string, std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface> > *>
         state_interface_map_ = {
             {"position", &ctrl_interfaces_.joint_position_state_interface_},
+            {"motor_current", &ctrl_interfaces_.motor_current_state_interface_},
+            {"applied_torque", &ctrl_interfaces_.applied_torque_state_interface_},
             {"effort", &ctrl_interfaces_.joint_effort_state_interface_},    // 关节力矩
             {"velocity", &ctrl_interfaces_.joint_velocity_state_interface_}
         };

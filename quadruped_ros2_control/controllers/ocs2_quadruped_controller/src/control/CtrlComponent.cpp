@@ -224,6 +224,12 @@ namespace ocs2::legged_robot
                                                           legged_interface_->getReferenceManagerPtr(),
                                                           task_file_,
                                                           reference_file_);
+        // Perceptive mode uses the ramped-reference path (yaw-only rotation,
+        // bounded acceleration, dense trajectory). Non-perceptive (blind) mode
+        // keeps the original 3-point reference with full ZYX rotation.
+        if (enable_perceptive_) {
+            target_manager_->setUseRampedReference(true);
+        }
 
         if (enable_perceptive_) // 地形感知
         {
@@ -273,7 +279,9 @@ namespace ocs2::legged_robot
                                         std_msgs::msg::Float64MultiArray reference;
                                         // Sample on the MPC thread, which owns the planner. Each row:
                                         // [observation time, LF p/v, RF p/v, LH p/v, RH p/v].
-                                        for (int sample = 0; sample <= 20; ++sample) {
+                                        // Cover a complete .4 s trot swing plus policy delivery.
+                                        // A .2 s preview delays a crossing-based reveal trigger.
+                                        for (int sample = 0; sample <= 50; ++sample) {
                                             const double t = plannedObservation.time + .01 * sample;
                                             reference.data.push_back(t);
                                             for (size_t leg = 0; leg < 4; ++leg) {

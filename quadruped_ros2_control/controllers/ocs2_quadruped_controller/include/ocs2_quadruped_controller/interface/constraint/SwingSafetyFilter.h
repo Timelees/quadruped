@@ -2,6 +2,7 @@
 
 #include <Eigen/Core>
 #include <limits>
+#include <optional>
 #include "ocs2_quadruped_controller/interface/constraint/BSpline.h"
 
 namespace ocs2::legged_robot {
@@ -13,6 +14,8 @@ struct SafetyFilterConfig {
     double hocbfGain1 = 20.0;
     double hocbfGain2 = 20.0;
     double disturbanceBound = 0.5;  // isotropic acceleration residual [m/s^2]
+    double positionMeasurementError = 0.001; // Euclidean initial-state uncertainty [m]
+    double velocityMeasurementError = 0.01;   // [m/s]
     double positionBound = 0.01;    // per-axis error box [m]
     double velocityBound = 0.30;    // [m/s]
     double couplingGain = 10.0;
@@ -30,7 +33,7 @@ struct SafetyFilterConfig {
     double maxPeriod = 0.006;       // certified sampling budget [s]
 };
 
-enum class SafetyFilterStatus { Disabled, Solved, NoCorridor, NoActiveSwing, Infeasible, InvalidState, InvalidPeriod, BarrierEntry, TubeEntry, TubeRate, MarginMismatch, JointInfeasible, Contact, LandingSolved, NoLandingCorridor };
+enum class SafetyFilterStatus { Disabled, Solved, NoCorridor, NoActiveSwing, Infeasible, InvalidState, InvalidPeriod, BarrierEntry, TubeEntry, TubeRate, MarginMismatch, JointInfeasible, Contact, LandingSolved, NoLandingCorridor, GeometryOnly, LandingGeometryOnly };
 struct SafetyFilterResult {
     SafetyFilterStatus status = SafetyFilterStatus::Disabled;
     SafetyFilterStatus tubeStatus = SafetyFilterStatus::Disabled;
@@ -45,7 +48,8 @@ struct SafetyFilterResult {
     double psi1 = std::numeric_limits<double>::quiet_NaN();
     double tubeSlack = std::numeric_limits<double>::quiet_NaN();
     double worstHocbfResidual = 0.0, worstTubeResidual = 0.0;
-    bool active() const { return status == SafetyFilterStatus::Solved || status == SafetyFilterStatus::LandingSolved; }
+    bool active() const { return status == SafetyFilterStatus::Solved || status == SafetyFilterStatus::LandingSolved ||
+        status == SafetyFilterStatus::GeometryOnly || status == SafetyFilterStatus::LandingGeometryOnly; }
     bool failed() const { return !active() && status != SafetyFilterStatus::Disabled &&
         status != SafetyFilterStatus::NoActiveSwing && status != SafetyFilterStatus::Contact; }
 };
@@ -58,6 +62,9 @@ class SwingSafetyFilter {
         Eigen::Vector3d positionError = Eigen::Vector3d::Zero();
         Eigen::Vector3d velocityError = Eigen::Vector3d::Zero();
         Eigen::Vector3d referenceAcceleration = Eigen::Vector3d::Zero();
+        // Whole-body execution bounds interventions around its feasible output.
+        // Standalone filtering defaults to the nominal tracking input.
+        std::optional<Eigen::Vector3d> correctionCentre;
         // Optional exact reference over the zero-order hold. Without it the
         // caller explicitly supplies a constant-acceleration reference model.
         const BSpline* reference = nullptr;
@@ -70,6 +77,10 @@ class SwingSafetyFilter {
     // Only the cell(s) containing phase are active. No blanket floor release:
     // contact transitions outside the corridor certificate retain existing control.
     SafetyFilterResult filter(const TerrainSafetyCorridor&, const FootState&,
+        const Eigen::Vector3d& nominalAcceleration, double phase, double period, double timeToTouchdown = 0.0) const;
+    // Execution keeps feasible hard geometry when the stricter tube is
+    // unavailable. Admission continues to call filter(), which never relaxes it.
+    SafetyFilterResult filterExecution(const TerrainSafetyCorridor&, const FootState&,
         const Eigen::Vector3d& nominalAcceleration, double phase, double period, double timeToTouchdown = 0.0) const;
  private:
     SafetyFilterConfig config_;

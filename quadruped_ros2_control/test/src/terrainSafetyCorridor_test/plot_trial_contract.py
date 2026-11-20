@@ -46,13 +46,13 @@ def main():
               1-np.max(np.abs(velocity_error), axis=1)/parameter('safetyFilterVelocityBound'),
               1-np.max(parameter('safetyFilterCouplingGain')*np.abs(position_error)+np.abs(velocity_error), axis=1)/parameter('safetyFilterCouplingBound')]
     status = series(leg+'_safety_status').astype(int)
-    joint = np.isin(status, (1, 13))
+    joint = np.isin(status, (1, 13, 15, 16))
     command = np.array([series(f'{leg}_command_accel_{a}') for a in 'xyz']).T
-    nominal = np.array([series(f'{leg}_nominal_accel_{a}') for a in 'xyz']).T
+    nominal = np.array([series(f'{leg}_baseline_accel_{a}') for a in 'xyz']).T
     plt.rcParams.update({'font.family': 'sans-serif', 'font.sans-serif': ['DejaVu Sans'], 'font.size': 8, 'pdf.fonttype': 42,
                          'svg.fonttype': 'none', 'axes.spines.top': False, 'axes.spines.right': False})
     fig, axes = plt.subplots(4, 1, figsize=(7.2, 5.4), sharex=True)
-    fig.subplots_adjust(left=.15, right=.98, bottom=.09, top=.94, hspace=.65)
+    fig.subplots_adjust(left=.25, right=.98, bottom=.09, top=.94, hspace=.65)
     for values, name, color in zip(margin, ('Position', 'Velocity', 'Coupled'), ('#287b8e', '#b66d36', '#76679b')):
         axes[0].plot(time, np.where(known, values, np.nan), label=name, color=color, lw=.9)
     axes[0].axhline(0, color='.4', ls='--', lw=.7)
@@ -65,16 +65,29 @@ def main():
     axes[2].plot(time, np.where(joint, np.linalg.norm(command-nominal, axis=1), np.nan), label='Final WBC', color='#287b8e', lw=.9)
     axes[2].set_ylabel('Acceleration\nchange (m/s²)')
     axes[2].legend(ncol=2, loc='lower left', bbox_to_anchor=(0, 1.03), fontsize=7, frameon=False)
-    axes[3].step(time, np.where(status == 13, 2, joint.astype(int)), where='post', color='#287b8e', lw=1.)
-    axes[3].set(yticks=[0, 1, 2], yticklabels=['Baseline', 'Joint', 'Landing'], ylim=(-.2, 2.2),
+    execution = np.select([np.isin(status, (15, 16)), np.isin(status, (1, 13))], [1, 2], default=0)
+    axes[3].step(time, execution, where='post', color='#287b8e', lw=1.)
+    axes[3].set(yticks=[0, 1, 2], yticklabels=['Baseline', 'Geometry', 'Geometry + tube'], ylim=(-.2, 2.2),
                 xlabel='Controller time (s)', ylabel='Execution')
+    pulse_file = args.trial.with_suffix('.wrench.json')
+    if pulse_file.exists():
+        events = json.loads(pulse_file.read_text())
+        starts = [event['sim_time'] for event in events if event['event'] == 'start']
+        ends = [event['sim_time'] for event in events if event['event'] == 'clear']
+        if starts and ends:
+            stamps = np.array([float(row['ros_time']) for row in complete])
+            times = np.array([float(row['sim_time']) for row in complete])
+            pulse = [times[np.argmin(abs(stamps-t))] for t in (starts[0], ends[0])]
+            for ax in axes:
+                ax.axvspan(*pulse, color='.8', alpha=.35, zorder=0)
     for letter, ax in zip('abcd', axes):
         ax.annotate(letter, (0, 1), xycoords='axes fraction', xytext=(-26, 4), textcoords='offset points',
                     fontsize=9, fontweight='bold', va='bottom')
     stem = args.trial.with_suffix('.'+leg+'_contract')
     require_matplotlib_panel_alignment(fig, json_out=str(stem)+'.alignment.json', strict=True)
-    for extension in ('.pdf', '.svg', '.png'):
-        fig.savefig(str(stem)+extension, dpi=300)
+    fig.savefig(str(stem)+'.pdf')
+    fig.savefig(str(stem)+'.svg')
+    fig.savefig(str(stem)+'.png',dpi=600)
     plt.close(fig)
     Path(str(stem)+'.metadata.json').write_text(json.dumps(dict(trial=str(args.trial), leg=leg,
         time_window_controller_seconds=args.window, complete_samples=len(complete), plotted_samples=len(rows),

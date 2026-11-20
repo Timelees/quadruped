@@ -43,6 +43,9 @@ struct CtrlInterfaces
     std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>>
     odom_state_interface_;
 
+    std::vector<std::reference_wrapper<hardware_interface::LoanedStateInterface>>
+    motor_current_state_interface_, applied_torque_state_interface_;
+
     // 最近一次可用 MPC 优化输入，供状态估计器作为当前 policy 评估失败时的回退。
     std::vector<double> mpc_input_;
 
@@ -60,6 +63,8 @@ struct CtrlInterfaces
         joint_kp_command_interface_.clear();
 
         joint_effort_state_interface_.clear();
+        motor_current_state_interface_.clear();
+        applied_torque_state_interface_.clear();
         joint_position_state_interface_.clear();
         joint_velocity_state_interface_.clear();
 

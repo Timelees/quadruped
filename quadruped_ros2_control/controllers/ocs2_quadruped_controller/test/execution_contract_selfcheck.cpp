@@ -2,6 +2,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <ocs2_mpc/MRT_BASE.h>
+#include <gz_quadruped_hardware/actuator.hpp>
 #include "ocs2_quadruped_controller/interface/constraint/SwingTrajectoryPlanner.h"
 #include "ocs2_quadruped_controller/perceptive/synchronize/PlanarTerrainReceiver.h"
 
@@ -43,6 +44,64 @@ void mrtCheck() {
         "veto partially swapped policy, command or observer");
     require(!mrt.updatePolicy(),"rejected package retried without new data");
     gate->allow=true;mrt.publish(3);require(mrt.updatePolicy() && gate->active==3,"MRT did not recover after veto");
+    mrt.setPolicyTransportDelay(.05); mrt.setPolicyTransportTime(10); mrt.publish(4);
+    mrt.setPolicyTransportTime(10.049); mrt.publish(5);
+    require(!mrt.updatePolicy() && gate->active==3,"transport released package early");
+    mrt.setPolicyTransportTime(10.051);
+    require(mrt.updatePolicy() && gate->active==4 && mrt.getCommand().mpcInitObservation_.time==4,
+        "transport hold mixed policy and observer snapshot");
+    require(mrt.policyTransportResidence()>=.05 && mrt.policyTransportDrops()==1,"transport residence/drop accounting");
+    gate->allow=false; mrt.publish(6); mrt.setPolicyTransportTime(10.11);
+    require(!mrt.updatePolicy() && gate->active==4,"delayed package bypassed actual admission");
+    gate->allow=true; mrt.setPolicyTransportDelay(.05,20.0); mrt.publish(7);
+    require(mrt.updatePolicy() && gate->active==7,"transport delay started before its configured time");
+    mrt.setPolicyTransportTime(20.0); mrt.publish(8);
+    require(!mrt.updatePolicy(),"transport start boundary released early");
+    mrt.setPolicyTransportTime(20.051);
+    require(mrt.updatePolicy() && gate->active==8,"scheduled transport injection did not start");
+}
+void actuatorCheck() {
+    gazebo::Actuator_ motor;
+    require(motor.CerrentLoopResponse(1,0,0)==1,"uninitialized first motor sample");
+    for (double target : {12.0,-12.0,4.0,-3.0}) {
+        const double previous=motor.current(0);
+        const double actual=motor.CerrentLoopResponse(motor.GetTorque(target,0),0,0);
+        require(std::abs(motor.current(0)-previous)<=3.0+1e-8,"current slew violated");
+        require(std::abs(motor.getActuatorI(actual,0)-motor.current(0))<1e-5,"current/torque model mismatch");
+    }
+    require(motor.GetTorque(12,40)==0 && motor.GetTorque(-12,40)==-12,"TN quadrant bounds");
+}
+void swingCommitmentCheck() {
+    for (bool terrainPlanning : {false, true}) {
+        SwingTrajectoryPlanner::Config config; config.useTerrainPlanning = terrainPlanning;
+        config.terrainQpConfig.checkReference = false; config.terrainQpConfig.verifyOutput = false;
+        SwingTrajectoryPlanner planner(config, 4);
+        planner.setTerrainInterface(std::make_shared<Flat>());
+        ModeSchedule schedule; schedule.eventTimes = {1.0, 1.4}; schedule.modeSequence = {15, 0, 15};
+        feet_array_t<scalar_array_t> heights, landing;
+        heights.fill({0, 0, 0}); landing.fill({0, .1, .1});
+        feet_array_t<std::vector<Eigen::Vector3d>> positions;
+        positions.fill(std::vector<Eigen::Vector3d>(3, Eigen::Vector3d::Zero()));
+        const auto update = [&](double now) {
+            if (terrainPlanning) planner.updateTerrain(schedule, heights, landing, positions, positions, now, 1.4);
+            else planner.update(schedule, heights, landing, now);
+        };
+        update(.85);
+        auto accepted = std::make_shared<SwingTrajectoryPlanner::ExecutionSwings>();
+        (*accepted)[0].push_back({createSwingHeightBSpline(1, 1.4, 0, config.liftOffVelocity,
+            .1 + config.swingHeight, .1, config.touchDownVelocity), {}, 1, 1.4});
+        planner.setActiveExecutionSwings(accepted);
+        landing[0][1] = .2;
+        update(.95); // an in-flight policy may cross lift-off within the delivery budget
+        require(std::abs(planner.getZpositionConstraint(0, std::nextafter(1.4, 1.0)) - .1) < 1e-9,
+            "In-flight policy changed the accepted terminal state inside the delivery budget.");
+        const double retained = planner.getZpositionConstraint(0, 1.2);
+        planner.setActiveExecutionSwings({}); // model the updated reference becoming the last policy
+        landing[0][1] = .3;
+        update(1.05);
+        require(std::abs(planner.getZpositionConstraint(0, 1.2) - retained) < 1e-12,
+            "Executing swing changed its fixed terminal state after lift-off.");
+    }
 }
 void mapCheck() {
     auto terrain=std::make_shared<convex_plane_decomposition::PlanarTerrain>();
@@ -99,6 +158,28 @@ void activationCheck() {
     require(!SwingTrajectoryQpOptimizer(config.terrainQpConfig,terrain).optimizeSwingTrajectory(reference,3,3.4,
         reference.getPosition(3),reference.getPosition(3.4)).valid(),"initial acceleration bound bypassed");
 }
+void remainingCorridorCheck() {
+    class PastObstacle final : public TerrainInterface {
+    public:
+        double getHeight(double x, double) const override { return x<.10 ? .4 : 0.; }
+        std::vector<TerrainPrism> getPrisms(const Eigen::Vector2d&,const Eigen::Vector2d&) const override {
+            return {{{-2,-2},{2,2},0.},{{-.1,-.1},{.10,.1},.4}};
+        }
+    };
+    SwingTrajectoryPlanner::Config config;
+    config.terrainQpConfig.corridorConfig.contactPhase=.25;
+    auto terrain=std::make_shared<PastObstacle>();
+    SwingTrajectoryPlanner planner(config,4);
+    auto reference=createSwingHeightBSpline(3,3.4,0,0,.10,0,0);
+    auto controls=reference.getControlPoints();
+    controls.col(0)=Eigen::VectorXd::LinSpaced(controls.rows(),0.,.3);
+    reference.setControlPoints(controls.col(0),controls.col(1),controls.col(2));
+    require(!planner.certifyReference(reference,3,3.4,3,{terrain,{2.9,4}}).valid,
+        "fixture did not invalidate the past section");
+    const auto future=planner.certifyReference(reference,3,3.4,3.26,{terrain,{2.9,4}});
+    require(future.valid,future.failureReason.c_str());
+    require(future.start>=.65-1e-8,"remaining certificate included a past cell");
+}
 void heldInputCheck() {
     SwingTrajectoryPlanner::Config planning;
     planning.terrainQpConfig.corridorConfig.contactPhase=.25;
@@ -108,6 +189,7 @@ void heldInputCheck() {
     const auto corridor=planner.certifyReference(reference,3,3.4,3,{terrain,{2.9,4}});
     require(corridor.valid,"held input fixture corridor");
     SafetyFilterConfig config;config.enabled=true;config.tubeRate=60;config.tubeSampleRate=0;
+    config.positionMeasurementError=0; config.velocityMeasurementError=0;
     SwingSafetyFilter filter(config);
     // The hold crosses the spline's internal knot; the exact reference, rather
     // than a constant-acceleration approximation, must satisfy every tube face.
@@ -155,7 +237,7 @@ void heldInputCheck() {
 }
 }
 int main() {
-    try {mrtCheck();mapCheck();activationCheck();heldInputCheck();}
+    try {mrtCheck();actuatorCheck();swingCommitmentCheck();mapCheck();activationCheck();remainingCorridorCheck();heldInputCheck();}
     catch(const std::exception& error) {std::cerr<<error.what()<<'\n';return 1;}
     std::cout<<"MRT atomic admission / observed terrain / physical derivatives self-check passed\n";
 }

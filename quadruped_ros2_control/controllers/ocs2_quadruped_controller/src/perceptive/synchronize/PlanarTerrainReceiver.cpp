@@ -45,7 +45,9 @@ namespace ocs2::legged_robot
         heightFilterAlpha_ = std::max(0.0, std::min(1.0, heightFilterAlpha_));
 
         subscription_ = node_->create_subscription<convex_plane_decomposition_msgs::msg::PlanarTerrain>(
-            mapTopic, 10, [this](const convex_plane_decomposition_msgs::msg::PlanarTerrain& msg)
+            // Maps are immutable snapshots; processing obsolete queued maps
+            // delays newly observed obstacles without improving the certificate.
+            mapTopic, 1, [this](const convex_plane_decomposition_msgs::msg::PlanarTerrain& msg)
             {
                 auto candidate = convex_plane_decomposition::PlanarTerrain(
                     convex_plane_decomposition::fromMessage(msg));

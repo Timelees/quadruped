@@ -101,7 +101,7 @@ def analyze(trial, default_world):
         mode = np.array([int(float(rows[i]['mode'])) for i in index])
         status = np.array([int(float(rows[i][leg+'_safety_status'])) for i in index])
         swing = matched & ((mode & bit) == 0)
-        active = swing & (status == 1)  # LandingSolved is outside the noncontact interval.
+        active = swing & np.isin(status, (1, 15))  # LandingSolved is outside the noncontact interval.
         metrics = {}
         for name, mask in (('scheduled_swing', swing), ('active_noncontact', active)):
             values = clearance[mask]*1000

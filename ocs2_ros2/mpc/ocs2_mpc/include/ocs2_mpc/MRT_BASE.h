@@ -143,6 +143,14 @@ namespace ocs2 {
          */
         bool updatePolicy();
 
+        // Test-only transport hold in controller (simulation) time. One in-flight
+        // package is retained intact; newer arrivals are dropped while it waits.
+        // No sleeping and no policy/reference observer calls on dropped arrivals.
+        void setPolicyTransportDelay(scalar_t delay, scalar_t startTime = 0.0);
+        void setPolicyTransportTime(scalar_t time) { transportTime_.store(time); }
+        scalar_t policyTransportResidence() const { return transportResidence_; }
+        size_t policyTransportDrops() const { return transportDrops_; }
+
         /**
          * @brief rolloutSet: Whether or not the internal rollout object has been set
          * @return True if a rollout object is available.
@@ -171,6 +179,11 @@ namespace ocs2 {
         // flags on state of the class
         std::atomic_bool policyReceivedEver_;
         bool newPolicyInBuffer_; // whether a new policy is waiting to be swapped in
+        scalar_t transportDelay_ = 0.0, bufferArrival_ = 0.0, bufferReady_ = 0.0;
+        scalar_t transportStartTime_ = 0.0;
+        scalar_t transportResidence_ = 0.0;
+        std::atomic<scalar_t> transportTime_{0.0};
+        std::atomic<size_t> transportDrops_{0};
 
         // variables related to the MPC output
         std::unique_ptr<CommandData> activeCommandPtr_;

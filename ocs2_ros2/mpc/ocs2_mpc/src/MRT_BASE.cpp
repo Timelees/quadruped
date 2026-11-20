@@ -29,6 +29,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "ocs2_mpc/MRT_BASE.h"
 
+#include <cmath>
+
 #include <ocs2_oc/rollout/TimeTriggeredRollout.h>
 
 namespace ocs2 {
@@ -43,6 +45,9 @@ namespace ocs2 {
         policyReceivedEver_ = false;
         newPolicyInBuffer_ = false;
         mrtTrylockWarningCount_ = 0;
+        bufferArrival_ = bufferReady_ = transportResidence_ = 0.0;
+        transportTime_.store(0.0);
+        transportDrops_.store(0);
 
         activeCommandPtr_.reset();
         bufferCommandPtr_.reset();
@@ -138,11 +143,21 @@ namespace ocs2 {
     }
 
 
+    void MRT_BASE::setPolicyTransportDelay(scalar_t delay, scalar_t startTime) {
+        if (!std::isfinite(delay) || delay < 0.0 || delay > 0.25 || !std::isfinite(startTime) || startTime < 0.0)
+            throw std::invalid_argument("MRT transport delay must be in [0, 0.25] seconds.");
+        std::lock_guard<std::mutex> lock(bufferMutex_);
+        transportDelay_ = delay;
+        transportStartTime_ = startTime;
+    }
+
     bool MRT_BASE::updatePolicy() {
         std::unique_lock<std::mutex> lock(bufferMutex_, std::try_to_lock);
         if (lock.owns_lock()) {
             mrtTrylockWarningCount_ = 0;
             if (newPolicyInBuffer_) {
+                if (transportTime_.load() < bufferReady_) return false;
+                transportResidence_ = transportTime_.load() - bufferArrival_;
                 for (const auto& observer : observerPtrArray_) {
                     if (observer && !observer->acceptBufferedSolution(*bufferCommandPtr_, *bufferPrimalSolutionPtr_)) {
                         newPolicyInBuffer_ = false;
@@ -188,6 +203,12 @@ namespace ocs2 {
         }
 
         std::lock_guard<std::mutex> lk(bufferMutex_);
+        // A held package includes the observer's matching reference snapshot.
+        // Overwriting just its solution would silently break that identity.
+        if (transportDelay_ > 0.0 && transportTime_.load() >= transportStartTime_ && newPolicyInBuffer_) {
+            ++transportDrops_;
+            return;
+        }
         // use swap such that the old objects are destroyed after releasing the lock.
         bufferCommandPtr_.swap(commandDataPtr);
         bufferPrimalSolutionPtr_.swap(primalSolutionPtr);
@@ -195,6 +216,10 @@ namespace ocs2 {
 
         // allow user to modify the buffer
         modifyBufferedSolution(*bufferCommandPtr_, *bufferPrimalSolutionPtr_);
+
+        bufferArrival_ = transportTime_.load();
+        // Initial stand policy must be available to the blocking startup loop.
+        bufferReady_ = bufferArrival_ + (activePrimalSolutionPtr_ && bufferArrival_ >= transportStartTime_ ? transportDelay_ : 0.0);
 
         newPolicyInBuffer_ = true;
         policyReceivedEver_ = true;

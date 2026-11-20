@@ -14,6 +14,7 @@ set(CONTROLLER_INCLUDE_DEPENDS
         rcpputils
         controller_interface
         controller_common
+        gz_quadruped_hardware
 
         ocs2_legged_robot_ros
         ocs2_self_collision

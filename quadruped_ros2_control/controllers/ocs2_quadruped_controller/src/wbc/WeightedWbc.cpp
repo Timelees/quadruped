@@ -5,6 +5,10 @@
 #include "ocs2_quadruped_controller/wbc/WeightedWbc.h"
 
 #include <qpOASES.hpp>
+#include <Eigen/QR>
+#include <algorithm>
+#include <ocs2_centroidal_model/AccessHelperFunctions.h>
+#include <gz_quadruped_hardware/actuator.hpp>
 
 #include <boost/property_tree/info_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -18,8 +22,8 @@ namespace ocs2::legged_robot
     {
         WbcBase::update(stateDesired, inputDesired, rbdStateMeasured, mode, period);
 
-        // Build tracking and safety rows from the CURRENT measured/desired
-        // kinematics, before assembling either hard constraints or the cost.
+        // First solve the unchanged nominal controller. Safety projects its
+        // feasible output, keeping baseline and correction in the same space.
         Task swingTask = formulateSwingLegTask();
         const Task otherTasks = formulateBaseAccelTask(stateDesired, inputDesired, period) * weightBaseAccel_ +
             formulateContactForceTask(inputDesired) * weightContactForce_;
@@ -64,10 +68,53 @@ namespace ocs2::legged_robot
                 constraint_violation_ <= 1e-5 &&
                 (solver_status_ == qpOASES::SUCCESSFUL_RETURN || solver_status_ == qpOASES::RET_MAX_NWSR_REACHED);
         };
-        const bool constrained = swing_safety_constraints_.f_.size() > 0;
-        const vector_t filteredTarget = swingTask.b_;
-        swingTask.b_ = nominal_swing_target_;
         solution_valid_ = solve(dynamics);
+        const vector_t originalBaseline = qpSol;
+        vector_t jointPd = vector_t::Zero(info_.actuatedDofNum);
+        vector_t torqueLower(info_.actuatedDofNum), torqueUpper(info_.actuatedDofNum);
+        actuator_prediction_ = vector_t::Constant(info_.actuatedDofNum, std::numeric_limits<double>::quiet_NaN());
+        actuator_model_valid_ = false;
+        bool safetyProjection = false;
+        bool baselineReachable = true;
+        if (solution_valid_ && swing_safety_callback_ && actuatorSafetyModel_) {
+            // The first QP remains the original controller. Predict its *net*
+            // torque, including the hardware PD, before projecting for safety.
+            const auto qDesired = mapping_.getPinocchioJointPosition(stateDesired);
+            jointPd = joint_kp_ * (qDesired.tail(info_.actuatedDofNum) - q_measured_.tail(info_.actuatedDofNum)) +
+                joint_kd_ * (centroidal_model::getJointVelocities(inputDesired, info_) - v_measured_.tail(info_.actuatedDofNum));
+            if (motor_current_.size() == info_.actuatedDofNum && motor_applied_.size() == info_.actuatedDofNum &&
+                motor_current_.allFinite() && motor_applied_.allFinite()) {
+                gazebo::Actuator_ motor;
+                for (size_t i = 0; i < info_.actuatedDofNum; ++i) {
+                    const double speed = v_measured_(6 + i);
+                    const double tnLow = motor.GetTorque(-1e6, speed), tnHigh = motor.GetTorque(1e6, speed);
+                    const double currentLow = motor.getActuatorT(motor_current_[i] - 3.0, motor_applied_[i]);
+                    const double currentHigh = motor.getActuatorT(motor_current_[i] + 3.0, motor_applied_[i]);
+                    torqueLower[i] = std::max(tnLow, currentLow);
+                    torqueUpper[i] = std::min(tnHigh, currentHigh);
+                    const double target = motor.GetTorque(originalBaseline.tail(info_.actuatedDofNum)[i] + jointPd[i], speed);
+                    const double current = motor.getActuatorI(target, speed);
+                    actuator_prediction_[i] = std::abs(current - motor_current_[i]) <= 3.0 ? target :
+                        motor.getActuatorT(std::clamp(current, motor_current_[i] - 3.0, motor_current_[i] + 3.0), motor_applied_[i]);
+                    baselineReachable &= std::abs(current - motor_current_[i]) <= 3.0;
+                }
+                // Contact-constrained forward dynamics of the baseline actuator
+                // output. Preserve this body/support acceleration, not the
+                // ideal WBC acceleration that omitted PD and motor saturation.
+                const int nMotion = info_.generalizedCoordinatesNum + 3 * info_.numThreeDofContacts;
+                const matrix_t forwardA = dynamics.a_.leftCols(nMotion);
+                const vector_t forwardB = dynamics.b_ - dynamics.a_.rightCols(info_.actuatedDofNum) * actuator_prediction_;
+                const vector_t motion = forwardA.completeOrthogonalDecomposition().solve(forwardB);
+                vector_t physical = originalBaseline;
+                physical.head(nMotion) = motion;
+                physical.tail(info_.actuatedDofNum) = actuator_prediction_;
+                actuator_model_valid_ = physical.allFinite() &&
+                    (dynamics.a_ * physical - dynamics.b_).lpNorm<Eigen::Infinity>() < 1e-5 &&
+                    (dynamics.d_ * physical - dynamics.f_).maxCoeff() < 1e-5 &&
+                    (torqueUpper - torqueLower).minCoeff() >= 0.0;
+                if (actuator_model_valid_) qpSol = std::move(physical);
+            }
+        }
         baseline_foot_acceleration_.setConstant(std::numeric_limits<double>::quiet_NaN());
         if (solution_valid_) {
             for (size_t i = 0; i < info_.numThreeDofContacts; ++i) {
@@ -75,7 +122,16 @@ namespace ocs2::legged_robot
                     qpSol.head(info_.generalizedCoordinatesNum) + dj_.middleRows<3>(3 * i) * v_measured_;
             }
         }
-        if (solution_valid_ && constrained) {
+        if (solution_valid_ && swing_safety_callback_) {
+            swingTask = formulateSwingLegTask(&baseline_foot_acceleration_);
+        }
+        const bool constrained = swing_safety_constraints_.f_.size() > 0;
+        const bool baselineSafe = constrained && baselineReachable &&
+            (swing_safety_constraints_.f_ - swing_safety_constraints_.d_ * qpSol).minCoeff() >= -1e-8;
+        if (solution_valid_ && constrained && actuatorSafetyModel_ && !actuator_model_valid_) {
+            for (auto& result : safety_results_)
+                if (result.active()) result.status = SafetyFilterStatus::JointInfeasible;
+        } else if (solution_valid_ && constrained && !baselineSafe) {
             // First preserve the feasible baseline's body acceleration. Merely
             // adding foot rows to a weighted objective allows them to sacrifice
             // body support even when the combined QP is mathematically feasible.
@@ -105,8 +161,15 @@ namespace ocs2::legged_robot
             footBounds << baselineFoot, -baselineFoot;
             footBounds.array() += safetyAccelerationDeviation_;
             const Task preserveSwing(matrix_t(), vector_t(), footBox, footBounds);
-            swingTask.b_ = filteredTarget;
-            if (!solve(dynamics + preserveBody + preserveSupport + preserveSwing + swing_safety_constraints_)) {
+            Task actuatorBounds(getNumDecisionVars());
+            if (actuator_model_valid_) {
+                matrix_t d = matrix_t::Zero(2 * info_.actuatedDofNum, getNumDecisionVars());
+                d.topRightCorner(info_.actuatedDofNum, info_.actuatedDofNum).setIdentity();
+                d.bottomRows(info_.actuatedDofNum) = -d.topRows(info_.actuatedDofNum);
+                vector_t bound(2 * info_.actuatedDofNum); bound << torqueUpper, -torqueLower;
+                actuatorBounds = Task(matrix_t(), vector_t(), d, bound);
+            }
+            if (!solve(dynamics + actuatorBounds + preserveBody + preserveSupport + preserveSwing + swing_safety_constraints_)) {
                 for (auto& result : safety_results_) {
                     if (result.active()) result.status = SafetyFilterStatus::JointInfeasible;
                 }
@@ -114,6 +177,8 @@ namespace ocs2::legged_robot
                 solver_status_ = baselineStatus;
                 solver_iterations_ = baselineIterations;
                 constraint_violation_ = baselineViolation;
+            } else {
+                safetyProjection = true;
             }
         }
         if (solution_valid_ && constrained) {
@@ -134,6 +199,16 @@ namespace ocs2::legged_robot
                     dj_.middleRows<3>(3*i)*v_measured_;
             }
         }
+        if (solution_valid_ && actuatorSafetyModel_ && swing_safety_callback_) {
+            if (safetyProjection && actuator_model_valid_) {
+                actuator_prediction_ = qpSol.tail(info_.actuatedDofNum);
+                // Compensate PD only for the accepted net-torque correction.
+                // The unchanged baseline is never globally PD-cancelled.
+                qpSol.tail(info_.actuatedDofNum) -= jointPd;
+            } else {
+                qpSol.tail(info_.actuatedDofNum) = originalBaseline.tail(info_.actuatedDofNum);
+            }
+        }
         return qpSol;
     }
 
@@ -150,7 +225,7 @@ namespace ocs2::legged_robot
         boost::property_tree::ptree pt;
         read_info(taskFile, pt);
         safetyContactForceDeviation_ = pt.get<scalar_t>("swingLegTask.safetyContactForceDeviation", 5.0);
-        safetyAccelerationDeviation_ = pt.get<scalar_t>("swing_trajectory_config.safetyFilterMaxCorrection", 20.0);
+        safetyAccelerationDeviation_ = pt.get<scalar_t>("swing_trajectory_config.safetyFilterMaxCorrection", 40.0);
         if (!std::isfinite(safetyContactForceDeviation_) || safetyContactForceDeviation_ <= 0.0) {
             throw std::invalid_argument("swingLegTask.safetyContactForceDeviation must be positive.");
         }

@@ -3,6 +3,7 @@
 #include <Eigen/Core>
 
 #include <string>
+#include <functional>
 
 #include "ocs2_quadruped_controller/interface/constraint/BSpline.h"
 #include "ocs2_quadruped_controller/interface/constraint/TerrainSafetyCorridor.h"
@@ -26,6 +27,10 @@ struct SwingReplanConfig {
     // State deviations that are rejected before building anything.
     double maxPositionDeviation = 0.06;
     double maxVelocityDeviation = 0.40;
+    // Z control correction in the remaining-trajectory QP. This is distinct
+    // from the measured-state gate above; the loader shares the terrain QP's
+    // existing correction budget instead of relaxing state admission.
+    double maxTrajectoryCorrection = 0.06;
     // Eq. (39) consumes the margin available over the correction window. The
     // fraction reserves part of it for the executor.
     double maxMarginFraction = 0.5;
@@ -100,6 +105,11 @@ class SwingOnlineReplanner {
                               double swingStart, double activation, double end,
                               const Eigen::Vector3d& position, const Eigen::Vector3d& velocity,
                               const Eigen::Vector3d& acceleration);
+    SwingReplanDecision admit(const BSpline& oldReference, const TerrainSafetyCorridor& corridor,
+                              double swingStart, double activation, double end,
+                              const Eigen::Vector3d& position, const Eigen::Vector3d& velocity,
+                              const Eigen::Vector3d& acceleration,
+                              const std::function<Eigen::Vector2d(double,const Eigen::Vector3d&)>& workspace);
 
     // Rebuild mappings in the candidate's own knot space, using exact segment
     // restriction at every corridor boundary. No sampling enters the certificate.
@@ -117,6 +127,8 @@ class SwingOnlineReplanner {
     const SwingReplanStats& stats() const { return stats_; }
 
    private:
+    bool validate(const BSpline& candidate, const TerrainSafetyCorridor& corridor,
+                  double swingStart, double swingEnd, std::string* failure) const;
     // Bernstein control points D_0..D_5 of eq. (38), in metres.
     static void correctionControlPoints(double delta, const Eigen::Vector3d& dPosition,
                                         const Eigen::Vector3d& dVelocity, const Eigen::Vector3d& dAcceleration,

@@ -56,6 +56,7 @@ swing_trajectory_config
   corridorLongitudinalExtent     0.04 // 每段路径前后扩展 [m]
   corridorVerticalExtent         0.08 // 单段参考凸包上下扩展；规划集再收缩2cm [m]
   corridorTerrainRiseRate         0.0 // maximum upward terrain change [m/s]
+  corridorHeightError            0.0 // physical height budget: set from calibration, no global bound assumed
   corridorMapMargin              0.0  // 地图误差的各向同性障碍膨胀 [m]，需按感知误差标定
   corridorGeometricClearance     0.001 // 膨胀障碍到几何走廊的严格间隙 [m]
   corridorNumericalMargin        0.0000001 // QP额外方向数值预算 [m]
@@ -64,10 +65,13 @@ swing_trajectory_config
 
   ; P0.1: measured-state correction + exact MINVO admission, fixed touchdown.
   swingOnlineReplanEnabled       true
+  swingReplanDirectTestOnly       false // bypass state admission ONLY for controlled ablation
   swingReplanNominalTrackingWeight  0.15
   swingReplanPreviousTrackingWeight 1.0
   swingReplanCorrectionDuration   0.12
   swingReplanActivationDelay      0.0
+  mrtTransportStartTime          0.0 // controller time to begin test injection
+  mrtTransportDelay              0.0 // test-only one in-flight MRT package hold [s]
   swingReplanUpdateInterval       0.06
   swingReplanMinRemainingTime     0.12
   swingReplanMaxPositionDeviation 0.04
@@ -86,12 +90,14 @@ swing_trajectory_config
   safetyFilterHocbfGain1          20.0
   safetyFilterHocbfGain2          20.0
   safetyFilterDisturbanceBound    0.5
+  safetyFilterPositionMeasurementError 0.001
+  safetyFilterVelocityMeasurementError 0.01
   safetyFilterPositionBound       0.01
   safetyFilterVelocityBound       0.30
   safetyFilterCouplingGain        10.0
   safetyFilterCouplingBound       0.35
   safetyFilterTubeRate            20.0
-  safetyFilterMaxCorrection       20.0
+  safetyFilterMaxCorrection       5.0
   safetyFilterMaxAcceleration     80.0
   safetyFilterHocbfSampleRate     20.0
   safetyFilterTubeSampleRate      10.0
@@ -249,19 +255,19 @@ Q
 
   ;; Normalized Centroidal Momentum: [linear, angular] ;;
   (0,0)   35.0     ; vcom_x
-  (1,1)   35.0     ; vcom_y
+  (1,1)   40.0     ; vcom_y — 增大侧向速度跟踪
   (2,2)   100.0     ; vcom_z
-  (3,3)   50.0      ; L_x / robotMass
-  (4,4)   50.0      ; L_y / robotMass
+  (3,3)   30.0      ; L_x / robotMass — 回到master值，减少侧走roll振荡
+  (4,4)   35.0      ; L_y / robotMass
   (5,5)   50.0     ; L_z / robotMass
 
   ;; Base Pose: [position, orientation] ;;
   (6,6)   3000.0   ; p_base_x — 增大以推动robot爬上楼梯
-  (7,7)   1000.0   ; p_base_y
+  (7,7)   2000.0   ; p_base_y — 增大侧向位置跟踪
   (8,8)   2000.0   ; p_base_z
   (9,9)   800.0    ; theta_base_z
   (10,10) 500.0    ; theta_base_y
-  (11,11) 800.0    ; theta_base_x
+  (11,11) 500.0    ; theta_base_x — 降低roll刚度减少侧走振荡
 
   ;; Leg Joint Positions: [FL, FR, RL, RR] ;; -- 增加以更好跟踪关节位置
   (12,12) 5.0     ; FL_hip_joint
@@ -395,8 +401,9 @@ frictionConeTask
 swingLegTask
 {
     kp                   400
-    kd                   20    // 保持原值
-    safetyContactForceDeviation 5.0 // safety QP support reserve per component [N]
+    kd                   30    ; 恢复master阻尼值，改善侧走稳定性
+    actuatorSafetyModel true // requires motor_current/applied_torque hardware evidence
+    safetyContactForceDeviation 1.0 // safety QP support reserve per component [N]
 }
 
 weight

@@ -1,9 +1,9 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, GroupAction
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node, ComposableNodeContainer
+from launch_ros.actions import Node, ComposableNodeContainer, SetRemap
 from launch_ros.descriptions import ComposableNode
 from launch_ros.substitutions import FindPackageShare
 from launch.actions import IncludeLaunchDescription
@@ -38,6 +38,9 @@ def launch_setup(context, *args, **kwargs):
             'parameter_file': os.path.join(pkg_legged_controllers, 'config', 'convex_plane_decomposition.yaml')
         }.items()
     )
+    if context.launch_configurations.get('controlled_terrain') == 'true':
+        convex_plane_decomposition_launch = GroupAction([
+            SetRemap(src='/planar_terrain', dst='/planar_terrain_source'), convex_plane_decomposition_launch])
     #---------------------------------------------------------------------------------
     # Static transform publisher (map to odom)
     odom_tf_publisher = Node(
@@ -66,6 +69,7 @@ def launch_setup(context, *args, **kwargs):
 def generate_launch_description():
 
     return LaunchDescription([
+        DeclareLaunchArgument('controlled_terrain', default_value='false'),
         DeclareLaunchArgument(
             'use_sim_time',
             default_value='true',
