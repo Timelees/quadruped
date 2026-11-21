@@ -1,0 +1,100 @@
+{
+  "src/quadruped_ros2_control/descriptions/cyberdog_description/config/ocs2/task.info": "c2cba11e3902d7ab32733c6f53897a6679ad292f784ce1ff6c59bb3cce8cfefe",
+  "src/quadruped_ros2_control/descriptions/cyberdog_description/config/ocs2/gait.info": "457972680781344cf8042768625633deb0957d144f6b14e88112800732ce89c7",
+  "src/quadruped_ros2_control/descriptions/cyberdog_description/config/ocs2/reference.info": "c08dd5302ad38075f23441b7d45e0bb883d44dd06835d61c9bc3a2537a96a4d4",
+  "src/quadruped_ros2_control/descriptions/cyberdog_description/xacro/gazebo.xacro": "57b6bfc8cc8d5eebcd06ff385c79f0b63c797fb3849ab008a9b8c18f2bece9c4",
+  "src/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/run_trial.py": "4224307541f8548dffe8672b40ebb49bfac903bd48430ade43411cd91062b795",
+  "src/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/scenario_probe.py": "a72174854318422c15fc11c3b7ecba55b840e8382470ca5c7ecd65e16732831f",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp": "688910601c4023741fa40960e7287f11a48d792670d1e0e30e72dc12b9cff34b",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryQPOptimizer.cpp": "daac92547dbea7c5999677ec8cc52103f79b6d4226d37aacdc1efd932c37b4d1",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/TerrainSafetyCorridor.cpp": "3f0d3d80e09fec6eb6fe20797cf6100be573b03ac83eebb31988fc00134f5dfa",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp": "31cd88cfd5b92d193f04b7a9718833bf7be87b088d612531140bf1d2786444c8",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WbcBase.cpp": "02cc6c4f6fb5554e47ee2f6b61e89251a4eaccfdaed46e82fd78eaf88841e861",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/launch/gazebo.launch.py": "364117b7f6721e8fc8e6fca6d709dadeeb559db7a362303f34f252d0868cff5d",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/FSM/StateOCS2.cpp": "4aa96d8ee65d7eef71baaf32b58de662da520c0adda051cd7db98169f6ae29f1",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp": "3ed1dfc7c0b6dab161e9ca69237a03b472b006f9e3214fa838878fb7fa49dd91",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingOnlineReplanner.cpp": "3c828a4bed05ae7d2e3c381c4bac7c85f52e11fea8d30fa8c42f64afad42e027",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingSafetyFilter.cpp": "2cd8ee84dae1ce7584e855baeb1fc8623616074281324df49a0f8f23d3edff05",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/synchronize/PlanarTerrainReceiver.cpp": "f2d88743794d5e18368957bf07f8b0cc67894ca91366946ff4798270d2c018e9",
+  "src/ocs2_ros2/mpc/ocs2_mpc/src/MRT_BASE.cpp": "8b76c3be04562a4c757a78ab26c4c91301b6432fee4e030f8ab152327a3b12f5",
+  "src/quadruped_ros2_control/hardwares/gz_quadruped_hardware/src/gz_system.cpp": "a23df1a3ee7638afa44d837062fd883b3d44758729c22304ed34362e1cbe6c2d",
+  "src/quadruped_ros2_control/hardwares/gz_quadruped_hardware/include/gz_quadruped_hardware/actuator.hpp": "bd192e3c846497cfe118d1050e1dee91784d90d7cdba0012bf01fa1eded2d42d",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/control/TargetManager.cpp": "303512e0fc271244c446b72c04e2d6911f01ba407025a9d707a2db425676ae75",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/control/CtrlComponent.cpp": "9108c719ff37c6dc1f722aa37cc1b991d2eaa03e9685ad82fcb3ea1707f27187",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/launch/elevation_mapping.launch.py": "cc6cd97d019e5da87e6b1195934f6953220803cf036e3dcec277925acc6906c6",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingOnlineReplanner.h": "4f74329257ccc92b0a98f0ac791a09c47c93e83895e41fcc48bbe16425745149",
+  "src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingTrajectoryPlanner.h": "6a05afa828445559735e77176c292ed9412b219bff06491198098c6a31f2ae2d",
+  "src/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/controlled_terrain.py": "fb46b9650c5d4917880689e45f10aba1309472a11191a90a5a24b65177f68ac2",
+  "src/ocs2_ros2/submodules/plane_segmentation_ros2/convex_plane_decomposition/src/GridMapPreprocessing.cpp": "8af2c7f24710fc36321c14d4425b97e76f36b34d5ec792162e5ce674bbc86ce2",
+  "trial.task.info": "d83b24737b29f50eb740b03bc75a53b8f0754360cdbcfec73898a20165c7da58",
+  "trial.gait.info": "457972680781344cf8042768625633deb0957d144f6b14e88112800732ce89c7",
+  "install/ocs2_quadruped_controller/lib/ocs2_quadruped_controller/libocs2_quadruped_controller.so": "4b1f61cd27acdd1840f977469608e99774906087e156952bfe465c692ce221e7",
+  "install/gz_quadruped_hardware/lib/libgz_quadruped_plugins.so": "50b9523eddc971fb3ebbe3caf2794c2f4cc913a4a1492f07951722d059444332",
+  "install/convex_plane_decomposition_ros/lib/convex_plane_decomposition_ros/convex_plane_decomposition_ros_node": "9d8eba958bb0f045174b15e1b15c27b0ec43c6d0181d84810cca70683109d938",
+  "trial.controlled_bars": [
+    [
+      -1.2,
+      0.03,
+      0.1,
+      0.0,
+      1.0
+    ]
+  ],
+  "trial.obstacle": {
+    "pose": [
+      -1.2,
+      0.0,
+      0.05,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "collision_box_size": [
+      0.03,
+      1.0,
+      0.1
+    ]
+  },
+  "trial.wrench": {
+    "force_z_N": -0.0,
+    "requested_duration_s": 0.06,
+    "link": "robot::FL_knee",
+    "trigger_x_m": null
+  },
+  "trial.world.sdf": "bcfc097d8fe814d582a6be0abd267e3b8499bdbbc93e0284d0607aa65af9fa6b",
+  "trial.map_sampling": {
+    "near_obstacles_m": 0.02,
+    "elsewhere_m": 0.1,
+    "minimum_time_interval_s": 1.0
+  },
+  "trial.seed": 42,
+  "trial.reveal": {
+    "enabled": true,
+    "phase": 0.0,
+    "trigger_x": -0.6,
+    "unknown": false,
+    "require_crossing": true,
+    "mask": [
+      -1.4,
+      -1.0,
+      -0.65,
+      0.65
+    ],
+    "source": "world-truth",
+    "note": "test-only certificate reveal; planar region topology is retained from perception"
+  },
+  "trial.spawn": {
+    "x": 0.0,
+    "y": 0.0,
+    "yaw": 0.0
+  },
+  "trial.route": {
+    "scenario": "obstacle",
+    "target_override": null,
+    "normalized_speed": 0.4,
+    "lateral_direction": 1,
+    "hold_seconds": 3.0,
+    "maximum_sim_seconds": 65.0,
+    "swing_duration_s": 0.4
+  }
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "trial": "gazebo_final_10cm_hocbf_08.json",
+    "native_rows": 5173,
+    "observed_swing_to_stance": 126,
+    "mode_gap_over_25ms": 24,
+    "without_qualifying_force_onset": 2,
+    "plotted": 100
+  },
+  {
+    "trial": "gazebo_final_reveal_10cm_hocbf_06.json",
+    "native_rows": 1130,
+    "observed_swing_to_stance": 82,
+    "mode_gap_over_25ms": 78,
+    "without_qualifying_force_onset": 0,
+    "plotted": 4
+  }
+]

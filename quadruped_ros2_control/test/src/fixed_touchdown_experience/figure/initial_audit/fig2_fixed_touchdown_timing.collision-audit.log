@@ -1,0 +1,18 @@
+Nature Figure Rendered Collision Audit
+pdf: src/quadruped_ros2_control/test/src/fixed_touchdown_experience/figure/initial_audit/fig2_fixed_touchdown_timing.pdf
+pages: 1
+visible text boxes: 20
+stroke paths: 148
+
+[FAIL] page 1 text-page-clipping: Text extends beyond the final PDF page boundary — 'Detected contact minus scheduled switch (ms)'
+  text bbox: (169.91513061523438, 184.07424926757812, 405.34649658203125, 194.07424926757812)
+[FAIL] page 1 text-stroke: Text is crossed by 2 stroked path(s) — 'Displayed ±10 ms tolerance'
+  text bbox: (378.6757507324219, 31.234722137451172, 492.4056396484375, 39.23472213745117)
+[FAIL] page 1 text-stroke: Text is crossed by 3 stroked path(s) — 'Scheduled contact switch'
+  text bbox: (378.6757507324219, 42.98472213745117, 481.09808349609375, 50.98472213745117)
+[FAIL] page 1 text-stroke: Text is crossed by 2 stroked path(s) — 'Measured fixed-timing contact'
+  text bbox: (378.6757507324219, 54.73472213745117, 500.750244140625, 62.73472213745117)
+
+summary: 4 fail, 0 warn, 3 contained fill overlays, 0 contained image overlays
+verdict: FIX BEFORE DELIVERY
+note: contained overlays can be intentional; WARN findings need final-size visual review

@@ -1,0 +1,1392 @@
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingOnlineReplanner.h b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingOnlineReplanner.h
+index 3b7df85..dc51563 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingOnlineReplanner.h
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingOnlineReplanner.h
+@@ -111,6 +111,13 @@ class SwingOnlineReplanner {
+                               const Eigen::Vector3d& acceleration,
+                               const std::function<Eigen::Vector2d(double,const Eigen::Vector3d&)>& workspace);
+ 
++    // Actual control-boundary instantiation, with no QP in the control loop.
++    // Certifies the affine Hermite family for a componentwise p/v/a uncertainty
++    // box using exact support functions on position and derivative controls.
++    SwingReplanDecision instantiate(const BSpline& planned, const TerrainSafetyCorridor& corridor,
++        double swingStart, double activation, double end, const Eigen::Vector3d& position,
++        const Eigen::Vector3d& velocity, const Eigen::Vector3d& acceleration) const;
++
+     // Rebuild mappings in the candidate's own knot space, using exact segment
+     // restriction at every corridor boundary. No sampling enters the certificate.
+     static TerrainSafetyCorridor remapCorridor(const BSpline& reference,
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingSafetyFilter.h b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingSafetyFilter.h
+index be386e8..db86739 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingSafetyFilter.h
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingSafetyFilter.h
+@@ -43,6 +43,9 @@ struct SafetyFilterResult {
+     // A soft acceleration tracking task alone cannot enforce a safety filter.
+     Eigen::MatrixXd accelerationA;
+     Eigen::VectorXd accelerationB;
++    // Experimental, same-plane diagnostics: normal(3), offset, raw h,
++    // robust h, robust hdot, robust psi1, zero-hold input bound.
++    Eigen::MatrixXd hocbfDiagnostics;
+     int activeRows = 0, iterations = 0;
+     double clearance = std::numeric_limits<double>::quiet_NaN();
+     double psi1 = std::numeric_limits<double>::quiet_NaN();
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingTrajectoryPlanner.h b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingTrajectoryPlanner.h
+index 7493b56..b641ee1 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingTrajectoryPlanner.h
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/SwingTrajectoryPlanner.h
+@@ -192,9 +192,14 @@ namespace ocs2::legged_robot {
+         std::shared_ptr<const ExecutionSwings> executionSwings() const {
+             return std::atomic_load(&executionSwings_);
+         }
+-        struct FootFeedback {
++        struct FootSample {
+             double time = -std::numeric_limits<double>::infinity();
+-            SwingFootState velocity;
++            SwingFootState velocity, acceleration;
++        };
++        struct FootFeedback : FootSample {
++            // Immutable bounded history: the newest control sample can be in
++            // the future of the observation captured by the asynchronous MPC.
++            std::vector<FootSample> history;
+         };
+         void setFootFeedback(std::shared_ptr<const FootFeedback> feedback) {
+             std::atomic_store(&footFeedback_, std::move(feedback));
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/TerrainSafetyCorridor.h b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/TerrainSafetyCorridor.h
+index 073cb56..7fc54f7 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/TerrainSafetyCorridor.h
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/TerrainSafetyCorridor.h
+@@ -44,16 +44,14 @@ struct CorridorConfig {
+     // Contact transitions retain the controller's existing contact-envelope rows.
+     // Only [contactPhase, 1-contactPhase] has the non-contact corridor certificate.
+     double contactPhase = 0.10;
+-    // Target surface exclusion radius: a prism at this distance from the touchdown
+-    // position and at the same height is excluded from creating a lower bound.
+-    // This lets the swing corridor be built even when the target step rises above
+-    // the liftoff surface. Zero disables target exclusion (all prisms are obstacles).
++    // Target support footprint window for approach mode only. Noncontact
++    // builders never exclude the target. Approach retains a no-penetration row.
+     double landingPositionWindow = 0.025;
+ };
+ 
+ struct TerrainSafetyCorridor {
+     std::vector<CorridorPolytope> cells;
+-    std::vector<CorridorPolytope> approachCells;  // execution only, no target-top clearance row
++    std::vector<CorridorPolytope> approachCells;  // execution only, target nonpenetration replaces clearance
+     double footRadius = 0.0;
+     double numericalMargin = 0.0;
+     Eigen::Vector3d touchdownCentre = Eigen::Vector3d::Zero();
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/wbc/WbcBase.h b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/wbc/WbcBase.h
+index 41dd378..a776715 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/wbc/WbcBase.h
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/wbc/WbcBase.h
+@@ -37,9 +37,14 @@ namespace ocs2::legged_robot
+         const Eigen::Matrix<scalar_t, 12, 4>& footTracking() const { return foot_tracking_; }
+         Eigen::Matrix<scalar_t, 6, 4> measureFeet(const vector_t& rbdStateMeasured);
+         Eigen::Matrix<scalar_t, 6, 1> comTracking();
+-        struct SwingReference { vector3_t position, velocity, acceleration; };
++        struct SwingReference {
++            vector3_t position, velocity, acceleration;
++            bool onlineUpdate = false;
++        };
+         using SwingReferenceCallback = std::function<bool(size_t, SwingReference&)>;
+         void setSwingReferenceCallback(SwingReferenceCallback callback) { swing_reference_callback_ = std::move(callback); }
++        // Set only for executed WBC, never admission previews. Export is opt-in.
++        void setExperimentTime(double time) { experiment_time_ = time; }
+         bool solutionValid() const { return solution_valid_; }
+         int solverStatus() const { return solver_status_; }
+         int solverIterations() const { return solver_iterations_; }
+@@ -110,6 +115,8 @@ namespace ocs2::legged_robot
+         vector_t nominal_swing_target_;
+         Eigen::Matrix<scalar_t,3,4> commanded_foot_acceleration_, reference_foot_acceleration_, nominal_foot_acceleration_,
+             baseline_foot_acceleration_;
++        double experiment_time_ = std::numeric_limits<double>::quiet_NaN();
++        double last_experiment_time_ = -1e30;
+         bool solution_valid_ = true;
+         int solver_status_ = 0, solver_iterations_ = 0;
+         scalar_t constraint_violation_ = 0.0;
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/FSM/StateOCS2.cpp b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/FSM/StateOCS2.cpp
+index 1eca1e2..55709b7 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/FSM/StateOCS2.cpp
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/FSM/StateOCS2.cpp
+@@ -5,6 +5,12 @@
+ #include "ocs2_quadruped_controller/FSM/StateOCS2.h"
+ 
+ #include <angles/angles.h>
++#include <chrono>
++#include <iomanip>
++#include <sstream>
++#include <fstream>
++#include <cstdlib>
++#include <set>
+ #include <ocs2_ros_interfaces/common/RosMsgConversions.h>
+ #include <ocs2_core/misc/LoadData.h>
+ #include <boost/property_tree/info_parser.hpp>
+@@ -25,6 +31,7 @@ namespace ocs2::legged_robot
+             buffered_ = planner_->executionSwings();
+         }
+         bool acceptBufferedSolution(const CommandData& command, const PrimalSolution& policy) override {
++            const auto gateBegin=std::chrono::steady_clock::now();
+             checked_ = buffered_;
+             if (!active_ || !buffered_) return true; // initial stand policy has no executing update
+             const double now=owner_.ctrl_component_->observation_.time;
+@@ -65,8 +72,25 @@ namespace ocs2::legged_robot
+                             previous ? (swing.reference.getPosition(now)-previous->reference.getPosition(now)).norm() : 0.0);
+                         continue;
+                     }
++                    // Re-instantiate at the timestamp of this control tick, using
++                    // the last valid allocated input, never old-reference acceleration.
++                    const auto feedback=planner_->footFeedback();
++                    SwingReplanDecision instance;
++                    if (feedback && now>=feedback->time && now-feedback->time<=0.03 &&
++                        now-activation<=planner_->getConfig().replanConfig.maxActivationDelay) {
++                        instance=SwingOnlineReplanner(planner_->getConfig().replanConfig).instantiate(
++                            swing.reference,swing.corridor,swing.start,now,swing.end,
++                            measured.col(leg).head<3>()-planner_->getConfig().footRadius*vector3_t::UnitZ(),
++                            measured.col(leg).tail<3>(),feedback->acceleration[leg]);
++                    }
++                    if (!instance.admitted()) {
++                        planner_->rejectExecutionUpdate(leg,swing.end);++rejected_;
++                        RCLCPP_INFO(owner_.node_->get_logger(),"Swing package rejected reason=%s",instance.reason.c_str());
++                        return false;
++                    }
++                    auto aligned=swing;aligned.reference=std::move(instance.candidate);
+                     SwingTrajectoryPlanner::ActivationCheck verdict;
+-                    if (map) verdict=planner_->checkActivation(swing,previous,now,period_,
++                    if (map) verdict=planner_->checkActivation(aligned,previous,now,period_,
+                         measured.col(leg).head<3>(),measured.col(leg).tail<3>(),*map);
+                     else verdict.reason="activation_map_missing";
+                     RCLCPP_INFO(owner_.node_->get_logger(),
+@@ -78,7 +102,8 @@ namespace ocs2::legged_robot
+                         return false;
+                     }
+                     if (!checked) checked=std::make_shared<SwingTrajectoryPlanner::ExecutionSwings>(*buffered_);
+-                    (*checked)[leg][i].corridor=std::move(verdict.corridor);
++                    aligned.corridor=std::move(verdict.corridor);
++                    (*checked)[leg][i]=std::move(aligned);
+                     changed[leg] = true;
+                 }
+             }
+@@ -94,7 +119,14 @@ namespace ocs2::legged_robot
+                 preview.update(state, input, owner_.ctrl_component_->measured_rbd_state_, mode, period_);
+                 bool feasible = preview.solutionValid() && preview.actuatorModelValid();
+                 for (size_t leg=0; leg<4; ++leg) if (changed[leg]) {
+-                    feasible &= preview.safetyResults()[leg].active() && preview.safetyResiduals()[leg] >= -1e-6;
++                    bool liftOffTransition=false;
++                    for (const auto& sw:(*checked_)[leg]) if(now>=sw.start && now<sw.end)
++                        liftOffTransition=(now-sw.start)/(sw.end-sw.start)<sw.corridor.start;
++                    // Lift-off is outside the configured noncontact certificate.
++                    // It still needs a feasible allocated WBC solution; do not
++                    // misclassify the explicit transition status as a QP failure.
++                    feasible &= liftOffTransition ||
++                        (preview.safetyResults()[leg].active() && preview.safetyResiduals()[leg] >= -1e-6);
+                 }
+                 if (!feasible) {
+                     for (size_t leg=0; leg<4; ++leg) if (changed[leg])
+@@ -105,6 +137,46 @@ namespace ocs2::legged_robot
+                     return false;
+                 }
+             }
++            const double gateSeconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-gateBegin).count();
++            if (std::any_of(changed.begin(),changed.end(),[](bool v){return v;}) && gateSeconds>period_) {
++                ++rejected_;
++                RCLCPP_INFO(owner_.node_->get_logger(),"Swing package rejected reason=activation_gate_budget elapsed=%.9f budget=%.9f",gateSeconds,period_);
++                return false;
++            }
++            // Include snapshot serialization in the control-cycle gate budget.
++            std::vector<std::string> evidence;
++            if (checked_) for (size_t leg=0;leg<4;++leg) if (changed[leg])
++                for (const auto& sw:(*checked_)[leg]) if (now>=sw.start && now<sw.end) {
++                    const SwingTrajectoryPlanner::ExecutionSwing* old=nullptr;
++                    for (const auto& prev:(*active_)[leg]) if (std::abs(prev.end-sw.end)<1e-8) old=&prev;
++                    std::ostringstream out;out<<std::setprecision(17);
++                    out<<"{\"event\":\"commit\",\"leg\":"<<leg<<",\"now\":"<<now
++                       <<",\"start\":"<<sw.start<<",\"end\":"<<sw.end<<",\"gate_seconds\":"<<gateSeconds;
++                    const auto feedback=planner_->footFeedback();
++                    out<<",\"acceleration_source\":\"allocated_wbc_previous_tick\",\"feedback_time\":"<<feedback->time;
++                    out<<",\"boundary_position_centre\":["<<measured(0,leg)<<","<<measured(1,leg)<<","<<measured(2,leg)<<"]";
++                    out<<",\"boundary_velocity\":["<<measured(3,leg)<<","<<measured(4,leg)<<","<<measured(5,leg)<<"]";
++                    const auto a=feedback->acceleration[leg];
++                    out<<",\"boundary_acceleration\":["<<a.x()<<","<<a.y()<<","<<a.z()<<"]";
++                    const auto emit=[&](const char* name,const BSpline& ref) {
++                        out<<",\""<<name<<"\":{\"knots\":[";
++                        for(int k=0;k<ref.getKnots().size();++k) out<<(k?",":"")<<ref.getKnots()[k];
++                        out<<"],\"controls\":[";const auto c=ref.getControlPoints();
++                        for(int k=0;k<c.rows();++k) out<<(k?",":"")<<"["<<c(k,0)<<","<<c(k,1)<<","<<c(k,2)<<"]";
++                        out<<"]}";
++                    };
++                    emit("new",sw.reference);if(old)emit("old",old->reference);
++                    for(const auto& proposed:(*buffered_)[leg])if(std::abs(proposed.end-sw.end)<1e-8)emit("planned",proposed.reference);
++                    out<<"}";
++                    evidence.push_back(out.str());
++                }
++            const double finalGateSeconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-gateBegin).count();
++            if(!evidence.empty() && finalGateSeconds>period_) {
++                ++rejected_;
++                RCLCPP_INFO(owner_.node_->get_logger(),"Swing package rejected reason=activation_serialization_budget elapsed=%.9f",finalGateSeconds);
++                return false;
++            }
++            for(const auto& item:evidence)RCLCPP_INFO(owner_.node_->get_logger(),"SWING_EVIDENCE %s",item.c_str());
+             ++accepted_;
+             return true;
+         }
+@@ -199,7 +271,6 @@ namespace ocs2::legged_robot
+     {
+         wbc.setSwingSafetyCallback({});
+         wbc.setSwingReferenceCallback({});
+-        if (!safety_filter_ || !safety_filter_->config().enabled) return;
+         const double now = ctrl_component_->observation_.time;
+         wbc.setSwingReferenceCallback([snapshot,now](size_t leg,WbcBase::SwingReference& result) {
+             if (!snapshot) return false;
+@@ -209,10 +280,13 @@ namespace ocs2::legged_robot
+                 result.position=swing.reference.getPosition(now)+swing.corridor.footRadius*vector3_t::UnitZ();
+                 result.velocity=swing.reference.getVelocity(now);
+                 result.acceleration=swing.reference.getAcceleration(now);
++                result.onlineUpdate=swing.reference.getKnots()[0]>swing.start+1e-9;
+                 return true;
+             }
+             return false;
+         });
++        // Reference execution is independent of the optional acceleration filter.
++        if (!safety_filter_ || !safety_filter_->config().enabled) return;
+         wbc.setSwingSafetyCallback([this, snapshot, now, period, strict, &wbc](size_t leg,
+                 const vector3_t& position, const vector3_t& velocity, const vector3_t& nominal) {
+             SafetyFilterResult result;
+@@ -294,6 +368,7 @@ namespace ocs2::legged_robot
+ 
+         applySafetyFilter(period.seconds(), *wbc_, swing_policy_observer_ ? swing_policy_observer_->active() : nullptr);
+ 
++        wbc_->setExperimentTime(ctrl_component_->observation_.time);
+         wbc_timer_.startTimer();
+         vector_t x = wbc_->update(optimized_state_, optimized_input_, ctrl_component_->measured_rbd_state_,
+                                   planned_mode,
+@@ -347,13 +422,37 @@ namespace ocs2::legged_robot
+         previous_execution_time_ = executionTime;
+         if (swing_planner_ && swing_planner_->getConfig().replanConfig.enabled && wbc_->solutionValid()) {
+             auto feedback = std::make_shared<SwingTrajectoryPlanner::FootFeedback>();
++            if (const auto previous=swing_planner_->footFeedback()) {
++                feedback->history=previous->history;
++                feedback->history.push_back(static_cast<const SwingTrajectoryPlanner::FootSample&>(*previous));
++                if(feedback->history.size()>8)feedback->history.erase(feedback->history.begin());
++            }
+             feedback->time = ctrl_component_->observation_.time;
+             for (size_t leg = 0; leg < 4; ++leg) {
+                 feedback->velocity[leg] = wbc_->footTracking().col(leg).segment<3>(3);
++                feedback->acceleration[leg] = wbc_->commandedFootAcceleration().col(leg);
+             }
+             swing_planner_->setFootFeedback(std::move(feedback));
+         }
+         const auto activeSwings = swing_policy_observer_ ? swing_policy_observer_->active() : nullptr;
++        if (activeSwings && std::getenv("FIXED_TOUCHDOWN_EXPORT")) {
++            static std::set<std::string> exported;
++            for(size_t leg=0;leg<4;++leg) for(const auto& swing:(*activeSwings)[leg]) {
++                const double now=ctrl_component_->observation_.time;
++                if(now<swing.start || now>=swing.end) continue;
++                const std::string key=std::to_string(leg)+":"+std::to_string(swing.start)+":"+
++                    std::to_string(swing.end)+":"+std::to_string(swing.reference.getKnots()[0]);
++                if(!exported.insert(key).second)continue;
++                std::ofstream out(std::string(std::getenv("FIXED_TOUCHDOWN_EXPORT"))+".swings.jsonl",std::ios::app);
++                out<<std::setprecision(17)<<"{\"leg\":"<<leg<<",\"now\":"<<now<<",\"start\":"<<swing.start
++                   <<",\"end\":"<<swing.end<<",\"knots\":[";
++                const auto& knots=swing.reference.getKnots();
++                for(int k=0;k<knots.size();++k)out<<(k?",":"")<<knots[k];
++                out<<"],\"controls\":[";const auto c=swing.reference.getControlPoints();
++                for(int k=0;k<c.rows();++k)out<<(k?",":"")<<"["<<c(k,0)<<","<<c(k,1)<<","<<c(k,2)<<"]";
++                out<<"]}\n";
++            }
++        }
+         if (activeSwings && wbc_->solutionValid()) {
+             const auto stance = modeNumber2StanceLeg(planned_mode);
+             const double now = ctrl_component_->observation_.time;
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingOnlineReplanner.cpp b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingOnlineReplanner.cpp
+index 792cddd..aa97a74 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingOnlineReplanner.cpp
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingOnlineReplanner.cpp
+@@ -340,6 +340,78 @@ bool SwingOnlineReplanner::validate(const BSpline& candidate, const TerrainSafet
+     return true;
+ }
+ 
++SwingReplanDecision SwingOnlineReplanner::instantiate(const BSpline& planned,
++        const TerrainSafetyCorridor& corridor, double start, double activation, double end,
++        const Eigen::Vector3d& position, const Eigen::Vector3d& velocity,
++        const Eigen::Vector3d& acceleration) const {
++    SwingReplanDecision result;
++    result.activation=activation; result.end=end;
++    result.outcome=SwingReplanOutcome::RejectedActivation;
++    result.reason="actual activation boundary unavailable";
++    if (!position.allFinite() || !velocity.allFinite() || !acceleration.allFinite() ||
++        !std::isfinite(activation) || end-activation<config_.minRemainingTime ||
++        activation<planned.getKnots()[0] || !corridor.valid) return result;
++    const auto dp=(position-planned.getPosition(activation)).eval();
++    const auto dv=(velocity-planned.getVelocity(activation)).eval();
++    const auto da=(acceleration-planned.getAcceleration(activation)).eval();
++    if (dp.norm()>config_.maxPositionDeviation || dv.norm()>config_.maxVelocityDeviation) return result;
++    const double delta=std::min(config_.correctionDuration,end-activation);
++    std::vector<Eigen::Vector3d> d;
++    correctionControlPoints(delta,dp,dv,da,d);
++    Eigen::Matrix<double,6,3> correction;
++    for (int i=0;i<6;++i) correction.row(i)=d[i].transpose();
++    result.candidate=correctedReference(planned,activation,end,correction,delta,corridor,start);
++    if (!validate(result.candidate,corridor,start,end,&result.reason)) return result;
++    const auto controls=result.candidate.getControlPoints();
++    // All members have this exact knot vector. Nine independent box directions
++    // suffice: support of a linear row is sum_j |row * direction_j|.
++    std::vector<Eigen::MatrixXd> directions;
++    const double radii[]={config_.positionUncertainty,config_.velocityUncertainty,config_.disturbanceBound};
++    Eigen::MatrixXd effects=Eigen::MatrixXd::Zero(controls.rows(),3);
++    Eigen::Matrix<double,6,3> hermite=Eigen::Matrix<double,6,3>::Zero();
++    hermite(0,0)=hermite(1,0)=hermite(2,0)=radii[0];
++    hermite(1,1)=delta/5*radii[1];hermite(2,1)=2*delta/5*radii[1];
++    hermite(2,2)=delta*delta/20*radii[2];
++    int offset=0;
++    for (const auto& piece:extractPolynomialSegments(result.candidate)) {
++        if (piece.start<activation+delta-1e-12) {
++            PolynomialSegment d{activation,activation+delta,Eigen::Matrix<double,6,6>::Identity()};
++            effects.middleRows(offset,6)=restrictSegment(d,piece.start,piece.end).bezierMap*hermite;
++        }
++        offset+=5;
++    }
++    for (int order=0;order<3;++order) for (int axis=0;axis<3;++axis) {
++        Eigen::MatrixXd direction=Eigen::MatrixXd::Zero(controls.rows(),3);
++        direction.col(axis)=effects.col(order);directions.push_back(std::move(direction));
++    }
++    const auto mapped=remapCorridor(result.candidate,corridor,start,end);
++    const auto rows=corridorControlPointConstraints(mapped);
++    Eigen::VectorXd q(controls.size()); q<<controls.col(0),controls.col(1),controls.col(2);
++    Eigen::VectorXd support=Eigen::VectorXd::Zero(rows.b.size());
++    for (const auto& direction:directions) {
++        Eigen::VectorXd dq(direction.size());dq<<direction.col(0),direction.col(1),direction.col(2);
++        support+=(rows.A*dq).cwiseAbs();
++    }
++    if ((rows.A*q+support-rows.b).maxCoeff()>1e-8) {
++        result.reason="activation family geometry"; return result;
++    }
++    for (const auto& segment:extractPolynomialSegments(result.candidate)) {
++        Eigen::MatrixXd derivative=segment.bezierMap;
++        for (int order=1;order<=3;++order) {
++            derivative=((6-order)/(segment.end-segment.start)*
++                (derivative.bottomRows(derivative.rows()-1)-derivative.topRows(derivative.rows()-1))).eval();
++            Eigen::MatrixXd radius=Eigen::MatrixXd::Zero(derivative.rows(),3);
++            for (const auto& direction:directions) radius+=(derivative*direction).cwiseAbs();
++            const double limit=order==1?config_.maxVelocity:order==2?config_.maxAcceleration:config_.maxJerk;
++            if (((derivative*controls).cwiseAbs()+radius).maxCoeff()>limit+1e-7) {
++                result.reason="activation family derivative";return result;
++            }
++        }
++    }
++    result.outcome=SwingReplanOutcome::Admitted;result.reason="actual boundary family certified";
++    return result;
++}
++
+ SwingReplanDecision SwingOnlineReplanner::admit(const BSpline& old, const TerrainSafetyCorridor& corridor,
+         double swingStart, double activation, double end, const Eigen::Vector3d& position,
+         const Eigen::Vector3d& velocity, const Eigen::Vector3d& acceleration) {
+@@ -418,7 +490,14 @@ SwingReplanDecision SwingOnlineReplanner::admit(const BSpline& old, const Terrai
+                 // uncertainty already inside the geometry/plan offset gap.
+                 const double extra = std::max(0.0, plane.normal.norm()*uncertainty -
+                                                (plane.geometricOffset - plane.planningOffset));
+-                plane.planningOffset -= std::max(0.0, margin) * (1.0 - config_.maxMarginFraction) + extra;
++                // Reserve the affine activation family in the QP itself. Without
++                // this reserve an optimum on a planning face has zero room for
++                // any nonzero activation uncertainty, even when its centre fits.
++                const double familyReserve=plane.normal.lpNorm<1>() *
++                    (config_.positionUncertainty + 0.4*delta*config_.velocityUncertainty +
++                     0.05*delta*delta*config_.disturbanceBound);
++                plane.planningOffset -= std::max(0.0, margin) * (1.0 - config_.maxMarginFraction) +
++                                        extra + familyReserve;
+             }
+             admissionCorridor.cells.push_back(std::move(overlap));
+         }
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingSafetyFilter.cpp b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingSafetyFilter.cpp
+index bb45cb0..2b20456 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingSafetyFilter.cpp
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingSafetyFilter.cpp
+@@ -3,6 +3,7 @@
+ #include "ocs2_quadruped_controller/interface/constraint/TerrainSafetyCorridor.h"
+ #include <algorithm>
+ #include <cmath>
++#include <cstdlib>
+ #include <stdexcept>
+ #include <qpOASES.hpp>
+ 
+@@ -145,6 +146,16 @@ SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corrid
+                 config_.positionMeasurementError * plane.normal.norm();
+             const double hdot = -plane.normal.dot(state.velocity) -
+                 config_.velocityMeasurementError * plane.normal.norm();
++            if (std::getenv("FIXED_TOUCHDOWN_EXPORT")) {
++                const int n=result.hocbfDiagnostics.rows();
++                result.hocbfDiagnostics.conservativeResize(n+1,9);
++                result.hocbfDiagnostics.row(n) << plane.normal.transpose(), plane.geometricOffset,
++                    plane.geometricOffset-plane.normal.dot(state.position),h,hdot,
++                    hdot+config_.hocbfGain1*h,
++                    (config_.hocbfGain1+config_.hocbfGain2)*hdot+
++                    config_.hocbfGain1*config_.hocbfGain2*h-
++                    config_.disturbanceBound*plane.normal.norm()-config_.hocbfSampleRate*period;
++            }
+             clearance = std::min(clearance, h);
+             psi1 = std::min(psi1, hdot + config_.hocbfGain1 * h);
+             // The robust HOCBF residual over a held acceleration is quadratic.
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp
+index 02ad69a..fd66475 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp
+@@ -229,7 +229,8 @@ namespace ocs2::legged_robot {
+             if (std::abs(map.terrain->getHeight(target.x(),target.y())-target.z()) >
+                 config_.terrainQpConfig.landingPositionWindow) return reject("activation_target");
+         } catch (const TerrainUnavailable&) { return reject("activation_target"); }
+-        if (config_.safetyFilterConfig.enabled) {
++        if (config_.safetyFilterConfig.enabled &&
++            (now-swing.start)/(swing.end-swing.start)>=result.corridor.start) {
+             SwingSafetyFilter::FootState state;
+             state.position=position; state.velocity=velocity;
+             state.positionError=dp; state.velocityError=dv;
+@@ -703,15 +704,15 @@ namespace ocs2::legged_robot {
+                       << " reference_jump=" << (result.bspline->getPosition(initTime)-executing.getPosition(initTime)).norm() << '\n';
+             return *result.bspline;
+         }
+-        if (!footPosition[leg].allFinite() || !footVelocity[leg].allFinite()) {
++        if (!footPosition[leg].allFinite() || !footVelocity[leg].allFinite() || !footAcceleration[leg].allFinite()) {
+             if (activating) {
+                 replanner_.recordRejection(SwingReplanOutcome::RejectedActivation);
+                 pendingActivation_[leg] = INFINITY;
+             }
+             return executing;
+         }
+-        const Eigen::Vector3d acceleration = footAcceleration[leg].allFinite() ? footAcceleration[leg] :
+-                                            executing.getAcceleration(initTime);
++        // Timestamp-gated, allocated WBC acceleration; missing feedback rejects the update.
++        const Eigen::Vector3d acceleration = footAcceleration[leg];
+         // Always re-read the synchronized terrain snapshot. An executing swing's
+         // previous map certificate must not silently become a new-map certificate.
+         const double referenceStart = executing.getKnots()[0];
+@@ -790,7 +791,7 @@ namespace ocs2::legged_robot {
+             decision = replanner_.admit(executing, corridor, swingStartTime, initTime, swingFinalTime,
+                                        footPosition[leg], footVelocity[leg], acceleration, heightBounds);
+         }
+-        if (decision.admitted() && config_.safetyFilterConfig.enabled) {
++        if (decision.admitted() && config_.safetyFilterConfig.enabled && phase>=contactPhase) {
+             const auto& filterConfig = config_.safetyFilterConfig;
+             SwingSafetyFilter::FootState state;
+             state.position = footPosition[leg] + config_.footRadius * Eigen::Vector3d::UnitZ();
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryQPOptimizer.cpp b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryQPOptimizer.cpp
+index b1e5bca..5476a55 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryQPOptimizer.cpp
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryQPOptimizer.cpp
+@@ -577,7 +577,7 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
+                 const double phase = double(k) / (n - 1);
+                 sections.col(k) = workspace(start + duration * phase, curve.getPosition(phase));
+                 if (!sections.col(k).allFinite() || sections(0, k) > sections(1, k)) {
+-                    throw std::invalid_argument("Invalid IK workspace bounds.");
++                    throw std::runtime_error("Invalid IK workspace bounds.");
+                 }
+             }
+             for (int i = 0; i < phases.size(); ++i) {
+@@ -585,35 +585,13 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
+                 const int k = std::min(int(index), n - 2);
+                 Eigen::Vector2d limits =
+                     (1 - (index - k)) * sections.col(k) + (index - k) * sections.col(k + 1);
+-                // Ensure workspace bounds contain the reference trajectory value.
+-                // If IK-computed workspace excludes the reference, expand it to include
+-                // the reference plus a small margin. This prevents the QP from making
+-                // unnecessary corrections when workspace bounds are overly conservative.
+-                const double referenceZ = B.row(i).dot(z);
+-                // Small fixed margin - do not scale with obstacle height as that causes
+-                // QP divergence (primal_norm explodes).
+-                const double margin = 0.005;  // 5mm
+-                limits[0] = std::min(limits[0], referenceZ - margin);
+-                limits[1] = std::max(limits[1], referenceZ + margin);
+-                // For high obstacles, expand the IK-based upper bound to allow
+-                // QP to lift the foot higher. Scale gradually with obstacle height.
+-                if (maxObstacleHeight > 0.06) {
+-                    // Allow up to 20mm extra above the obstacle height
+-                    const double ikRelaxation = 0.01 * std::min(1.0, (maxObstacleHeight - 0.06) / 0.04);
+-                    limits[1] = std::max(limits[1], maxObstacleHeight + 0.01 + ikRelaxation);
+-                }
+-                // Additionally relax near endpoints to ensure compatibility with
+-                // fixed boundary control points (first/last 3 are position/velocity/accel).
+-                const double endpointBlend = std::min(1.0, std::min(phases[i], 1.0 - phases[i]) * 6.0);
+-                limits[0] = std::min(limits[0], (1 - endpointBlend) * referenceZ + endpointBlend * limits[0]);
+-                limits[1] = std::max(limits[1], (1 - endpointBlend) * referenceZ + endpointBlend * limits[1]);
+                 rows.push_back(B.row(i));
+                 bounds.push_back(limits[0]);
+                 rows.push_back(-B.row(i));
+                 bounds.push_back(-limits[1]);
+             }
+         }
+-    } catch (const TerrainUnavailable &e) {
++    } catch (const std::runtime_error &e) {
+         if (config_.verbose) {
+             std::cerr << "Swing QP terrain unavailable: " << e.what() << '\n';
+         }
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/TerrainSafetyCorridor.cpp b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/TerrainSafetyCorridor.cpp
+index 01038e1..2fe07f4 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/TerrainSafetyCorridor.cpp
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/TerrainSafetyCorridor.cpp
+@@ -13,7 +13,9 @@ void addPlane(CorridorPolytope& cell, const Eigen::Vector3d& normal, double boun
+     for (auto& plane : cell.halfSpaces) {
+         if ((plane.normal - normal).norm() < 1e-10) {
+             plane.geometricOffset = std::min(plane.geometricOffset, bound);
+-            plane.planningOffset = plane.geometricOffset - trackingMargin;
++            // Target contact can use zero tracking shrink. Merging that row
++            // must not relax an existing non-target obstacle's planning bound.
++            plane.planningOffset = std::min(plane.planningOffset, bound - trackingMargin);
+             return;
+         }
+     }
+@@ -195,7 +197,14 @@ static TerrainSafetyCorridor buildCorridor(const TerrainInterface& terrain, cons
+                         }
+                     }
+                 }
+-                if (normal.z() < -0.5 && isTarget(prism)) continue;
++                if (normal.z() < -0.5 && isTarget(prism)) {
++                    // Only the approach builder passes a contact window. Retain
++                    // target nonpenetration in centre coordinates; no clearance
++                    // shrink at legal contact. All other prisms retain their rows.
++                    addPlane(cell, -Eigen::Vector3d::UnitZ(),
++                             -(prism.height + config.footRadius), 0.0);
++                    continue;
++                }
+                 addPlane(cell, normal, bound, config.trackingMargin);
+             }
+             // XY seed hull is inside every lateral planning face by construction.
+@@ -232,10 +241,10 @@ static TerrainSafetyCorridor buildCorridor(const TerrainInterface& terrain, cons
+ TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain, const BSpline& reference,
+                                                  const CorridorConfig& config, int subdivisionsPerSpan,
+                                                  HullBasis basis, TerrainMapTiming map, double touchdownTime) {
+-    // The swing corridor must exclude the landing surface from creating a lower
+-    // bound: the foot is expected to land on it, not avoid it from above.
++    // Noncontact mode treats the target as occupied too. Only the separate
++    // approach builder permits contact with that particular support footprint.
+     return buildCorridor(terrain, reference, config, subdivisionsPerSpan, basis,
+-                         config.contactPhase, 1.0 - config.contactPhase, config.landingPositionWindow,
++                         config.contactPhase, 1.0 - config.contactPhase, 0.0,
+                          map, touchdownTime);
+ }
+ 
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp
+index 6554923..d77fded 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp
+@@ -118,7 +118,11 @@ namespace ocs2::legged_robot
+             const auto& map=convexRegionSelectorPtr_->getPlanarTerrainPtr()->gridMap;
+             if (map.exists("swing_update_release_test_only")) {
+                 const auto& release=map.get("swing_update_release_test_only");
+-                swingTrajectoryPtr_->setOnlineReplanningReleased(release.allFinite() && release.minCoeff()>.5);
++                const bool released=release.allFinite() && release.minCoeff()>.5;
++                if(released && !swingTrajectoryPtr_->isOnlineReplanningEnabled())
++                    std::cerr<<"Swing reveal map committed controller_time="<<initTime
++                             <<" map_stamp_ns="<<map.getTimestamp()<<'\n';
++                swingTrajectoryPtr_->setOnlineReplanningReleased(released);
+             }
+         }
+         SwitchedModelReferenceManager::preSolverRun(initTime, finalTime, initState);
+@@ -278,23 +282,28 @@ namespace ocs2::legged_robot
+                     if (shouldLog && leg == 0) {
+                         std::cerr << "[Workspace] IK failed: " << e.what() << '\n';
+                     }
+-                    // IK failed for this query — return a wide default bound so the
+-                    // QP can still solve without workspace constraints. The terrain
+-                    // clearance constraints still provide safety.
+-                    return Eigen::Vector2d(-1.0, 1.0);
++                    // Fail closed. Sampled IK is a heuristic screen, never a reachability certificate.
++                    return Eigen::Vector2d::Constant(std::numeric_limits<double>::quiet_NaN()).eval();
+                 }
+             });
+             const auto [liftOff3d, touchDown3d] = getSwingPositions3d(contactFlagStocks, allProjections);
+             SwingTrajectoryPlanner::SwingFootState footPosition, footVelocity, footAcceleration;
+             const auto measuredPositions = endEffectorKinematicsPtr_->getPosition(initState);
+             const auto feedback = swingTrajectoryPtr_->footFeedback();
++            const SwingTrajectoryPlanner::FootSample* sample=feedback.get();
++            if (sample && sample->time>initTime) {
++                sample=nullptr;
++                for(auto it=feedback->history.rbegin();it!=feedback->history.rend();++it)
++                    if(it->time<=initTime){sample=&*it;break;}
++            }
+             for (size_t leg = 0; leg < info_.numThreeDofContacts; ++leg) {
+                 footPosition[leg] = measuredPositions[leg];
+                 footPosition[leg].z() -= swingTrajectoryPtr_->getConfig().footRadius;
+                 footVelocity[leg] = Eigen::Vector3d::Constant(std::numeric_limits<scalar_t>::quiet_NaN());
+                 footAcceleration[leg] = footVelocity[leg];
+-                if (feedback && initTime >= feedback->time && initTime - feedback->time <= 0.03) {
+-                    footVelocity[leg] = feedback->velocity[leg];
++                if (sample && initTime >= sample->time && initTime - sample->time <= 0.03) {
++                    footVelocity[leg] = sample->velocity[leg] + (initTime-sample->time)*sample->acceleration[leg];
++                    footAcceleration[leg] = sample->acceleration[leg];
+                 }
+             }
+             swingTrajectoryPtr_->updateTerrain(modeSchedule, liftOffHeightSequence, touchDownHeightSequence,
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WbcBase.cpp b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WbcBase.cpp
+index 6a36c19..6791d09 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WbcBase.cpp
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WbcBase.cpp
+@@ -294,8 +294,7 @@ namespace ocs2::legged_robot
+             if (contact_flag_[i]) filtered.status = SafetyFilterStatus::Contact;
+             if (!contact_flag_[i])
+             {
+-                // Keep the existing MPC PD objective independent of the safety
+-                // reference and of certificate availability.
++                // Fall back to the MPC PD target when no accepted swing is available.
+                 const vector3_t baselineAccel = swing_kp_ * (posDesired[i] - posMeasured[i]) +
+                     swing_kd_ * (velDesired[i] - velMeasured[i]);
+                 SwingReference reference;
+@@ -316,11 +315,14 @@ namespace ocs2::legged_robot
+                 // The whole-body projection stays nearest its feasible nominal
+                 // output; the foot filter contributes hard rows, not a second
+                 // tracking objective that can move otherwise unconstrained axes.
+-                const vector3_t accel = feasibleAcceleration ? vector3_t(feasibleAcceleration->col(i)) : baselineAccel;
++                // Preserve ordinary MPC tracking. A committed in-swing update
++                // must actually drive the nominal task, even with HOCBF off.
++                const vector3_t trackingAccel = haveReference && reference.onlineUpdate ? u_ref : baselineAccel;
++                const vector3_t accel = feasibleAcceleration ? vector3_t(feasibleAcceleration->col(i)) : trackingAccel;
+                 const auto jacobian = j_.block(3 * i, 0, 3, info_.generalizedCoordinatesNum);
+                 nominal_foot_acceleration_.col(i) = accel;
+                 const vector3_t bias = dj_.block(3 * i, 0, 3, info_.generalizedCoordinatesNum) * v_measured_;
+-                nominal_swing_target_.segment<3>(3 * j) = baselineAccel - bias;
++                nominal_swing_target_.segment<3>(3 * j) = trackingAccel - bias;
+                 if (feasibleAcceleration && swing_safety_callback_) {
+                     filtered = swing_safety_callback_(i, posMeasured[i], velMeasured[i], u_ref);
+                     if (filtered.active()) {
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp
+index 71ec454..cf89893 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp
+@@ -6,6 +6,9 @@
+ 
+ #include <qpOASES.hpp>
+ #include <Eigen/QR>
++#include <fstream>
++#include <iomanip>
++#include <cstdlib>
+ #include <algorithm>
+ #include <ocs2_centroidal_model/AccessHelperFunctions.h>
+ #include <gz_quadruped_hardware/actuator.hpp>
+@@ -22,7 +25,7 @@ namespace ocs2::legged_robot
+     {
+         WbcBase::update(stateDesired, inputDesired, rbdStateMeasured, mode, period);
+ 
+-        // First solve the unchanged nominal controller. Safety projects its
++        // First track the accepted swing (MPC PD when unavailable). Safety projects its
+         // feasible output, keeping baseline and correction in the same space.
+         Task swingTask = formulateSwingLegTask();
+         const Task otherTasks = formulateBaseAccelTask(stateDesired, inputDesired, period) * weightBaseAccel_ +
+@@ -77,7 +80,7 @@ namespace ocs2::legged_robot
+         bool safetyProjection = false;
+         bool baselineReachable = true;
+         if (solution_valid_ && swing_safety_callback_ && actuatorSafetyModel_) {
+-            // The first QP remains the original controller. Predict its *net*
++            // Predict the nominal tracking QP's *net*
+             // torque, including the hardware PD, before projecting for safety.
+             const auto qDesired = mapping_.getPinocchioJointPosition(stateDesired);
+             jointPd = joint_kp_ * (qDesired.tail(info_.actuatedDofNum) - q_measured_.tail(info_.actuatedDofNum)) +
+@@ -125,6 +128,7 @@ namespace ocs2::legged_robot
+         if (solution_valid_ && swing_safety_callback_) {
+             swingTask = formulateSwingLegTask(&baseline_foot_acceleration_);
+         }
++        const vector_t experimentBaseline = qpSol;
+         const bool constrained = swing_safety_constraints_.f_.size() > 0;
+         const bool baselineSafe = constrained && baselineReachable &&
+             (swing_safety_constraints_.f_ - swing_safety_constraints_.d_ * qpSol).minCoeff() >= -1e-8;
+@@ -191,6 +195,41 @@ namespace ocs2::legged_robot
+                 safety_residuals_[i] = (result.accelerationB - result.accelerationA * acceleration).minCoeff();
+             }
+         }
++        // guardrail: opt-in synchronous diagnostic I/O changes runtime; never
++        // use instrumented WBC latency as an uninstrumented performance claim.
++        const char* exportPath=std::getenv("FIXED_TOUCHDOWN_EXPORT");
++        if (exportPath && solution_valid_ && std::isfinite(experiment_time_) &&
++            experiment_time_-last_experiment_time_>=0.0199) {
++            last_experiment_time_=experiment_time_;
++            std::ofstream out(exportPath,std::ios::app);
++            const auto writeMatrix=[&](const char* name,const auto& m){
++                out<<",\""<<name<<"\":[";
++                for(int i=0;i<m.rows();++i){out<<(i?",":"")<<"[";
++                    for(int k=0;k<m.cols();++k){if(k)out<<",";
++                        if(std::isfinite(m(i,k)))out<<m(i,k);else out<<"null";}
++                    out<<"]";}out<<"]";
++            };
++            out<<std::setprecision(17)<<"{\"time\":"<<experiment_time_
++               <<",\"mode\":"<<mode<<",\"actuator_valid\":"<<actuator_model_valid_
++               <<",\"safety_projection\":"<<safetyProjection;
++            writeMatrix("E",dynamics.a_);writeMatrix("e",dynamics.b_);
++            writeMatrix("D",dynamics.d_);writeMatrix("d",dynamics.f_);
++            writeMatrix("H",swing_safety_constraints_.d_);writeMatrix("h",swing_safety_constraints_.f_);
++            writeMatrix("q",qpSol);writeMatrix("baseline",experimentBaseline);
++            writeMatrix("J",j_);writeMatrix("drift",(dj_*v_measured_).eval());
++            writeMatrix("nominal",nominal_foot_acceleration_);
++            writeMatrix("reference",reference_foot_acceleration_);
++            writeMatrix("tracking",foot_tracking_);
++            if(actuator_model_valid_){writeMatrix("torque_lower",torqueLower);writeMatrix("torque_upper",torqueUpper);}
++            out<<",\"force_delta\":"<<safetyContactForceDeviation_
++               <<",\"accel_delta\":"<<safetyAccelerationDeviation_;
++            for(size_t i=0;i<4;++i){
++                const std::string name="planes_"+std::to_string(i);
++                writeMatrix(name.c_str(),safety_results_[i].hocbfDiagnostics);
++                out<<",\"status_"<<i<<"\":"<<int(safety_results_[i].status);
++            }
++            out<<"}\n";
++        }
+         if (!solution_valid_) qpSol.setZero();
+         commanded_foot_acceleration_.setConstant(std::numeric_limits<double>::quiet_NaN());
+         if (solution_valid_) {
+diff --git a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/test/swing_replan_selfcheck.cpp b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/test/swing_replan_selfcheck.cpp
+index cb96432..e583dab 100644
+--- a/quadruped_ros2_control/controllers/ocs2_quadruped_controller/test/swing_replan_selfcheck.cpp
++++ b/quadruped_ros2_control/controllers/ocs2_quadruped_controller/test/swing_replan_selfcheck.cpp
+@@ -141,24 +141,24 @@ void plannerChecks() {
+             "policy in transit changed an imminent swing terminal");
+     SwingTrajectoryPlanner::SwingFootState p,v,a;
+     a.fill(Eigen::Vector3d::Constant(NAN));
+-    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));
++    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));a.fill(old.getAcceleration(1.1));
+     SwingTrajectoryPlanner quiet(config,4);quiet.setTerrainInterface(terrain);quiet.setMapTiming({.9,2.0});
+     quiet.updateTerrain(schedule,heights,heights,positions,touchdowns,.95,1.5);
+     quiet.updateTerrain(schedule,heights,heights,positions,touchdowns,1.1,1.5,p,v,a);
+     require(quiet.getReplanStats().attempts==0,"certified reference with tracked state requested an unnecessary QP");
+     require((quiet.getPositionConstraint(0,1.12)-old.getPosition(1.12)-Eigen::Vector3d(0,0,config.footRadius)).norm()<1e-10,
+             "quiet tracking changed the reference");
+-    p.fill(old.getPosition(1.17)+Eigen::Vector3d(.025,0,0));v.fill(old.getVelocity(1.17));
++    p.fill(old.getPosition(1.17)+Eigen::Vector3d(.025,0,0));v.fill(old.getVelocity(1.17));a.fill(old.getAcceleration(1.17));
+     quiet.updateTerrain(schedule,heights,heights,positions,touchdowns,1.17,1.5,p,v,a);
+     require(quiet.getReplanStats().attempts==0,"tracking error replanned a map-certified reference");
+-    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));
++    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));a.fill(old.getAcceleration(1.1));
+     terrain->bar=true;
+     planner.updateTerrain(schedule,heights,heights,positions,touchdowns,1.1,1.5,p,v,a);
+     require(!planner.getTerrainCorridor(0,1.1).valid,"new obstacle did not invalidate the old reference");
+     require((planner.getPositionConstraint(0,1.125)-old.getPosition(1.125)-
+         Eigen::Vector3d(0,0,config.footRadius)).norm()<1e-10,"candidate activated before delay");
+     require(planner.getReplanStats().attempts==0,"prediction counted as activation");
+-    p.fill(old.getPosition(1.125)+Eigen::Vector3d(.0005,0,.0005));v.fill(old.getVelocity(1.125));
++    p.fill(old.getPosition(1.125)+Eigen::Vector3d(.0005,0,.0005));v.fill(old.getVelocity(1.125));a.fill(old.getAcceleration(1.125));
+     planner.updateTerrain(schedule,heights,heights,positions,touchdowns,1.125,1.5,p,v,a);
+     require(planner.getReplanStats().admitted==4,"measured activation not admitted");
+     require((planner.getPositionConstraint(0,1.125)-p[0]-
+@@ -166,7 +166,7 @@ void plannerChecks() {
+             "activation did not use the fresh state");
+     const auto before=planner.getPositionConstraint(0,1.21);
+     terrain->available=false;
+-    p.fill(old.getPosition(1.2));v.fill(old.getVelocity(1.2));
++    p.fill(old.getPosition(1.2));v.fill(old.getVelocity(1.2));a.fill(old.getAcceleration(1.2));
+     planner.updateTerrain(schedule,heights,heights,positions,touchdowns,1.2,1.5,p,v,a);
+     require((planner.getPositionConstraint(0,1.21)-before).norm()<1e-12,"rejection replaced the old reference");
+     require(planner.getReplanStats().attempts==planner.getReplanStats().admitted+4,"activation rejection stats");
+@@ -183,12 +183,12 @@ void plannerChecks() {
+     recovering.updateTerrain(schedule,heights,heights,positions,touchdowns,.95,1.5);
+     terrain->bar=true;
+     for (size_t leg=0;leg<4;++leg) recovering.rejectExecutionUpdate(leg,1.4);
+-    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));
++    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));a.fill(old.getAcceleration(1.1));
+     recovering.updateTerrain(schedule,heights,heights,positions,touchdowns,1.1,1.5,p,v,a);
+     require(recovering.getReplanStats().attempts==0,"veto recovery skipped accepted-reference MPC cycle");
+-    p.fill(old.getPosition(1.17));v.fill(old.getVelocity(1.17));
++    p.fill(old.getPosition(1.17));v.fill(old.getVelocity(1.17));a.fill(old.getAcceleration(1.17));
+     recovering.updateTerrain(schedule,heights,heights,positions,touchdowns,1.17,1.5,p,v,a);
+-    p.fill(old.getPosition(1.195));v.fill(old.getVelocity(1.195));
++    p.fill(old.getPosition(1.195));v.fill(old.getVelocity(1.195));a.fill(old.getAcceleration(1.195));
+     recovering.updateTerrain(schedule,heights,heights,positions,touchdowns,1.195,1.5,p,v,a);
+     require(recovering.getReplanStats().attempts>0,"one activation veto froze the entire remaining swing");
+     SwingTrajectoryPlanner early(config,4);
+@@ -196,10 +196,10 @@ void plannerChecks() {
+     terrain->bar=false;
+     early.updateTerrain(schedule,heights,heights,positions,touchdowns,.95,1.5);
+     terrain->bar=true;
+-    p.fill(old.getPosition(1.04));v.fill(old.getVelocity(1.04));
++    p.fill(old.getPosition(1.04));v.fill(old.getVelocity(1.04));a.fill(old.getAcceleration(1.04));
+     early.updateTerrain(schedule,heights,heights,positions,touchdowns,1.04,1.5,p,v,a);
+     require(early.getReplanStats().attempts==0,"early prediction counted as activation");
+-    p.fill(old.getPosition(1.065));v.fill(old.getVelocity(1.065));
++    p.fill(old.getPosition(1.065));v.fill(old.getVelocity(1.065));a.fill(old.getAcceleration(1.065));
+     early.updateTerrain(schedule,heights,heights,positions,touchdowns,1.065,1.5,p,v,a);
+     require(early.getReplanStats().admitted==4,"waiting for noncontact phase suppressed a feasible early update");
+     require((early.getPositionConstraint(0,1.065)-p[0]-Eigen::Vector3d(0,0,config.footRadius)).norm()<1e-8,
+diff --git a/quadruped_ros2_control/libraries/gz_quadruped_playground/worlds/stair10cm.sdf b/quadruped_ros2_control/libraries/gz_quadruped_playground/worlds/stair10cm.sdf
+index 4842302..d187488 100644
+--- a/quadruped_ros2_control/libraries/gz_quadruped_playground/worlds/stair10cm.sdf
++++ b/quadruped_ros2_control/libraries/gz_quadruped_playground/worlds/stair10cm.sdf
+@@ -76,8 +76,166 @@
+ 
+     <!-- Thin tall obstacle on the flat approach, matching minvo_test "single" scene:
+          60 mm high, 30 mm thick, spanning the full foot track width. -->
+-    <model name='thin_obstacle'>
++    <model name='thin_obstacle_2cm'>
+       <pose>-1.2 0 0.03 0 0 0</pose>
++      <link name='thin_obstacle_link'>
++        <collision name='thin_obstacle_collision'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.02</size>
++            </box>
++          </geometry>
++          <surface>
++            <friction>
++              <ode>
++                <mu>1.5</mu>
++                <mu2>1.5</mu2>
++              </ode>
++            </friction>
++            <bounce/>
++            <contact/>
++          </surface>
++        </collision>
++        <visual name='thin_obstacle_visual'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.02</size>
++            </box>
++          </geometry>
++          <material>
++            <ambient>0.6 0.1 0.1 1</ambient>
++            <diffuse>0.8 0.15 0.15 1</diffuse>
++            <specular>0.2 0.2 0.2 1</specular>
++          </material>
++        </visual>
++        <pose>0 0 0 0 0 0</pose>
++      </link>
++      <static>true</static>
++      <self_collide>false</self_collide>
++    </model>
++
++
++    <!-- Thin tall obstacle on the flat approach, matching minvo_test "single" scene:
++         60 mm high, 30 mm thick, spanning the full foot track width. -->
++    <model name='thin_obstacle_4cm'>
++      <pose>-1.6 0 0.03 0 0 0</pose>
++      <link name='thin_obstacle_link'>
++        <collision name='thin_obstacle_collision'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.04</size>
++            </box>
++          </geometry>
++          <surface>
++            <friction>
++              <ode>
++                <mu>1.5</mu>
++                <mu2>1.5</mu2>
++              </ode>
++            </friction>
++            <bounce/>
++            <contact/>
++          </surface>
++        </collision>
++        <visual name='thin_obstacle_visual'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.04</size>
++            </box>
++          </geometry>
++          <material>
++            <ambient>0.6 0.1 0.1 1</ambient>
++            <diffuse>0.8 0.15 0.15 1</diffuse>
++            <specular>0.2 0.2 0.2 1</specular>
++          </material>
++        </visual>
++        <pose>0 0 0 0 0 0</pose>
++      </link>
++      <static>true</static>
++      <self_collide>false</self_collide>
++    </model>
++
++
++    <model name='thin_obstacle_6cm'>
++      <pose>-2.0 0 0.03 0 0 0</pose>
++      <link name='thin_obstacle_link'>
++        <collision name='thin_obstacle_collision'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.06</size>
++            </box>
++          </geometry>
++          <surface>
++            <friction>
++              <ode>
++                <mu>1.5</mu>
++                <mu2>1.5</mu2>
++              </ode>
++            </friction>
++            <bounce/>
++            <contact/>
++          </surface>
++        </collision>
++        <visual name='thin_obstacle_visual'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.06</size>
++            </box>
++          </geometry>
++          <material>
++            <ambient>0.6 0.1 0.1 1</ambient>
++            <diffuse>0.8 0.15 0.15 1</diffuse>
++            <specular>0.2 0.2 0.2 1</specular>
++          </material>
++        </visual>
++        <pose>0 0 0 0 0 0</pose>
++      </link>
++      <static>true</static>
++      <self_collide>false</self_collide>
++    </model>
++
++
++    <model name='thin_obstacle_8cm'>
++      <pose>-2.4 0 0.03 0 0 0</pose>
++      <link name='thin_obstacle_link'>
++        <collision name='thin_obstacle_collision'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.08</size>
++            </box>
++          </geometry>
++          <surface>
++            <friction>
++              <ode>
++                <mu>1.5</mu>
++                <mu2>1.5</mu2>
++              </ode>
++            </friction>
++            <bounce/>
++            <contact/>
++          </surface>
++        </collision>
++        <visual name='thin_obstacle_visual'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.08</size>
++            </box>
++          </geometry>
++          <material>
++            <ambient>0.6 0.1 0.1 1</ambient>
++            <diffuse>0.8 0.15 0.15 1</diffuse>
++            <specular>0.2 0.2 0.2 1</specular>
++          </material>
++        </visual>
++        <pose>0 0 0 0 0 0</pose>
++      </link>
++      <static>true</static>
++      <self_collide>false</self_collide>
++    </model>
++
++
++    <model name='thin_obstacle_10cm'>
++      <pose>-2.8 0 0.03 0 0 0</pose>
+       <link name='thin_obstacle_link'>
+         <collision name='thin_obstacle_collision'>
+           <geometry>
+@@ -114,6 +272,126 @@
+       <self_collide>false</self_collide>
+     </model>
+ 
++
++  <model name='thin_obstacle_12cm'>
++      <pose>-3.2 0 0.03 0 0 0</pose>
++      <link name='thin_obstacle_link'>
++        <collision name='thin_obstacle_collision'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.12</size>
++            </box>
++          </geometry>
++          <surface>
++            <friction>
++              <ode>
++                <mu>1.5</mu>
++                <mu2>1.5</mu2>
++              </ode>
++            </friction>
++            <bounce/>
++            <contact/>
++          </surface>
++        </collision>
++        <visual name='thin_obstacle_visual'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.12</size>
++            </box>
++          </geometry>
++          <material>
++            <ambient>0.6 0.1 0.1 1</ambient>
++            <diffuse>0.8 0.15 0.15 1</diffuse>
++            <specular>0.2 0.2 0.2 1</specular>
++          </material>
++        </visual>
++        <pose>0 0 0 0 0 0</pose>
++      </link>
++      <static>true</static>
++      <self_collide>false</self_collide>
++    </model>
++
++    <model name='thin_obstacle_14cm'>
++      <pose>-3.6 0 0.03 0 0 0</pose>
++      <link name='thin_obstacle_link'>
++        <collision name='thin_obstacle_collision'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.14</size>
++            </box>
++          </geometry>
++          <surface>
++            <friction>
++              <ode>
++                <mu>1.5</mu>
++                <mu2>1.5</mu2>
++              </ode>
++            </friction>
++            <bounce/>
++            <contact/>
++          </surface>
++        </collision>
++        <visual name='thin_obstacle_visual'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.14</size>
++            </box>
++          </geometry>
++          <material>
++            <ambient>0.6 0.1 0.1 1</ambient>
++            <diffuse>0.8 0.15 0.15 1</diffuse>
++            <specular>0.2 0.2 0.2 1</specular>
++          </material>
++        </visual>
++        <pose>0 0 0 0 0 0</pose>
++      </link>
++      <static>true</static>
++      <self_collide>false</self_collide>
++    </model>
++
++
++    <model name='thin_obstacle_16cm'>
++      <pose>-4.0 0 0.03 0 0 0</pose>
++      <link name='thin_obstacle_link'>
++        <collision name='thin_obstacle_collision'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.16</size>
++            </box>
++          </geometry>
++          <surface>
++            <friction>
++              <ode>
++                <mu>1.5</mu>
++                <mu2>1.5</mu2>
++              </ode>
++            </friction>
++            <bounce/>
++            <contact/>
++          </surface>
++        </collision>
++        <visual name='thin_obstacle_visual'>
++          <geometry>
++            <box>
++              <size>0.03 1.0 0.16</size>
++            </box>
++          </geometry>
++          <material>
++            <ambient>0.6 0.1 0.1 1</ambient>
++            <diffuse>0.8 0.15 0.15 1</diffuse>
++            <specular>0.2 0.2 0.2 1</specular>
++          </material>
++        </visual>
++        <pose>0 0 0 0 0 0</pose>
++      </link>
++      <static>true</static>
++      <self_collide>false</self_collide>
++    </model>
++
++
++
++
++
+     <!-- Staircase made of boxes -->
+     <model name='stair_10cm_1'>
+       <pose>2.4 0 0.05 0 0 0</pose>
+diff --git a/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/__pycache__/run_trial.cpython-310.pyc b/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/__pycache__/run_trial.cpython-310.pyc
+index 00e6e27dbd828c8ea5f1842ddf48a1b8c70d9def..987861ed637137526f6c9fb9bd510a8b142e6128 100644
+GIT binary patch
+delta 3295
+zcmZWs4Ro7T8NT;R)27K%)+T9^rfK@Owb|BoZ8r;B$Nt$LxQ?llvz0mbvUt+b+OOZ3
+z8~39?h8u3#qE~ddRud3W9C~JtM>*=5C^-33QE|8`2ux8?hyMygeC|ye_LH3Zeee6+
+z_rCAF&%N(^6M3Aczrrhqyk0lMr}I5*;Qn1FDqi#&M)kxw?@ott3zz+sli^zijErH%
+zY4>2c;7K2SMC+ZjM{cN!FW+lLfnJf~K}NTx9kv6SD_NI}kpo|mHaN5D$)?-(G0SN+
+zq<FS5$C6DeSc<3k-TVNjQTd&!hKAb*Io%;j=+0gS56zU)QTEXtz;6e>Prh9hX`0gR
+z(pEuYyEx|dpq@i8#bNhRxyaYnuzvvf$f-fjnP6ED9mqk_Rx`EL-SVKXt@2|<v_+!_
+z<r6>;7136Wre&GGt@3aYjcfFXTnRK&L}zLA<1z*G6Ge2kMx}hz-?s3R3Z;8iuzt7g
+z)N`4mdWEx>WgNpPth$XpMRRv32HWY=bW}?nbT93f@xYq0&xo>PjE>1Yfw*^U0AtLT
+z^xDSdR|6fDpDo7h)G<FN&jng;$SM^6x+n)eOUx)u@tkL{i|*5SyvXzYz0B$sjst3x
+z3$x?NK+0*m=<}F&m90*ID_c$v$f4?3(-$I4sJ*VE2O|tS`Nas^;ecJG?JnA#sE+o0
+zi5}XgJ*2qp5uO7~+2>C~;Y{?<mvcPf=wY@8evU_&JxzF|C)n#3)94%8`8W0R5%rXt
+zgSDgRI637d+e6>Ysk8KGge3yX%YMFt)A#86`&`1K&YJDDuFPH~T=ZCkWf$aFj%OF<
+znDEl$SZ}`P2bc7m>Q!s{A?8vcDzd#fmT{UMZCe2k^7UX1e?odfo%~6;DAdvLlwAq)
+zr(s@&#b2$Drqk?Ga<UPr@Qh5u_DAw$D7-!b)JH0@O3jG1jDDQrpzWv~5Wej49Luht
+zpNIf9``K|vj@#9u8s1d+d-R6?RB!c4>l&+6RKxaXG7=7t{yfK%tFo(eEM;K1A#065
+zLeO&qj*N5UJhTwBv4XaiexVXl1Vt#w@~H^#=dE?xijX{N%(Ws&r^8Hy)RRs}SO`SY
+z^8+Qi_d5Dz-Up2lyUQ327afh9r!yGp3bPXCV9J^KCQag9I>L(?`73=g{n>ZJl5~*#
+zQw7vx5f&a2PGy&I4&NsH*sWh9@24nw0n~&+<YG<rXsNl9UeqdP3hsV0?hs+cPL6L~
+z1!+CKlv6Cb?GU}J?2fT<Lxi@j%9IW-fL?{YIE1&4UeWt<=;A<Dp6`Ok3z!b(dq#Dz
+zOE%%6wOvAH@RD^Vxa}{lkth2woo9(Kp+3zbgFa4Y6^rJ>gQ%*574%#5ZYXe!^&h7p
+zP4d@@B>zs6JVn^6AgqRd4-Nub3_D_%TT7DHiyHa^{ZT}~*lXhs`jaSEywIQ1C7``@
+z_*)3!QY9Nn{}+s}6~5#~QA_9ObzRz{q82@W&2iZf32xF`LVrWLvnlTLOsO+Qe=p)i
+znl%28F#}usPhHacJgV?)pnu^xjs87Wf}a1#Bay)J{~}Rq=ndLWZ_@d+1Nd8d#B@mi
+zgXGVYnX5qH)DD)J%ZPA!;1H<;2I*~iI?~*iFfK4jWH>Q2o-hU-bcQAq#(f<9n}8W;
+zj<id7@h;J!)M*Q$y&s5k3{$|nRL-t#8NC;1U{H-HLvy9ebYHn1g?b6hjfykR+LG+Y
+zbWcO~q?PrwAS#ir(0MB_D6SKA*&ESUk>eT1k#0L?ZB2dv`W0x?(JIlZ(0rm&Z51T{
+z9E1-Slz^IKL9SMlEyzI_hS0+Dt=dSL%TxnvWGoup7D+qp`i!yn1#5ejQ06$*2ASQE
+z*F*!Z8kf0R)MszXF`a5Iv(4H8t0*q9I(6}<_?_HJWIqH9lTXgaJBC)D<~ajnd*ygE
+z*x?$9>QN0Bj)GOA-KZ95C6fbI^quQKz7p-}w%?%@=V!jYH0P!`Mm5nEt@Q!FQA-;%
+z-Yl=Hi}8o#&2>@!h&)&q=C8^J>SCiatS#Ao;m0MTuCVuER+H47Ksib<BqC3~7sy%a
+zoI(n?1CeH?4ZBG+6;{tO<z{`63$0m|DJBfCRBn37fz|B9s1{OVTUCw>`mF78dCa%&
+z;*qYA^A~wt2kmBSFgc_S#9p^(N`4p~;%KwdKsLco2?JBZneshrWiA%mT5k4{YtVq@
+zh~0cK@AeGr$9jyNEoS5ldnQ)s%DS<)ZgUb$SX!U2u0gv+G-Bp^U^_>&;Ms;lI}=Ds
+z#_9tt?Y%6)>{c-&yDNtR-@nL?7k0Ws#Nm0Cm<8J><>vZ@^S_Pzs4WFfiHUZgk3nzG
+z>+m}_U8YNU`S4+Q?1GowKs)7A_3Qe((xrvI=k&}}!gLoCrd4!7pQoxvVO8_hs#NU&
+z{;n~{<q3rdJ%tE8a-?DN=#^=gj^G}S7b9F%jL>tr2i%xF_#vejS%Au;_*tm$yB-y{
+z(9?^aHA4MNRCbHB)>Y81*2%wE_beXOO0!m$XnBT~muk67%geM}rRC*XZqw=JHouN3
+zcWPQym=*axZMRa(bG3YpmRq&FO3SW7#c83~<t3+i6SMY;dZEtgYWZ4YtYLK+za2Q+
+z%{p;TM&8(sQ>VT+pb^{1TGvd>Zo1V|5jV_1{9!N$@YvfXA8wCSZXeoZj@(o~WY!OT
+zaKzfSeW!fB{c)!@n;7r#Pj_nLi4%(tbKWhNEM3RvO&nV4<&}wNo>rf;C#Qsoqs!V$
+z`QeFEt9=F^o0weNSH{mw%(;FW=YDy3W6a~{6}$%Dx!fg>Z;X3qayNJJ65fSYG4b-o
+MIfnCEH!pen|K5=F_5c6?
+
+delta 3064
+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
+G<o^I*)U1jC
+
+diff --git a/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/controlled_terrain.py b/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/controlled_terrain.py
+index 0d74b67..1287e89 100644
+--- a/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/controlled_terrain.py
++++ b/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/controlled_terrain.py
+@@ -20,7 +20,9 @@ def set_update_release(message, released):
+ 
+ def swing_spans_bar(liftoff_x, forecast_x, centre, width, foot_radius=.020):
+     """Require free footholds on both sides of this static box, including the foot."""
+-    return bool(forecast_x) and liftoff_x < centre-width/2-foot_radius and max(forecast_x) > centre+width/2+foot_radius
++    return bool(forecast_x) and (
++        liftoff_x < centre-width/2-foot_radius and max(forecast_x) > centre+width/2+foot_radius or
++        liftoff_x > centre+width/2+foot_radius and min(forecast_x) < centre-width/2-foot_radius)
+ 
+ 
+ def mask_strip(message, rectangle, unknown=False):
+@@ -62,7 +64,7 @@ def known_course_layer(message, bars=None):
+         bars = [(1.1,.06,.04),(1.8,.08,.07),(2.5,.12,.05),(3.2,.06,.09)]
+     x=info.pose.position.x+info.length_x/2-(np.arange(nx)+.5)*r
+     y=info.pose.position.y+info.length_y/2-(np.arange(ny)+.5)*r
+-    lane=((-0.6<=x)&(x<=5.))[:,None] & ((-3.8<=y)&(y<=-2.2))[None,:]
++    lane=((-3.<=x)&(x<=1.))[:,None] & ((-.8<=y)&(y<=.8))[None,:] if bars[0][0]<0 and len(bars[0])==5 and abs(bars[0][3])<.1 else ((-0.6<=x)&(x<=5.))[:,None] & ((-3.8<=y)&(y<=-2.2))[None,:]
+     heights=np.zeros((nx,ny))
+     for bar in bars:
+         centre,width,height=bar[:3]
+diff --git a/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/run_trial.py b/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/run_trial.py
+index 9fb52c6..937f2b2 100644
+--- a/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/run_trial.py
++++ b/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/run_trial.py
+@@ -154,7 +154,7 @@ def main():
+     memory_reserve = 1024 * 1024 * 1024
+     if available_memory_bytes() < memory_reserve:
+         p.error('Less than 1 GiB memory available; Gazebo was not started')
+-    if args.controlled_reveal and args.scenario != 'course': p.error('Controlled reveal requires --scenario course')
++    if args.controlled_reveal and args.scenario not in ('course','obstacle'): p.error('Controlled reveal requires course or obstacle')
+     if not 0 <= args.reveal_phase <= .75: p.error('--reveal-phase must be in [0,.75]')
+     if args.swing_duration is not None and (not math.isfinite(args.swing_duration) or not .2 <= args.swing_duration <= .8):
+         p.error('--swing-duration must be in [.2,.8] s')
+@@ -268,7 +268,7 @@ def main():
+         p.error('--obstacle-height must be in (0, .3] metres')
+     tree = ET.parse(world_file)
+     controlled_bars=[]
+-    if args.controlled_reveal:
++    if args.controlled_reveal and args.scenario == 'course':
+         for index in range(4):
+             bar=tree.getroot().find(f".//model[@name='safety_lane_bar_{index}']")
+             if bar is None: p.error('World-truth intervention requires the validated four-bar lane')
+@@ -284,6 +284,12 @@ def main():
+         obstacle.find('pose').text = f'-1.2 0 {args.obstacle_height/2} 0 0 0'
+         for size in obstacle.findall('.//geometry/box/size'):
+             size.text = f'0.03 1.0 {args.obstacle_height}'
++    if args.controlled_reveal and args.scenario == 'obstacle':
++        obstacle = tree.getroot().find(".//model[@name='thin_obstacle']")
++        pose=list(map(float,obstacle.find('pose').text.split()))
++        size=list(map(float,obstacle.find('.//collision/geometry/box/size').text.split()))
++        controlled_bars=[[pose[0],size[0],pose[2]+size[2]/2,pose[1],size[1]]]
++        manifest['trial.controlled_bars']=controlled_bars
+     if args.wrench_force:
+         if not 0 < args.wrench_force <= 10 or not .005 <= args.wrench_duration <= .2:
+             p.error('Force must be in (0,10] N and duration in [0.005,0.2] s')
+@@ -306,11 +312,11 @@ def main():
+     manifest['trial.world.sdf'] = hashlib.sha256(world_file.read_bytes()).hexdigest()
+     manifest['trial.map_sampling'] = dict(near_obstacles_m=.02, elsewhere_m=.10, minimum_time_interval_s=1.0)
+     manifest['trial.seed'] = args.seed
+-    reveal_centre = controlled_bars[1][0] if controlled_bars else 1.8
++    reveal_centre = controlled_bars[0 if args.scenario == 'obstacle' else 1][0] if controlled_bars else 1.8
+     manifest['trial.reveal'] = dict(enabled=args.controlled_reveal, phase=args.reveal_phase,
+         trigger_x=args.reveal_at_x, unknown=args.reveal_unknown,
+         require_crossing=args.reveal_require_crossing,
+-        mask=[reveal_centre-.2,reveal_centre+.2,-3.7,-2.3], source=args.controlled_map_source,
++        mask=[reveal_centre-.2,reveal_centre+.2,*([-.65,.65] if args.scenario == 'obstacle' else [-3.7,-2.3])], source=args.controlled_map_source,
+         note='test-only certificate reveal; planar region topology is retained from perception')
+     manifest['trial.spawn'] = {'x': args.x, 'y': args.y, 'yaw': args.yaw}
+     manifest['trial.route'] = dict(scenario=args.scenario, target_override=args.target,
+diff --git a/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/scenario_probe.py b/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/scenario_probe.py
+index d4521a9..a66975c 100644
+--- a/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/scenario_probe.py
++++ b/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/scenario_probe.py
+@@ -95,6 +95,9 @@ def main():
+ 
+     lf_liftoff = None
+     lf_liftoff_x = None
++    liftoffs = [None]*4
++    liftoff_xs = [None]*4
++    last_stances = [True]*4
+     last_lf_stance = True
+     reveal_events = []
+     revealed = False
+@@ -103,6 +106,11 @@ def main():
+     def diag(m):
+         nonlocal lf_liftoff, lf_liftoff_x, last_lf_stance
+         if len(m.data) in (78, 83, 112, 113, 151) or len(m.data) >= 163:
++            for leg,bit in enumerate((8,4,2,1)):
++                contact=bool(int(m.data[1]) & bit)
++                if last_stances[leg] and not contact:
++                    liftoffs[leg],liftoff_xs[leg]=m.data[0],m.data[30+12*leg]
++                last_stances[leg]=contact
+             stance = bool(int(m.data[1]) & 8)
+             if last_lf_stance and not stance:
+                 lf_liftoff, lf_liftoff_x = m.data[0], m.data[30]
+@@ -138,14 +146,16 @@ def main():
+     def markers(m):
+         counts['corridor'] += int(any(x.action == 0 and x.points for x in m.markers))
+ 
+-    node.create_subscription(Odometry, '/Ground_Truth', odom, 30)
++    node.create_subscription(Odometry, '/Ground_Truth', odom, 1 if args.controlled_reveal else 30)
+     def estimate(m):
+         p, q = m.pose.pose.position, m.pose.pose.orientation
+         estimates.append([m.header.stamp.sec+m.header.stamp.nanosec*1e-9, p.x,p.y,p.z,q.x,q.y,q.z,q.w])
+     node.create_subscription(Odometry, '/odom', estimate, 30)
+-    node.create_subscription(Float64MultiArray, '/wbc_diagnostics', diag, 100)
++    # A queued controller sample can release the map after the target swing.
++    # Controlled reveal prioritizes freshness; timestamps retain sampling gaps.
++    node.create_subscription(Float64MultiArray, '/wbc_diagnostics', diag, 1 if args.controlled_reveal else 100)
+     node.create_subscription(GridMap, '/elevation_map_raw', maps, 1)
+-    node.create_subscription(Float64MultiArray, '/swing_reference', reference, 10)
++    node.create_subscription(Float64MultiArray, '/swing_reference', reference, 1 if args.controlled_reveal else 10)
+     node.create_subscription(MarkerArray, '/terrain_safety_corridor', markers, 1)
+     certified_samples = []
+     last_certified_stamp = -float('inf')
+@@ -181,7 +191,7 @@ def main():
+     if args.controlled_reveal:
+         from controlled_terrain import swing_spans_bar
+         bars = args.known_course_bars or [(1.1,.06,.04),(1.8,.08,.07),(2.5,.12,.05),(3.2,.06,.09)]
+-        reveal_x, reveal_width, _ = bars[1][:3]
++        reveal_x, reveal_width, _ = bars[0 if args.scenario == 'obstacle' else 1][:3]
+         map_forward = node.create_publisher(PlanarTerrain, '/planar_terrain', 10)
+         source_map = None
+         def forward_map(message):
+@@ -197,7 +207,7 @@ def main():
+                 known_course_layer(m, bars)
+             if not revealed:
+                 from controlled_terrain import mask_strip
+-                changed = mask_strip(m, (reveal_x-.2,reveal_x+.2,-3.7,-2.3), args.reveal_unknown)
++                changed = mask_strip(m, (reveal_x-.2,reveal_x+.2,*([-.65,.65] if args.scenario == 'obstacle' else [-3.7,-2.3])), args.reveal_unknown)
+                 if changed and not any(e['event']=='mask_applied' for e in reveal_events):
+                     reveal_events.append(dict(event='mask_applied', ros_time=m.header.stamp.sec+m.header.stamp.nanosec*1e-9, modified_cells=changed))
+                 if not reveal_events:
+@@ -257,22 +267,26 @@ def main():
+                 targets['obstacle'] = -.35 if obstacle_direction == 1 else -2.05
+             heading = (0.0 if args.scenario in ('stairs', 'course', 'flat', 'lateral') or obstacle_direction == 1 else
+                        math.pi if args.scenario == 'obstacle' else math.pi/2)
+-            if args.controlled_reveal and reveal_arm_time is None and wbc and x >= args.reveal_at_x:
++            if args.controlled_reveal and reveal_arm_time is None and wbc and (x <= args.reveal_at_x if args.scenario == 'obstacle' else x >= args.reveal_at_x):
+                 reveal_arm_time = wbc[-1][0]
+-            if args.controlled_reveal and not revealed and wbc and lf_liftoff is not None and not last_lf_stance and reveal_arm_time is not None and lf_liftoff >= reveal_arm_time:
+-                elapsed_swing = wbc[-1][0]-lf_liftoff
+-                future = [row[1] for row in references[-105:] if wbc[-1][0] <= row[0] <= lf_liftoff+args.swing_duration]
+-                # The frozen CyberDog collision fixture has 20 mm foot spheres.
+-                crosses = swing_spans_bar(lf_liftoff_x, future, reveal_x, reveal_width)
+-                if elapsed_swing >= args.swing_duration*args.reveal_phase and (not args.reveal_require_crossing or crosses):
+-                    revealed = True
+-                    if source_map is not None:
+-                        forward_map(source_map)
+-                    reveal_events.append(dict(event='trigger', ros_time=latest[0], controller_time=wbc[-1][0],
+-                        liftoff=lf_liftoff, liftoff_foot_x=lf_liftoff_x, observed_phase=elapsed_swing/args.swing_duration, base_x=x,
+-                        swing_duration_s=args.swing_duration,
+-                        foot_x=wbc[-1][30], foot_z=wbc[-1][32], forecast_crossing=bool(crosses),
+-                        barrier_x=reveal_x, barrier_width=reveal_width))
++            if args.controlled_reveal and not revealed and wbc and reveal_arm_time is not None:
++                # The single obstacle can first meet any leg after the 180° turn.
++                # Preserve the established LF-only protocol for other scenarios.
++                for leg in (range(4) if args.scenario=='obstacle' else (0,)):
++                    start=liftoffs[leg]
++                    if start is None or last_stances[leg] or start<reveal_arm_time:continue
++                    elapsed_swing=wbc[-1][0]-start
++                    future=[row[1+6*leg] for row in references[-105:]
++                            if wbc[-1][0]<=row[0]<=start+args.swing_duration]
++                    crosses=swing_spans_bar(liftoff_xs[leg],future,reveal_x,reveal_width,.019)
++                    if elapsed_swing<args.swing_duration*args.reveal_phase or (args.reveal_require_crossing and not crosses):continue
++                    revealed=True
++                    if source_map is not None:forward_map(source_map)
++                    reveal_events.append(dict(event='trigger',ros_time=latest[0],controller_time=wbc[-1][0],
++                        leg=leg,liftoff=start,liftoff_foot_x=liftoff_xs[leg],observed_phase=elapsed_swing/args.swing_duration,
++                        base_x=x,swing_duration_s=args.swing_duration,foot_x=wbc[-1][30+12*leg],
++                        foot_z=wbc[-1][32+12*leg],forecast_crossing=bool(crosses),barrier_x=reveal_x,barrier_width=reveal_width))
++                    break
+             wrench_ready = t > 12 if args.wrench_at_x is None else phase == 'forward' and x >= args.wrench_at_x
+             if args.wrench_force and not wrench_finished and wrench_ready and wbc:
+                 # Trigger once during an observed LF swing away from the ground.
+@@ -331,9 +345,9 @@ def main():
+                 remaining = direction * (target - (x if longitudinal else y))
+                 # Keep the approach above the controller's low-speed drift; stop at the target.
+                 msg.ly = min(args.speed, max(.25, remaining*2)) if remaining >= .025 else 0.
+-                msg.rx = -clamp(.6*angle(heading-yaw), .15)
++                msg.rx = 0. if args.scenario == 'obstacle' else -clamp(.6*angle(heading-yaw), .15)
+                 # Small cross-track correction, using the existing body-frame velocity input.
+-                msg.lx = clamp((direction*(y-args.lane_y) if longitudinal else x)*(.7 if longitudinal else -.7), .15)
++                msg.lx = 0. if args.scenario == 'obstacle' else clamp((direction*(y-args.lane_y) if longitudinal else x)*(.7 if longitudinal else -.7), .15)
+                 if args.scenario == 'lateral':
+                     remaining = args.lateral_direction * (target-y)
+                     msg.lx = -args.lateral_direction * args.speed if remaining >= .025 else 0.
+diff --git a/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/test/test_controlled_terrain.py b/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/test/test_controlled_terrain.py
+index 782ccbc..0e6dba6 100644
+--- a/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/test/test_controlled_terrain.py
++++ b/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/test/test_controlled_terrain.py
+@@ -23,6 +23,8 @@ class ControlledTerrainTest(unittest.TestCase):
+         self.assertFalse(swing_spans_bar(.59,[.63],.62,.01))
+         self.assertFalse(swing_spans_bar(.63,[.67],.62,.01))
+         self.assertTrue(swing_spans_bar(.59,[.65,.66],.62,.01))
++        self.assertTrue(swing_spans_bar(-1.10,[-1.24,-1.32],-1.20,.03,.019))
++        self.assertFalse(swing_spans_bar(-1.10,[-1.21],-1.20,.03,.019))
+ 
+     def test_rolling_mask_preserves_outside_and_unknown_evidence(self):
+         m = S(info=S(resolution=.1, length_x=.4, length_y=.4,

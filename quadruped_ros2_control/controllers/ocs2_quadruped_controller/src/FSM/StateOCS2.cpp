@@ -5,6 +5,12 @@
 #include "ocs2_quadruped_controller/FSM/StateOCS2.h"
 
 #include <angles/angles.h>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+#include <fstream>
+#include <cstdlib>
+#include <set>
 #include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 #include <ocs2_core/misc/LoadData.h>
 #include <boost/property_tree/info_parser.hpp>
@@ -25,6 +31,7 @@ namespace ocs2::legged_robot
             buffered_ = planner_->executionSwings();
         }
         bool acceptBufferedSolution(const CommandData& command, const PrimalSolution& policy) override {
+            const auto gateBegin=std::chrono::steady_clock::now();
             checked_ = buffered_;
             if (!active_ || !buffered_) return true; // initial stand policy has no executing update
             const double now=owner_.ctrl_component_->observation_.time;
@@ -65,8 +72,25 @@ namespace ocs2::legged_robot
                             previous ? (swing.reference.getPosition(now)-previous->reference.getPosition(now)).norm() : 0.0);
                         continue;
                     }
+                    // Re-instantiate at the timestamp of this control tick, using
+                    // the last valid allocated input, never old-reference acceleration.
+                    const auto feedback=planner_->footFeedback();
+                    SwingReplanDecision instance;
+                    if (feedback && now>=feedback->time && now-feedback->time<=0.03 &&
+                        now-activation<=planner_->getConfig().replanConfig.maxActivationDelay) {
+                        instance=SwingOnlineReplanner(planner_->getConfig().replanConfig).instantiate(
+                            swing.reference,swing.corridor,swing.start,now,swing.end,
+                            measured.col(leg).head<3>()-planner_->getConfig().footRadius*vector3_t::UnitZ(),
+                            measured.col(leg).tail<3>(),feedback->acceleration[leg]);
+                    }
+                    if (!instance.admitted()) {
+                        planner_->rejectExecutionUpdate(leg,swing.end);++rejected_;
+                        RCLCPP_INFO(owner_.node_->get_logger(),"Swing package rejected reason=%s",instance.reason.c_str());
+                        return false;
+                    }
+                    auto aligned=swing;aligned.reference=std::move(instance.candidate);
                     SwingTrajectoryPlanner::ActivationCheck verdict;
-                    if (map) verdict=planner_->checkActivation(swing,previous,now,period_,
+                    if (map) verdict=planner_->checkActivation(aligned,previous,now,period_,
                         measured.col(leg).head<3>(),measured.col(leg).tail<3>(),*map);
                     else verdict.reason="activation_map_missing";
                     RCLCPP_INFO(owner_.node_->get_logger(),
@@ -78,7 +102,8 @@ namespace ocs2::legged_robot
                         return false;
                     }
                     if (!checked) checked=std::make_shared<SwingTrajectoryPlanner::ExecutionSwings>(*buffered_);
-                    (*checked)[leg][i].corridor=std::move(verdict.corridor);
+                    aligned.corridor=std::move(verdict.corridor);
+                    (*checked)[leg][i]=std::move(aligned);
                     changed[leg] = true;
                 }
             }
@@ -94,7 +119,14 @@ namespace ocs2::legged_robot
                 preview.update(state, input, owner_.ctrl_component_->measured_rbd_state_, mode, period_);
                 bool feasible = preview.solutionValid() && preview.actuatorModelValid();
                 for (size_t leg=0; leg<4; ++leg) if (changed[leg]) {
-                    feasible &= preview.safetyResults()[leg].active() && preview.safetyResiduals()[leg] >= -1e-6;
+                    bool liftOffTransition=false;
+                    for (const auto& sw:(*checked_)[leg]) if(now>=sw.start && now<sw.end)
+                        liftOffTransition=(now-sw.start)/(sw.end-sw.start)<sw.corridor.start;
+                    // Lift-off is outside the configured noncontact certificate.
+                    // It still needs a feasible allocated WBC solution; do not
+                    // misclassify the explicit transition status as a QP failure.
+                    feasible &= liftOffTransition ||
+                        (preview.safetyResults()[leg].active() && preview.safetyResiduals()[leg] >= -1e-6);
                 }
                 if (!feasible) {
                     for (size_t leg=0; leg<4; ++leg) if (changed[leg])
@@ -105,6 +137,46 @@ namespace ocs2::legged_robot
                     return false;
                 }
             }
+            const double gateSeconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-gateBegin).count();
+            if (std::any_of(changed.begin(),changed.end(),[](bool v){return v;}) && gateSeconds>period_) {
+                ++rejected_;
+                RCLCPP_INFO(owner_.node_->get_logger(),"Swing package rejected reason=activation_gate_budget elapsed=%.9f budget=%.9f",gateSeconds,period_);
+                return false;
+            }
+            // Include snapshot serialization in the control-cycle gate budget.
+            std::vector<std::string> evidence;
+            if (checked_) for (size_t leg=0;leg<4;++leg) if (changed[leg])
+                for (const auto& sw:(*checked_)[leg]) if (now>=sw.start && now<sw.end) {
+                    const SwingTrajectoryPlanner::ExecutionSwing* old=nullptr;
+                    for (const auto& prev:(*active_)[leg]) if (std::abs(prev.end-sw.end)<1e-8) old=&prev;
+                    std::ostringstream out;out<<std::setprecision(17);
+                    out<<"{\"event\":\"commit\",\"leg\":"<<leg<<",\"now\":"<<now
+                       <<",\"start\":"<<sw.start<<",\"end\":"<<sw.end<<",\"gate_seconds\":"<<gateSeconds;
+                    const auto feedback=planner_->footFeedback();
+                    out<<",\"acceleration_source\":\"allocated_wbc_previous_tick\",\"feedback_time\":"<<feedback->time;
+                    out<<",\"boundary_position_centre\":["<<measured(0,leg)<<","<<measured(1,leg)<<","<<measured(2,leg)<<"]";
+                    out<<",\"boundary_velocity\":["<<measured(3,leg)<<","<<measured(4,leg)<<","<<measured(5,leg)<<"]";
+                    const auto a=feedback->acceleration[leg];
+                    out<<",\"boundary_acceleration\":["<<a.x()<<","<<a.y()<<","<<a.z()<<"]";
+                    const auto emit=[&](const char* name,const BSpline& ref) {
+                        out<<",\""<<name<<"\":{\"knots\":[";
+                        for(int k=0;k<ref.getKnots().size();++k) out<<(k?",":"")<<ref.getKnots()[k];
+                        out<<"],\"controls\":[";const auto c=ref.getControlPoints();
+                        for(int k=0;k<c.rows();++k) out<<(k?",":"")<<"["<<c(k,0)<<","<<c(k,1)<<","<<c(k,2)<<"]";
+                        out<<"]}";
+                    };
+                    emit("new",sw.reference);if(old)emit("old",old->reference);
+                    for(const auto& proposed:(*buffered_)[leg])if(std::abs(proposed.end-sw.end)<1e-8)emit("planned",proposed.reference);
+                    out<<"}";
+                    evidence.push_back(out.str());
+                }
+            const double finalGateSeconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-gateBegin).count();
+            if(!evidence.empty() && finalGateSeconds>period_) {
+                ++rejected_;
+                RCLCPP_INFO(owner_.node_->get_logger(),"Swing package rejected reason=activation_serialization_budget elapsed=%.9f",finalGateSeconds);
+                return false;
+            }
+            for(const auto& item:evidence)RCLCPP_INFO(owner_.node_->get_logger(),"SWING_EVIDENCE %s",item.c_str());
             ++accepted_;
             return true;
         }
@@ -199,7 +271,6 @@ namespace ocs2::legged_robot
     {
         wbc.setSwingSafetyCallback({});
         wbc.setSwingReferenceCallback({});
-        if (!safety_filter_ || !safety_filter_->config().enabled) return;
         const double now = ctrl_component_->observation_.time;
         wbc.setSwingReferenceCallback([snapshot,now](size_t leg,WbcBase::SwingReference& result) {
             if (!snapshot) return false;
@@ -209,10 +280,13 @@ namespace ocs2::legged_robot
                 result.position=swing.reference.getPosition(now)+swing.corridor.footRadius*vector3_t::UnitZ();
                 result.velocity=swing.reference.getVelocity(now);
                 result.acceleration=swing.reference.getAcceleration(now);
+                result.onlineUpdate=swing.reference.getKnots()[0]>swing.start+1e-9;
                 return true;
             }
             return false;
         });
+        // Reference execution is independent of the optional acceleration filter.
+        if (!safety_filter_ || !safety_filter_->config().enabled) return;
         wbc.setSwingSafetyCallback([this, snapshot, now, period, strict, &wbc](size_t leg,
                 const vector3_t& position, const vector3_t& velocity, const vector3_t& nominal) {
             SafetyFilterResult result;
@@ -294,6 +368,7 @@ namespace ocs2::legged_robot
 
         applySafetyFilter(period.seconds(), *wbc_, swing_policy_observer_ ? swing_policy_observer_->active() : nullptr);
 
+        wbc_->setExperimentTime(ctrl_component_->observation_.time);
         wbc_timer_.startTimer();
         vector_t x = wbc_->update(optimized_state_, optimized_input_, ctrl_component_->measured_rbd_state_,
                                   planned_mode,
@@ -347,13 +422,37 @@ namespace ocs2::legged_robot
         previous_execution_time_ = executionTime;
         if (swing_planner_ && swing_planner_->getConfig().replanConfig.enabled && wbc_->solutionValid()) {
             auto feedback = std::make_shared<SwingTrajectoryPlanner::FootFeedback>();
+            if (const auto previous=swing_planner_->footFeedback()) {
+                feedback->history=previous->history;
+                feedback->history.push_back(static_cast<const SwingTrajectoryPlanner::FootSample&>(*previous));
+                if(feedback->history.size()>8)feedback->history.erase(feedback->history.begin());
+            }
             feedback->time = ctrl_component_->observation_.time;
             for (size_t leg = 0; leg < 4; ++leg) {
                 feedback->velocity[leg] = wbc_->footTracking().col(leg).segment<3>(3);
+                feedback->acceleration[leg] = wbc_->commandedFootAcceleration().col(leg);
             }
             swing_planner_->setFootFeedback(std::move(feedback));
         }
         const auto activeSwings = swing_policy_observer_ ? swing_policy_observer_->active() : nullptr;
+        if (activeSwings && std::getenv("FIXED_TOUCHDOWN_EXPORT")) {
+            static std::set<std::string> exported;
+            for(size_t leg=0;leg<4;++leg) for(const auto& swing:(*activeSwings)[leg]) {
+                const double now=ctrl_component_->observation_.time;
+                if(now<swing.start || now>=swing.end) continue;
+                const std::string key=std::to_string(leg)+":"+std::to_string(swing.start)+":"+
+                    std::to_string(swing.end)+":"+std::to_string(swing.reference.getKnots()[0]);
+                if(!exported.insert(key).second)continue;
+                std::ofstream out(std::string(std::getenv("FIXED_TOUCHDOWN_EXPORT"))+".swings.jsonl",std::ios::app);
+                out<<std::setprecision(17)<<"{\"leg\":"<<leg<<",\"now\":"<<now<<",\"start\":"<<swing.start
+                   <<",\"end\":"<<swing.end<<",\"knots\":[";
+                const auto& knots=swing.reference.getKnots();
+                for(int k=0;k<knots.size();++k)out<<(k?",":"")<<knots[k];
+                out<<"],\"controls\":[";const auto c=swing.reference.getControlPoints();
+                for(int k=0;k<c.rows();++k)out<<(k?",":"")<<"["<<c(k,0)<<","<<c(k,1)<<","<<c(k,2)<<"]";
+                out<<"]}\n";
+            }
+        }
         if (activeSwings && wbc_->solutionValid()) {
             const auto stance = modeNumber2StanceLeg(planned_mode);
             const double now = ctrl_component_->observation_.time;

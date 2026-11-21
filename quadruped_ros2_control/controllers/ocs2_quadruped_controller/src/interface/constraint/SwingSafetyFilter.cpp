@@ -3,6 +3,7 @@
 #include "ocs2_quadruped_controller/interface/constraint/TerrainSafetyCorridor.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <stdexcept>
 #include <qpOASES.hpp>
 
@@ -145,6 +146,16 @@ SafetyFilterResult SwingSafetyFilter::filter(const TerrainSafetyCorridor& corrid
                 config_.positionMeasurementError * plane.normal.norm();
             const double hdot = -plane.normal.dot(state.velocity) -
                 config_.velocityMeasurementError * plane.normal.norm();
+            if (std::getenv("FIXED_TOUCHDOWN_EXPORT")) {
+                const int n=result.hocbfDiagnostics.rows();
+                result.hocbfDiagnostics.conservativeResize(n+1,9);
+                result.hocbfDiagnostics.row(n) << plane.normal.transpose(), plane.geometricOffset,
+                    plane.geometricOffset-plane.normal.dot(state.position),h,hdot,
+                    hdot+config_.hocbfGain1*h,
+                    (config_.hocbfGain1+config_.hocbfGain2)*hdot+
+                    config_.hocbfGain1*config_.hocbfGain2*h-
+                    config_.disturbanceBound*plane.normal.norm()-config_.hocbfSampleRate*period;
+            }
             clearance = std::min(clearance, h);
             psi1 = std::min(psi1, hdot + config_.hocbfGain1 * h);
             // The robust HOCBF residual over a held acceleration is quadratic.

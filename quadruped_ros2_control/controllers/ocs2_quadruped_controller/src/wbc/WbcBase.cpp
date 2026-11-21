@@ -294,8 +294,7 @@ namespace ocs2::legged_robot
             if (contact_flag_[i]) filtered.status = SafetyFilterStatus::Contact;
             if (!contact_flag_[i])
             {
-                // Keep the existing MPC PD objective independent of the safety
-                // reference and of certificate availability.
+                // Fall back to the MPC PD target when no accepted swing is available.
                 const vector3_t baselineAccel = swing_kp_ * (posDesired[i] - posMeasured[i]) +
                     swing_kd_ * (velDesired[i] - velMeasured[i]);
                 SwingReference reference;
@@ -316,11 +315,14 @@ namespace ocs2::legged_robot
                 // The whole-body projection stays nearest its feasible nominal
                 // output; the foot filter contributes hard rows, not a second
                 // tracking objective that can move otherwise unconstrained axes.
-                const vector3_t accel = feasibleAcceleration ? vector3_t(feasibleAcceleration->col(i)) : baselineAccel;
+                // Preserve ordinary MPC tracking. A committed in-swing update
+                // must actually drive the nominal task, even with HOCBF off.
+                const vector3_t trackingAccel = haveReference && reference.onlineUpdate ? u_ref : baselineAccel;
+                const vector3_t accel = feasibleAcceleration ? vector3_t(feasibleAcceleration->col(i)) : trackingAccel;
                 const auto jacobian = j_.block(3 * i, 0, 3, info_.generalizedCoordinatesNum);
                 nominal_foot_acceleration_.col(i) = accel;
                 const vector3_t bias = dj_.block(3 * i, 0, 3, info_.generalizedCoordinatesNum) * v_measured_;
-                nominal_swing_target_.segment<3>(3 * j) = baselineAccel - bias;
+                nominal_swing_target_.segment<3>(3 * j) = trackingAccel - bias;
                 if (feasibleAcceleration && swing_safety_callback_) {
                     filtered = swing_safety_callback_(i, posMeasured[i], velMeasured[i], u_ref);
                     if (filtered.active()) {

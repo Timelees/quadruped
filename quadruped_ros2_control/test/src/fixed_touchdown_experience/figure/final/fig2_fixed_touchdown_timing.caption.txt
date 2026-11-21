@@ -1,0 +1,1 @@
+Gazebo: 104 detected force onsets from 2 independent launches. Threshold 3 N, event window [-100,+80] ms, nearest onset. Scheduled time bracket midpoint from mode samples; bracket gaps >25 ms excluded. Event selection is a contact proxy, not proof of legal target contact. All available events are plotted; no variable-timing method is fabricated.

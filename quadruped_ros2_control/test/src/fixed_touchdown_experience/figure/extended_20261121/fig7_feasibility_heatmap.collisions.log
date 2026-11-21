@@ -1,0 +1,10 @@
+Nature Figure Rendered Collision Audit
+pdf: src/quadruped_ros2_control/test/src/fixed_touchdown_experience/figure/extended_20261121/fig7_feasibility_heatmap.pdf
+pages: 1
+visible text boxes: 179
+stroke paths: 55
+
+
+summary: 0 fail, 0 warn, 124 contained fill overlays, 122 contained image overlays
+verdict: PASS
+note: contained overlays can be intentional; WARN findings need final-size visual review

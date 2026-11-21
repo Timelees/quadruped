@@ -1,0 +1,1 @@
+Offline production algorithm. Original and updated terminal p/v/a residual norms: [4.440892098500626e-16, 3.469446951953614e-18, 4.573760330068291e-13]. The dashed reference is not an unconstrained ablation.

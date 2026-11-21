@@ -1,0 +1,29 @@
+{
+  "argv": [
+    "/usr/bin/python3",
+    "/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/test/src/terrainSafetyCorridor_test/run_trial.py",
+    "--scenario",
+    "obstacle",
+    "--domain",
+    "178",
+    "--output",
+    "/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/test/src/fixed_touchdown_experience/data/gazebo_final_10cm_hocbf_08",
+    "--obstacle-height",
+    "0.1",
+    "--speed",
+    "0.4",
+    "--sim-seconds",
+    "65.0",
+    "--safety-filter",
+    "hocbf",
+    "--online-replan",
+    "on",
+    "--seed",
+    "42"
+  ],
+  "route": "spawn yaw 0; turn 180 deg; forward only",
+  "evidence": "Gazebo",
+  "hocbf": true,
+  "controlled_reveal": false,
+  "sensor_claim": "perception"
+}

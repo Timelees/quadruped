@@ -6,6 +6,9 @@
 
 #include <qpOASES.hpp>
 #include <Eigen/QR>
+#include <fstream>
+#include <iomanip>
+#include <cstdlib>
 #include <algorithm>
 #include <ocs2_centroidal_model/AccessHelperFunctions.h>
 #include <gz_quadruped_hardware/actuator.hpp>
@@ -22,7 +25,7 @@ namespace ocs2::legged_robot
     {
         WbcBase::update(stateDesired, inputDesired, rbdStateMeasured, mode, period);
 
-        // First solve the unchanged nominal controller. Safety projects its
+        // First track the accepted swing (MPC PD when unavailable). Safety projects its
         // feasible output, keeping baseline and correction in the same space.
         Task swingTask = formulateSwingLegTask();
         const Task otherTasks = formulateBaseAccelTask(stateDesired, inputDesired, period) * weightBaseAccel_ +
@@ -77,7 +80,7 @@ namespace ocs2::legged_robot
         bool safetyProjection = false;
         bool baselineReachable = true;
         if (solution_valid_ && swing_safety_callback_ && actuatorSafetyModel_) {
-            // The first QP remains the original controller. Predict its *net*
+            // Predict the nominal tracking QP's *net*
             // torque, including the hardware PD, before projecting for safety.
             const auto qDesired = mapping_.getPinocchioJointPosition(stateDesired);
             jointPd = joint_kp_ * (qDesired.tail(info_.actuatedDofNum) - q_measured_.tail(info_.actuatedDofNum)) +
@@ -125,6 +128,7 @@ namespace ocs2::legged_robot
         if (solution_valid_ && swing_safety_callback_) {
             swingTask = formulateSwingLegTask(&baseline_foot_acceleration_);
         }
+        const vector_t experimentBaseline = qpSol;
         const bool constrained = swing_safety_constraints_.f_.size() > 0;
         const bool baselineSafe = constrained && baselineReachable &&
             (swing_safety_constraints_.f_ - swing_safety_constraints_.d_ * qpSol).minCoeff() >= -1e-8;
@@ -190,6 +194,41 @@ namespace ocs2::legged_robot
                     dj_.middleRows<3>(3 * i) * v_measured_;
                 safety_residuals_[i] = (result.accelerationB - result.accelerationA * acceleration).minCoeff();
             }
+        }
+        // guardrail: opt-in synchronous diagnostic I/O changes runtime; never
+        // use instrumented WBC latency as an uninstrumented performance claim.
+        const char* exportPath=std::getenv("FIXED_TOUCHDOWN_EXPORT");
+        if (exportPath && solution_valid_ && std::isfinite(experiment_time_) &&
+            experiment_time_-last_experiment_time_>=0.0199) {
+            last_experiment_time_=experiment_time_;
+            std::ofstream out(exportPath,std::ios::app);
+            const auto writeMatrix=[&](const char* name,const auto& m){
+                out<<",\""<<name<<"\":[";
+                for(int i=0;i<m.rows();++i){out<<(i?",":"")<<"[";
+                    for(int k=0;k<m.cols();++k){if(k)out<<",";
+                        if(std::isfinite(m(i,k)))out<<m(i,k);else out<<"null";}
+                    out<<"]";}out<<"]";
+            };
+            out<<std::setprecision(17)<<"{\"time\":"<<experiment_time_
+               <<",\"mode\":"<<mode<<",\"actuator_valid\":"<<actuator_model_valid_
+               <<",\"safety_projection\":"<<safetyProjection;
+            writeMatrix("E",dynamics.a_);writeMatrix("e",dynamics.b_);
+            writeMatrix("D",dynamics.d_);writeMatrix("d",dynamics.f_);
+            writeMatrix("H",swing_safety_constraints_.d_);writeMatrix("h",swing_safety_constraints_.f_);
+            writeMatrix("q",qpSol);writeMatrix("baseline",experimentBaseline);
+            writeMatrix("J",j_);writeMatrix("drift",(dj_*v_measured_).eval());
+            writeMatrix("nominal",nominal_foot_acceleration_);
+            writeMatrix("reference",reference_foot_acceleration_);
+            writeMatrix("tracking",foot_tracking_);
+            if(actuator_model_valid_){writeMatrix("torque_lower",torqueLower);writeMatrix("torque_upper",torqueUpper);}
+            out<<",\"force_delta\":"<<safetyContactForceDeviation_
+               <<",\"accel_delta\":"<<safetyAccelerationDeviation_;
+            for(size_t i=0;i<4;++i){
+                const std::string name="planes_"+std::to_string(i);
+                writeMatrix(name.c_str(),safety_results_[i].hocbfDiagnostics);
+                out<<",\"status_"<<i<<"\":"<<int(safety_results_[i].status);
+            }
+            out<<"}\n";
         }
         if (!solution_valid_) qpSol.setZero();
         commanded_foot_acceleration_.setConstant(std::numeric_limits<double>::quiet_NaN());

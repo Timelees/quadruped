@@ -1,0 +1,32 @@
+[
+  {
+    "leg_pass": false,
+    "leg": 0,
+    "activation": 18.185,
+    "actual_time": 18.205,
+    "delay_s": 0.0,
+    "position_error_m": 0.0,
+    "velocity_error_mps": 0.0,
+    "reason": "terminal_changed"
+  },
+  {
+    "leg_pass": true,
+    "leg": 1,
+    "activation": 21.785,
+    "actual_time": 21.81,
+    "delay_s": 0.0,
+    "position_error_m": 0.0,
+    "velocity_error_mps": 1.95469e-14,
+    "reason": "accepted"
+  },
+  {
+    "leg_pass": false,
+    "leg": 0,
+    "activation": 22.985,
+    "actual_time": 22.995,
+    "delay_s": 0.0,
+    "position_error_m": 0.0,
+    "velocity_error_mps": 0.0,
+    "reason": "terminal_changed"
+  }
+]

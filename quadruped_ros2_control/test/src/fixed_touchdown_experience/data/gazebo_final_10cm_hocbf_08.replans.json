@@ -1,0 +1,339 @@
+{
+  "decisions": [
+    {
+      "leg": 1,
+      "activation": 26.425,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.86624,
+      "remaining": 0.385,
+      "position_delta": 0.00161626
+    },
+    {
+      "leg": 1,
+      "activation": 26.5,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.4327,
+      "remaining": 0.31,
+      "position_delta": 0.00791745
+    },
+    {
+      "leg": 1,
+      "activation": 26.57,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.96914,
+      "remaining": 0.24,
+      "position_delta": 0.0128656
+    },
+    {
+      "leg": 1,
+      "activation": 26.655,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.73653,
+      "remaining": 0.155,
+      "position_delta": 0.0192678
+    },
+    {
+      "leg": 0,
+      "activation": 26.835,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.72269,
+      "remaining": 0.375,
+      "position_delta": 0.00376876
+    },
+    {
+      "leg": 0,
+      "activation": 26.92,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.12986,
+      "remaining": 0.29,
+      "position_delta": 0.0120712
+    },
+    {
+      "leg": 0,
+      "activation": 27.0,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.7887,
+      "remaining": 0.21,
+      "position_delta": 0.0172
+    },
+    {
+      "leg": 1,
+      "activation": 27.23,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 6.01852,
+      "remaining": 0.38,
+      "position_delta": 0.00341582
+    },
+    {
+      "leg": 1,
+      "activation": 27.32,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 7.44466,
+      "remaining": 0.29,
+      "position_delta": 0.016445
+    },
+    {
+      "leg": 1,
+      "activation": 27.4,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 8.81157,
+      "remaining": 0.21,
+      "position_delta": 0.0175277
+    },
+    {
+      "leg": 1,
+      "activation": 27.485,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 9.05958,
+      "remaining": 0.125,
+      "position_delta": 0.0131575
+    },
+    {
+      "leg": 0,
+      "activation": 27.63,
+      "outcome": 4,
+      "reason": "candidate QP failed: Initial QP could not be solved due to infeasibility! (variables=30, rows=182, iterations=24)",
+      "compute_ms": 5.83369,
+      "remaining": 0.38,
+      "position_delta": 0.00450364
+    },
+    {
+      "leg": 0,
+      "activation": 27.71,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.139372,
+      "remaining": 0.3,
+      "position_delta": 0.0278422
+    },
+    {
+      "leg": 0,
+      "activation": 27.79,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.138925,
+      "remaining": 0.22,
+      "position_delta": 0.0724096
+    },
+    {
+      "leg": 0,
+      "activation": 27.875,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.090216,
+      "remaining": 0.135,
+      "position_delta": 0.112524
+    },
+    {
+      "leg": 0,
+      "activation": 28.44,
+      "outcome": 4,
+      "reason": "candidate QP failed: Initial QP could not be solved due to infeasibility! (variables=25, rows=168, iterations=26)",
+      "compute_ms": 6.09271,
+      "remaining": 0.37,
+      "position_delta": 0.006529
+    },
+    {
+      "leg": 0,
+      "activation": 28.525,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.145279,
+      "remaining": 0.285,
+      "position_delta": 0.0443338
+    },
+    {
+      "leg": 3,
+      "activation": 29.245,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.194083,
+      "remaining": 0.365,
+      "position_delta": 0.0131772
+    },
+    {
+      "leg": 3,
+      "activation": 29.33,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.170907,
+      "remaining": 0.28,
+      "position_delta": 0.057319
+    },
+    {
+      "leg": 3,
+      "activation": 29.415,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.155758,
+      "remaining": 0.195,
+      "position_delta": 0.105653
+    },
+    {
+      "leg": 2,
+      "activation": 29.615,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 6.03793,
+      "remaining": 0.395,
+      "position_delta": 0.00891805
+    },
+    {
+      "leg": 2,
+      "activation": 29.69,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 5.81198,
+      "remaining": 0.32,
+      "position_delta": 0.0324877
+    },
+    {
+      "leg": 2,
+      "activation": 29.76,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 5.64975,
+      "remaining": 0.25,
+      "position_delta": 0.0374005
+    },
+    {
+      "leg": 2,
+      "activation": 29.84,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 6.85698,
+      "remaining": 0.17,
+      "position_delta": 0.0220015
+    },
+    {
+      "leg": 3,
+      "activation": 30.05,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.44989,
+      "remaining": 0.36,
+      "position_delta": 0.00890677
+    },
+    {
+      "leg": 3,
+      "activation": 30.125,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.115645,
+      "remaining": 0.285,
+      "position_delta": 0.0267755
+    },
+    {
+      "leg": 3,
+      "activation": 30.21,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.094434,
+      "remaining": 0.2,
+      "position_delta": 0.0808766
+    },
+    {
+      "leg": 3,
+      "activation": 30.29,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.081531,
+      "remaining": 0.12,
+      "position_delta": 0.0915466
+    },
+    {
+      "leg": 2,
+      "activation": 30.425,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.91325,
+      "remaining": 0.385,
+      "position_delta": 0.00448891
+    },
+    {
+      "leg": 2,
+      "activation": 30.5,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.166007,
+      "remaining": 0.31,
+      "position_delta": 0.0322659
+    },
+    {
+      "leg": 3,
+      "activation": 30.825,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.3027,
+      "remaining": 0.385,
+      "position_delta": 0.116082
+    },
+    {
+      "leg": 3,
+      "activation": 30.915,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.324807,
+      "remaining": 0.295,
+      "position_delta": 0.209965
+    },
+    {
+      "leg": 3,
+      "activation": 30.995,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.194032,
+      "remaining": 0.215,
+      "position_delta": 0.252018
+    },
+    {
+      "leg": 3,
+      "activation": 31.085,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.119677,
+      "remaining": 0.125,
+      "position_delta": 0.0999943
+    },
+    {
+      "leg": 0,
+      "activation": 31.635,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.146791,
+      "remaining": 0.375,
+      "position_delta": 0.136675
+    },
+    {
+      "leg": 0,
+      "activation": 31.725,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.151199,
+      "remaining": 0.285,
+      "position_delta": 0.104424
+    },
+    {
+      "leg": 0,
+      "activation": 31.795,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.136101,
+      "remaining": 0.215,
+      "position_delta": 0.113933
+    }
+  ],
+  "applied": [],
+  "applied_envelopes": []
+}

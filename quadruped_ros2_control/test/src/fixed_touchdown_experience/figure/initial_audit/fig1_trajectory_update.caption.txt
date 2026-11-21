@@ -1,0 +1,1 @@
+Offline production algorithm. The old and updated splines use the same absolute touchdown time. Curves are contact-reference positions; clearance uses 19 mm foot spheres. No illustrative tracking envelope is added.

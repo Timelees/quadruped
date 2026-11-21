@@ -1,0 +1,1 @@
+Offline production algorithm. Dense curve evaluation is an independent diagnostic, not the continuous-time certificate. Sparse check spacing is fixed at 0.25 swing phase; no claim of missed collision if any marker is negative.

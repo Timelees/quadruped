@@ -1,0 +1,150 @@
+{
+  "decisions": [
+    {
+      "leg": 0,
+      "activation": 27.545,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.19138,
+      "remaining": 0.39,
+      "position_delta": 0.00128019
+    },
+    {
+      "leg": 0,
+      "activation": 27.625,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.124818,
+      "remaining": 0.31,
+      "position_delta": 0.00943647
+    },
+    {
+      "leg": 0,
+      "activation": 27.71,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.119287,
+      "remaining": 0.225,
+      "position_delta": 0.0146849
+    },
+    {
+      "leg": 0,
+      "activation": 28.36,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 6.03792,
+      "remaining": 0.375,
+      "position_delta": 0.00491277
+    },
+    {
+      "leg": 0,
+      "activation": 28.445,
+      "outcome": 4,
+      "reason": "candidate QP failed: Initial QP could not be solved due to infeasibility! (variables=25, rows=192, iterations=63)",
+      "compute_ms": 12.1768,
+      "remaining": 0.29,
+      "position_delta": 0.0149942
+    },
+    {
+      "leg": 0,
+      "activation": 28.535,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 7.92654,
+      "remaining": 0.2,
+      "position_delta": 0.0165502
+    },
+    {
+      "leg": 1,
+      "activation": 28.76,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.29608,
+      "remaining": 0.375,
+      "position_delta": 0.00613154
+    },
+    {
+      "leg": 1,
+      "activation": 28.845,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.110081,
+      "remaining": 0.29,
+      "position_delta": 0.0302063
+    },
+    {
+      "leg": 1,
+      "activation": 28.92,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.101352,
+      "remaining": 0.215,
+      "position_delta": 0.0809858
+    },
+    {
+      "leg": 1,
+      "activation": 29.015,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.085183,
+      "remaining": 0.12,
+      "position_delta": 0.133901
+    },
+    {
+      "leg": 1,
+      "activation": 29.655,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.159725,
+      "remaining": 0.28,
+      "position_delta": 0.0456754
+    },
+    {
+      "leg": 3,
+      "activation": 30.03,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.23974,
+      "remaining": 0.305,
+      "position_delta": 0.00361945
+    },
+    {
+      "leg": 2,
+      "activation": 30.45,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 5.68285,
+      "remaining": 0.285,
+      "position_delta": 0.03062
+    },
+    {
+      "leg": 2,
+      "activation": 30.535,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 6.52918,
+      "remaining": 0.2,
+      "position_delta": 0.0241998
+    },
+    {
+      "leg": 3,
+      "activation": 30.755,
+      "outcome": 4,
+      "reason": "candidate QP failed: Initial QP could not be solved due to infeasibility! (variables=30, rows=182, iterations=34)",
+      "compute_ms": 6.63419,
+      "remaining": 0.38,
+      "position_delta": 0.00351735
+    },
+    {
+      "leg": 3,
+      "activation": 30.84,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.170847,
+      "remaining": 0.295,
+      "position_delta": 0.023569
+    }
+  ],
+  "applied": [],
+  "applied_envelopes": []
+}

@@ -1,0 +1,14 @@
+{
+  "samples": 2183,
+  "swings": 200,
+  "plane_samples": 28892,
+  "active_foot_samples": 1709,
+  "actuator_valid": 1707,
+  "h_negative": 92,
+  "psi_negative": 557,
+  "R_negative": 1542,
+  "input_witness_violations": 0,
+  "selected_swing_start": 16.22499999999991,
+  "selected_swing_end": 16.624999999999908
+}
+

@@ -43,6 +43,9 @@ struct SafetyFilterResult {
     // A soft acceleration tracking task alone cannot enforce a safety filter.
     Eigen::MatrixXd accelerationA;
     Eigen::VectorXd accelerationB;
+    // Experimental, same-plane diagnostics: normal(3), offset, raw h,
+    // robust h, robust hdot, robust psi1, zero-hold input bound.
+    Eigen::MatrixXd hocbfDiagnostics;
     int activeRows = 0, iterations = 0;
     double clearance = std::numeric_limits<double>::quiet_NaN();
     double psi1 = std::numeric_limits<double>::quiet_NaN();

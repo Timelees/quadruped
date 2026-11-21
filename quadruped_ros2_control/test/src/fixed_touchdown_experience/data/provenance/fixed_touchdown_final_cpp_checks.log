@@ -1,0 +1,64 @@
+{"nAttempt":6,"nAdmit":3,"nReject":3,"noReference":0,"deviation":0,"margin":2,"candidate":0,"corridor":1,"terminal":0,"activation":0,"control":0}
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.690966 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.424717 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.389588 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.40408 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.407741 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.403403 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.387982 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.445443 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.459477 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.398941 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.383542 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.368977 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing replan leg=0 activation=1.125 remaining=0.275 position_delta=0.000707107 outcome=1 reason= replan_ms=5.35839 stats={"nAttempt":1,"nAdmit":1,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing replan leg=1 activation=1.125 remaining=0.275 position_delta=0.000707107 outcome=1 reason= replan_ms=4.20853 stats={"nAttempt":2,"nAdmit":2,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing replan leg=2 activation=1.125 remaining=0.275 position_delta=0.000707107 outcome=1 reason= replan_ms=4.22214 stats={"nAttempt":3,"nAdmit":3,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing replan leg=3 activation=1.125 remaining=0.275 position_delta=0.000707107 outcome=1 reason= replan_ms=4.22515 stats={"nAttempt":4,"nAdmit":4,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing replan leg=0 activation=1.2 remaining=0.2 position_delta=0.00291672 outcome=6 reason=no current terrain corridor certificate replan_ms=0.318175 stats={"nAttempt":5,"nAdmit":4,"nReject":1,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":1,"terminal":0,"activation":0,"control":0}
+Swing replan leg=1 activation=1.2 remaining=0.2 position_delta=0.00291672 outcome=6 reason=no current terrain corridor certificate replan_ms=0.295518 stats={"nAttempt":6,"nAdmit":4,"nReject":2,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":2,"terminal":0,"activation":0,"control":0}
+Swing replan leg=2 activation=1.2 remaining=0.2 position_delta=0.00291672 outcome=6 reason=no current terrain corridor certificate replan_ms=0.29786 stats={"nAttempt":7,"nAdmit":4,"nReject":3,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":3,"terminal":0,"activation":0,"control":0}
+Swing replan leg=3 activation=1.2 remaining=0.2 position_delta=0.00291672 outcome=6 reason=no current terrain corridor certificate replan_ms=0.297932 stats={"nAttempt":8,"nAdmit":4,"nReject":4,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":4,"terminal":0,"activation":0,"control":0}
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.4486 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.475855 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.391813 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.409834 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing replan leg=0 activation=1.195 remaining=0.205 position_delta=0 outcome=1 reason= replan_ms=1.38227 stats={"nAttempt":1,"nAdmit":1,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing replan leg=1 activation=1.195 remaining=0.205 position_delta=0 outcome=1 reason= replan_ms=1.3691 stats={"nAttempt":2,"nAdmit":2,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing replan leg=2 activation=1.195 remaining=0.205 position_delta=0 outcome=1 reason= replan_ms=1.31687 stats={"nAttempt":3,"nAdmit":3,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing replan leg=3 activation=1.195 remaining=0.205 position_delta=0 outcome=1 reason= replan_ms=1.32077 stats={"nAttempt":4,"nAdmit":4,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.424708 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.45265 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.433883 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing planning ms=0.390069 corridor_cells=20 corridor_certified=1 corridor_max_violation=-0.00881401 map_to_touchdown=0.5 map_height_margin=0
+Swing replan leg=0 activation=1.065 remaining=0.335 position_delta=0 outcome=1 reason= replan_ms=5.72588 stats={"nAttempt":1,"nAdmit":1,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing replan leg=1 activation=1.065 remaining=0.335 position_delta=0 outcome=1 reason= replan_ms=4.59917 stats={"nAttempt":2,"nAdmit":2,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing replan leg=2 activation=1.065 remaining=0.335 position_delta=0 outcome=1 reason= replan_ms=4.64895 stats={"nAttempt":3,"nAdmit":3,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing replan leg=3 activation=1.065 remaining=0.335 position_delta=0 outcome=1 reason= replan_ms=4.60549 stats={"nAttempt":4,"nAdmit":4,"nReject":0,"noReference":0,"deviation":0,"margin":0,"candidate":0,"corridor":0,"terminal":0,"activation":0,"control":0}
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=0
+Swing QP fixed endpoint out of bound: row=962, residual=-0.099
+Swing QP solved: variables=9, active_constraints=942/964, generated=0, iterations=0, fixed_rows_out_of_bound=1
+swing replan / safety filter self-check passed
+Swing QP failed: status=37, generated=9, remaining=191, row=900, residual=-0.0440317
+MRT atomic admission / observed terrain / physical derivatives self-check passed
+3D corridor / MINVO conversion self-check passed

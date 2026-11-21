@@ -1,0 +1,213 @@
+{
+  "decisions": [
+    {
+      "leg": 0,
+      "activation": 26.99,
+      "outcome": 1,
+      "reason": "",
+      "compute_ms": 8.45771,
+      "remaining": 0.395,
+      "position_delta": 0.000957741
+    },
+    {
+      "leg": 0,
+      "activation": 27.085,
+      "outcome": 1,
+      "reason": "",
+      "compute_ms": 8.7186,
+      "remaining": 0.3,
+      "position_delta": 0.00907731
+    },
+    {
+      "leg": 0,
+      "activation": 27.175,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.8368,
+      "remaining": 0.21,
+      "position_delta": 0.0151441
+    },
+    {
+      "leg": 0,
+      "activation": 27.79,
+      "outcome": 4,
+      "reason": "candidate QP failed: Initialisation failed! QP could not be solved! (variables=30, rows=182, iterations=11)",
+      "compute_ms": 7.25593,
+      "remaining": 0.395,
+      "position_delta": 0.000827917
+    },
+    {
+      "leg": 0,
+      "activation": 27.87,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 6.91956,
+      "remaining": 0.315,
+      "position_delta": 0.01144
+    },
+    {
+      "leg": 0,
+      "activation": 27.955,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 8.40861,
+      "remaining": 0.23,
+      "position_delta": 0.020039
+    },
+    {
+      "leg": 0,
+      "activation": 28.06,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 8.96419,
+      "remaining": 0.125,
+      "position_delta": 0.0262045
+    },
+    {
+      "leg": 1,
+      "activation": 28.19,
+      "outcome": 4,
+      "reason": "candidate QP failed: Initial QP could not be solved due to infeasibility! (variables=30, rows=182, iterations=40)",
+      "compute_ms": 6.12392,
+      "remaining": 0.395,
+      "position_delta": 0.00150761
+    },
+    {
+      "leg": 1,
+      "activation": 28.285,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.53812,
+      "remaining": 0.3,
+      "position_delta": 0.0313127
+    },
+    {
+      "leg": 1,
+      "activation": 28.365,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.144376,
+      "remaining": 0.22,
+      "position_delta": 0.0633351
+    },
+    {
+      "leg": 1,
+      "activation": 28.455,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.098519,
+      "remaining": 0.13,
+      "position_delta": 0.078969
+    },
+    {
+      "leg": 2,
+      "activation": 29.985,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.301486,
+      "remaining": 0.2,
+      "position_delta": 0.0131874
+    },
+    {
+      "leg": 3,
+      "activation": 30.21,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 5.48845,
+      "remaining": 0.375,
+      "position_delta": 0.00448067
+    },
+    {
+      "leg": 3,
+      "activation": 30.3,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 6.48923,
+      "remaining": 0.285,
+      "position_delta": 0.0207773
+    },
+    {
+      "leg": 3,
+      "activation": 30.385,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.146579,
+      "remaining": 0.2,
+      "position_delta": 0.0166786
+    },
+    {
+      "leg": 2,
+      "activation": 30.62,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.20481,
+      "remaining": 0.365,
+      "position_delta": 0.009402
+    },
+    {
+      "leg": 2,
+      "activation": 30.7,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.15637,
+      "remaining": 0.285,
+      "position_delta": 0.0332862
+    },
+    {
+      "leg": 2,
+      "activation": 30.78,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.124833,
+      "remaining": 0.205,
+      "position_delta": 0.0805178
+    },
+    {
+      "leg": 3,
+      "activation": 31.01,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.09965,
+      "remaining": 0.375,
+      "position_delta": 0.00939189
+    },
+    {
+      "leg": 3,
+      "activation": 31.09,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.164751,
+      "remaining": 0.295,
+      "position_delta": 0.027084
+    },
+    {
+      "leg": 3,
+      "activation": 31.26,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.100058,
+      "remaining": 0.125,
+      "position_delta": 0.0621745
+    },
+    {
+      "leg": 2,
+      "activation": 31.415,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.200433,
+      "remaining": 0.37,
+      "position_delta": 0.0135188
+    },
+    {
+      "leg": 2,
+      "activation": 31.495,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.214199,
+      "remaining": 0.29,
+      "position_delta": 0.108131
+    }
+  ],
+  "applied": [],
+  "applied_envelopes": []
+}

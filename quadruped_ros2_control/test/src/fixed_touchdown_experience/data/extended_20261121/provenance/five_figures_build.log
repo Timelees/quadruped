@@ -1,0 +1,451 @@
+Starting >>> ocs2_quadruped_controller
+--- stderr: ocs2_quadruped_controller
+In file included from /opt/openrobots/include/hpp/fcl/collision_data.h:1,
+                 from /home/lee/Code/quadruped_control_ws/install/ocs2_self_collision/include/ocs2_self_collision/ocs2_self_collision/PinocchioGeometryInterface.h:32,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedInterface.h:18,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/control/CtrlComponent.h:11,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/FSM/StateOCS2.h:12,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/Ocs2QuadrupedController.h:11,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/Ocs2QuadrupedController.cpp:5:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /opt/openrobots/include/hpp/fcl/collision_data.h:1,
+                 from /home/lee/Code/quadruped_control_ws/install/ocs2_self_collision/include/ocs2_self_collision/ocs2_self_collision/PinocchioGeometryInterface.h:32,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedInterface.h:18,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/control/CtrlComponent.h:11,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/FSM/StateOCS2.h:12,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/FSM/StateOCS2.cpp:5:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /opt/openrobots/include/hpp/fcl/config.hh:1,
+                 from /opt/openrobots/include/pinocchio/serialization/eigen.hpp:20,
+                 from /opt/openrobots/include/pinocchio/serialization/fwd.hpp:11,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-composite.hpp:14,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-generic.hpp:9,
+                 from /opt/openrobots/include/pinocchio/multibody/model.hpp:17,
+                 from /opt/openrobots/include/pinocchio/algorithm/frames.hpp:8,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/estimator/LinearKalmanFilter.cpp:3:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/estimator/LinearKalmanFilter.cpp: In constructor ‘ocs2::legged_robot::KalmanFilterEstimate::KalmanFilterEstimate(ocs2::PinocchioInterface, ocs2::CentroidalModelInfo, const ocs2::PinocchioEndEffectorKinematics&, CtrlInterfaces&, const SharedPtr&)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/estimator/LinearKalmanFilter.cpp:97:31: warning: comparison of integer expressions of different signedness: ‘ssize_t’ {aka ‘long int’} and ‘size_t’ {aka ‘long unsigned int’} [-Wsign-compare]
+   97 |         for (ssize_t i = 0; i < numContacts_; ++i)
+      |                             ~~^~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/estimator/LinearKalmanFilter.cpp: In member function ‘virtual ocs2::vector_t ocs2::legged_robot::KalmanFilterEstimate::update(const rclcpp::Time&, const rclcpp::Duration&)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/estimator/LinearKalmanFilter.cpp:236:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘size_t’ {aka ‘long unsigned int’} [-Wsign-compare]
+  236 |         for (int i = 0; i < numContacts_; i++)
+      |                         ~~^~~~~~~~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /opt/openrobots/include/hpp/fcl/config.hh:1,
+                 from /opt/openrobots/include/pinocchio/serialization/eigen.hpp:20,
+                 from /opt/openrobots/include/pinocchio/serialization/fwd.hpp:11,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-composite.hpp:14,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-generic.hpp:9,
+                 from /opt/openrobots/include/pinocchio/multibody/model.hpp:17,
+                 from /opt/openrobots/include/pinocchio/algorithm/frames.hpp:8,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/estimator/ErrorStateKalmanFilter.cpp:6:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /opt/openrobots/include/hpp/fcl/config.hh:1,
+                 from /opt/openrobots/include/pinocchio/serialization/eigen.hpp:20,
+                 from /opt/openrobots/include/pinocchio/serialization/fwd.hpp:11,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-composite.hpp:14,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-generic.hpp:9,
+                 from /opt/openrobots/include/pinocchio/multibody/model.hpp:17,
+                 from /opt/openrobots/include/pinocchio/algorithm/centroidal.hpp:8,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WbcBase.cpp:12:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblemB.hpp:1014,
+                 from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES.hpp:66,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp:7:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblemB.ipp: In member function ‘void qpOASES::QProblemB::applyGivens(qpOASES::real_t, qpOASES::real_t, qpOASES::real_t, qpOASES::real_t, qpOASES::real_t, qpOASES::real_t&, qpOASES::real_t&) const’:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblemB.ipp:447:68: warning: unused parameter ‘nu’ [-Wunused-parameter]
+  447 | inline void QProblemB::applyGivens(     real_t c, real_t s, real_t nu, real_t xold, real_t yold,
+      |                                                             ~~~~~~~^~
+In file included from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblem.hpp:43,
+                 from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES.hpp:67,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp:7:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp: In copy constructor ‘qpOASES::ConstraintProduct::ConstraintProduct(const qpOASES::ConstraintProduct&)’:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp:64:66: warning: unused parameter ‘toCopy’ [-Wunused-parameter]
+   64 |                 ConstraintProduct(      const ConstraintProduct &toCopy /**< Rhs object. */
+      |                                         ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp: In member function ‘qpOASES::ConstraintProduct& qpOASES::ConstraintProduct::operator=(const qpOASES::ConstraintProduct&)’:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp:71:74: warning: unused parameter ‘toCopy’ [-Wunused-parameter]
+   71 |                 ConstraintProduct &operator=(   const ConstraintProduct &toCopy /**< Rhs object. */
+      |                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp:14:
+/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/include/gz_quadruped_hardware/actuator.hpp: In member function ‘double gazebo::Actuator_::getActuatorI(double, double)’:
+/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/include/gz_quadruped_hardware/actuator.hpp:155:47: warning: unused parameter ‘qd’ [-Wunused-parameter]
+  155 |     double getActuatorI(double tauDes, double qd){
+      |                                        ~~~~~~~^~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp: In member function ‘virtual ocs2::vector_t ocs2::legged_robot::WeightedWbc::update(const vector_t&, const vector_t&, const vector_t&, size_t, ocs2::scalar_t)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp:88:39: warning: comparison of integer expressions of different signedness: ‘Eigen::EigenBase<Eigen::Matrix<double, -1, 1> >::Index’ {aka ‘long int’} and ‘size_t’ {aka ‘long unsigned int’} [-Wsign-compare]
+   88 |             if (motor_current_.size() == info_.actuatedDofNum && motor_applied_.size() == info_.actuatedDofNum &&
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp:88:88: warning: comparison of integer expressions of different signedness: ‘Eigen::EigenBase<Eigen::Matrix<double, -1, 1> >::Index’ {aka ‘long int’} and ‘size_t’ {aka ‘long unsigned int’} [-Wsign-compare]
+   88 |             if (motor_current_.size() == info_.actuatedDofNum && motor_applied_.size() == info_.actuatedDofNum &&
+      |                                                                  ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp:30:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/FrictionConeConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::FrictionConeConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/FrictionConeConstraint.h:100:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+  100 |         size_t getNumConstraints(scalar_t time) const override { return 1; };
+      |                                  ~~~~~~~~~^~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp: In member function ‘void ocs2::legged_robot::FrictionConeConstraint::setSurfaceNormalInWorld(const vector3_t&)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp:46:75: warning: unused parameter ‘surfaceNormalInWorld’ [-Wunused-parameter]
+   46 |     void FrictionConeConstraint::setSurfaceNormalInWorld(const vector3_t &surfaceNormalInWorld) {
+      |                                                          ~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp: In member function ‘virtual ocs2::vector_t ocs2::legged_robot::FrictionConeConstraint::getValue(ocs2::scalar_t, const vector_t&, const vector_t&, const ocs2::PreComputation&) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp:57:56: warning: unused parameter ‘time’ [-Wunused-parameter]
+   57 |     vector_t FrictionConeConstraint::getValue(scalar_t time, const vector_t &state, const vector_t &input,
+      |                                               ~~~~~~~~~^~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp:57:78: warning: unused parameter ‘state’ [-Wunused-parameter]
+   57 |     vector_t FrictionConeConstraint::getValue(scalar_t time, const vector_t &state, const vector_t &input,
+      |                                                              ~~~~~~~~~~~~~~~~^~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp:58:69: warning: unused parameter ‘preComp’ [-Wunused-parameter]
+   58 |                                               const PreComputation &preComp) const {
+      |                                               ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp: In member function ‘virtual ocs2::VectorFunctionLinearApproximation ocs2::legged_robot::FrictionConeConstraint::getLinearApproximation(ocs2::scalar_t, const vector_t&, const vector_t&, const ocs2::PreComputation&) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp:68:18: warning: unused parameter ‘time’ [-Wunused-parameter]
+   68 |         scalar_t time, const vector_t &state,
+      |         ~~~~~~~~~^~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp:70:31: warning: unused parameter ‘preComp’ [-Wunused-parameter]
+   70 |         const PreComputation &preComp) const {
+      |         ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp: In member function ‘virtual ocs2::VectorFunctionQuadraticApproximation ocs2::legged_robot::FrictionConeConstraint::getQuadraticApproximation(ocs2::scalar_t, const vector_t&, const vector_t&, const ocs2::PreComputation&) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp:88:18: warning: unused parameter ‘time’ [-Wunused-parameter]
+   88 |         scalar_t time, const vector_t &state,
+      |         ~~~~~~~~~^~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp:90:31: warning: unused parameter ‘preComp’ [-Wunused-parameter]
+   90 |         const PreComputation &preComp) const {
+      |         ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp: In member function ‘ocs2::legged_robot::FrictionConeConstraint::LocalForceDerivatives ocs2::legged_robot::FrictionConeConstraint::computeLocalForceDerivatives(const vector3_t&) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp:110:26: warning: unused parameter ‘forcesInWorldFrame’ [-Wunused-parameter]
+  110 |         const vector3_t &forcesInWorldFrame) const {
+      |         ~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp: In member function ‘ocs2::matrix_t ocs2::legged_robot::FrictionConeConstraint::frictionConeSecondDerivativeState(size_t, const ocs2::legged_robot::FrictionConeConstraint::ConeDerivatives&) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/FrictionConeConstraint.cpp:187:95: warning: unused parameter ‘coneDerivatives’ [-Wunused-parameter]
+  187 |                                                                        const ConeDerivatives &coneDerivatives) const {
+      |                                                                        ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/ZeroForceConstraint.cpp:30:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/ZeroForceConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::ZeroForceConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/ZeroForceConstraint.h:55:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   55 |         size_t getNumConstraints(scalar_t time) const override { return 3; }
+      |                                  ~~~~~~~~~^~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/ZeroForceConstraint.cpp: In member function ‘virtual ocs2::vector_t ocs2::legged_robot::ZeroForceConstraint::getValue(ocs2::scalar_t, const vector_t&, const vector_t&, const ocs2::PreComputation&) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/ZeroForceConstraint.cpp:53:53: warning: unused parameter ‘time’ [-Wunused-parameter]
+   53 |     vector_t ZeroForceConstraint::getValue(scalar_t time, const vector_t &state, const vector_t &input,
+      |                                            ~~~~~~~~~^~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/ZeroForceConstraint.cpp:53:75: warning: unused parameter ‘state’ [-Wunused-parameter]
+   53 |     vector_t ZeroForceConstraint::getValue(scalar_t time, const vector_t &state, const vector_t &input,
+      |                                                           ~~~~~~~~~~~~~~~~^~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/ZeroForceConstraint.cpp:54:66: warning: unused parameter ‘preComp’ [-Wunused-parameter]
+   54 |                                            const PreComputation &preComp) const {
+      |                                            ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/NormalVelocityConstraintCppAd.h:35,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/NormalVelocityConstraintCppAd.cpp:30:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::EndEffectorLinearConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h:79:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   79 |         size_t getNumConstraints(scalar_t time) const override { return numConstraints_; }
+      |                                  ~~~~~~~~~^~~~
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/NormalVelocityConstraintCppAd.cpp:30:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/NormalVelocityConstraintCppAd.h: In member function ‘virtual size_t ocs2::legged_robot::NormalVelocityConstraintCppAd::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/NormalVelocityConstraintCppAd.h:62:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   62 |         size_t getNumConstraints(scalar_t time) const override { return !verticalOnly_ && referenceManagerPtr_->getSwingTrajectoryPlanner()->isTerrainPlanningEnabled() ? 3 : 1; }
+      |                                  ~~~~~~~~~^~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/ZeroVelocityConstraintCppAd.h:35,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/ZeroVelocityConstraintCppAd.cpp:30:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::EndEffectorLinearConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h:79:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   79 |         size_t getNumConstraints(scalar_t time) const override { return numConstraints_; }
+      |                                  ~~~~~~~~~^~~~
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/ZeroVelocityConstraintCppAd.cpp:30:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/ZeroVelocityConstraintCppAd.h: In member function ‘virtual size_t ocs2::legged_robot::ZeroVelocityConstraintCppAd::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/ZeroVelocityConstraintCppAd.h:64:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   64 |         size_t getNumConstraints(scalar_t time) const override { return 3; }
+      |                                  ~~~~~~~~~^~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp: In member function ‘void ocs2::legged_robot::SwingTrajectoryPlanner::update(const ocs2::ModeSchedule&, ocs2::legged_robot::feet_array_t<std::vector<double> >&, ocs2::legged_robot::feet_array_t<std::vector<double> >&, ocs2::scalar_t)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp:285:31: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<long unsigned int>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  285 |             for (int p = 0; p < modeSchedule.modeSequence.size(); ++p) {
+      |                             ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp: In member function ‘void ocs2::legged_robot::SwingTrajectoryPlanner::update(const ocs2::ModeSchedule&, ocs2::legged_robot::feet_array_t<std::vector<double> >&, ocs2::legged_robot::feet_array_t<std::vector<double> >&, ocs2::legged_robot::feet_array_t<std::vector<double> >&, ocs2::scalar_t)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp:316:31: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<long unsigned int>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  316 |             for (int p = 0; p < modeSequence.size(); ++p) {
+      |                             ~~^~~~~~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp: In member function ‘void ocs2::legged_robot::SwingTrajectoryPlanner::updateTerrain(const ocs2::ModeSchedule&, ocs2::legged_robot::feet_array_t<std::vector<double> >&, ocs2::legged_robot::feet_array_t<std::vector<double> >&, ocs2::legged_robot::feet_array_t<std::vector<Eigen::Matrix<double, 3, 1> > >&, ocs2::legged_robot::feet_array_t<std::vector<Eigen::Matrix<double, 3, 1> > >&, ocs2::scalar_t, ocs2::scalar_t, const SwingFootState&, const SwingFootState&, const SwingFootState&)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp:387:31: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<long unsigned int>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  387 |             for (int p = 0; p < modeSchedule.modeSequence.size(); ++p) {
+      |                             ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp: In member function ‘void ocs2::legged_robot::SwingTrajectoryPlanner::updateTerrain(const ocs2::ModeSchedule&, ocs2::legged_robot::feet_array_t<std::vector<double> >&, ocs2::legged_robot::feet_array_t<std::vector<double> >&, ocs2::legged_robot::feet_array_t<std::vector<double> >&, ocs2::legged_robot::feet_array_t<std::vector<Eigen::Matrix<double, 3, 1> > >&, ocs2::legged_robot::feet_array_t<std::vector<Eigen::Matrix<double, 3, 1> > >&, ocs2::scalar_t, ocs2::scalar_t, const SwingFootState&, const SwingFootState&, const SwingFootState&)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp:452:31: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<long unsigned int>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  452 |             for (int p = 0; p < modeSequence.size(); ++p) {
+      |                             ~~^~~~~~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp: In static member function ‘static void ocs2::legged_robot::SwingTrajectoryPlanner::checkThatIndicesAreValid(int, int, int, int, const std::vector<long unsigned int>&)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingTrajectoryPlanner.cpp:950:24: warning: comparison of integer expressions of different signedness: ‘int’ and ‘long unsigned int’ [-Wsign-compare]
+  950 |         if (finalIndex >= numSubsystems - 1) {
+      |             ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblemB.hpp:1014,
+                 from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES.hpp:66,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingSafetyFilter.cpp:8:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblemB.ipp: In member function ‘void qpOASES::QProblemB::applyGivens(qpOASES::real_t, qpOASES::real_t, qpOASES::real_t, qpOASES::real_t, qpOASES::real_t, qpOASES::real_t&, qpOASES::real_t&) const’:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblemB.ipp:447:68: warning: unused parameter ‘nu’ [-Wunused-parameter]
+  447 | inline void QProblemB::applyGivens(     real_t c, real_t s, real_t nu, real_t xold, real_t yold,
+      |                                                             ~~~~~~~^~
+In file included from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblem.hpp:43,
+                 from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES.hpp:67,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/constraint/SwingSafetyFilter.cpp:8:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp: In copy constructor ‘qpOASES::ConstraintProduct::ConstraintProduct(const qpOASES::ConstraintProduct&)’:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp:64:66: warning: unused parameter ‘toCopy’ [-Wunused-parameter]
+   64 |                 ConstraintProduct(      const ConstraintProduct &toCopy /**< Rhs object. */
+      |                                         ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp: In member function ‘qpOASES::ConstraintProduct& qpOASES::ConstraintProduct::operator=(const qpOASES::ConstraintProduct&)’:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp:71:74: warning: unused parameter ‘toCopy’ [-Wunused-parameter]
+   71 |                 ConstraintProduct &operator=(   const ConstraintProduct &toCopy /**< Rhs object. */
+      |                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/initialization/LeggedRobotInitializer.cpp: In member function ‘virtual void ocs2::legged_robot::LeggedRobotInitializer::compute(ocs2::scalar_t, const vector_t&, ocs2::scalar_t, ocs2::vector_t&, ocs2::vector_t&)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/initialization/LeggedRobotInitializer.cpp:49:89: warning: unused parameter ‘nextTime’ [-Wunused-parameter]
+   49 |     void LeggedRobotInitializer::compute(scalar_t time, const vector_t &state, scalar_t nextTime, vector_t &input,
+      |                                                                                ~~~~~~~~~^~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /opt/openrobots/include/hpp/fcl/config.hh:1,
+                 from /opt/openrobots/include/pinocchio/serialization/eigen.hpp:20,
+                 from /opt/openrobots/include/pinocchio/serialization/fwd.hpp:11,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-composite.hpp:14,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-generic.hpp:9,
+                 from /opt/openrobots/include/pinocchio/multibody/model.hpp:17,
+                 from /opt/openrobots/include/pinocchio/algorithm/frames.hpp:8,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedRobotPreComputation.cpp:32:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedRobotPreComputation.h:41,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedRobotPreComputation.cpp:39:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::EndEffectorLinearConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h:79:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   79 |         size_t getNumConstraints(scalar_t time) const override { return numConstraints_; }
+      |                                  ~~~~~~~~~^~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /opt/openrobots/include/hpp/fcl/collision_data.h:1,
+                 from /home/lee/Code/quadruped_control_ws/install/ocs2_self_collision/include/ocs2_self_collision/ocs2_self_collision/PinocchioGeometryInterface.h:32,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedInterface.h:18,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:7:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedRobotPreComputation.h:41,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:30:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::EndEffectorLinearConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h:79:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   79 |         size_t getNumConstraints(scalar_t time) const override { return numConstraints_; }
+      |                                  ~~~~~~~~~^~~~
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:31:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/FrictionConeConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::FrictionConeConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/FrictionConeConstraint.h:100:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+  100 |         size_t getNumConstraints(scalar_t time) const override { return 1; };
+      |                                  ~~~~~~~~~^~~~
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:33:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/NormalVelocityConstraintCppAd.h: In member function ‘virtual size_t ocs2::legged_robot::NormalVelocityConstraintCppAd::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/NormalVelocityConstraintCppAd.h:62:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   62 |         size_t getNumConstraints(scalar_t time) const override { return !verticalOnly_ && referenceManagerPtr_->getSwingTrajectoryPlanner()->isTerrainPlanningEnabled() ? 3 : 1; }
+      |                                  ~~~~~~~~~^~~~
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:34:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/ZeroForceConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::ZeroForceConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/ZeroForceConstraint.h:55:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   55 |         size_t getNumConstraints(scalar_t time) const override { return 3; }
+      |                                  ~~~~~~~~~^~~~
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:35:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/ZeroVelocityConstraintCppAd.h: In member function ‘virtual size_t ocs2::legged_robot::ZeroVelocityConstraintCppAd::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/ZeroVelocityConstraintCppAd.h:64:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   64 |         size_t getNumConstraints(scalar_t time) const override { return 3; }
+      |                                  ~~~~~~~~~^~~~
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:36:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/cost/LeggedRobotQuadraticTrackingCost.h: In member function ‘virtual ocs2::vector_t ocs2::legged_robot::LeggedRobotStateQuadraticCost::getStateDeviation(ocs2::scalar_t, const vector_t&, const ocs2::TargetTrajectories&) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/cost/LeggedRobotQuadraticTrackingCost.h:93:24: warning: variable ‘contactFlags’ set but not used [-Wunused-but-set-variable]
+   93 |             const auto contactFlags = referenceManagerPtr_->getContactFlags(time);
+      |                        ^~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp: In member function ‘virtual void ocs2::legged_robot::LeggedInterface::setupReferenceManager(const string&, const string&, const string&, bool)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:268:97: warning: unused parameter ‘urdfFile’ [-Wunused-parameter]
+  268 |     void LeggedInterface::setupReferenceManager(const std::string& taskFile, const std::string& urdfFile,
+      |                                                                              ~~~~~~~~~~~~~~~~~~~^~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp: In member function ‘virtual void ocs2::legged_robot::LeggedInterface::setupPreComputation(const string&, const string&, const string&, bool)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:280:66: warning: unused parameter ‘taskFile’ [-Wunused-parameter]
+  280 |     void LeggedInterface::setupPreComputation(const std::string& taskFile, const std::string& urdfFile, const std::string& referenceFile,
+      |                                               ~~~~~~~~~~~~~~~~~~~^~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:280:95: warning: unused parameter ‘urdfFile’ [-Wunused-parameter]
+  280 |     void LeggedInterface::setupPreComputation(const std::string& taskFile, const std::string& urdfFile, const std::string& referenceFile,
+      |                                                                            ~~~~~~~~~~~~~~~~~~~^~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:280:124: warning: unused parameter ‘referenceFile’ [-Wunused-parameter]
+  280 |     void LeggedInterface::setupPreComputation(const std::string& taskFile, const std::string& urdfFile, const std::string& referenceFile,
+      |                                                                                                         ~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/interface/LeggedInterface.cpp:281:48: warning: unused parameter ‘verbose’ [-Wunused-parameter]
+  281 |                                           bool verbose) {
+      |                                           ~~~~~^~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /opt/openrobots/include/hpp/fcl/collision_data.h:1,
+                 from /home/lee/Code/quadruped_control_ws/install/ocs2_self_collision/include/ocs2_self_collision/ocs2_self_collision/PinocchioGeometryInterface.h:32,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedInterface.h:18,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/control/CtrlComponent.h:11,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/control/CtrlComponent.cpp:5:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/control/CtrlComponent.cpp:5:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/control/CtrlComponent.h: In constructor ‘ocs2::legged_robot::CtrlComponent::CtrlComponent(const std::shared_ptr<rclcpp_lifecycle::LifecycleNode>&, CtrlInterfaces&, bool)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/control/CtrlComponent.h:71:25: warning: ‘ocs2::legged_robot::CtrlComponent::ctrl_interfaces_’ will be initialized after [-Wreorder]
+   71 |         CtrlInterfaces& ctrl_interfaces_;
+      |                         ^~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/control/CtrlComponent.h:70:14: warning:   ‘bool ocs2::legged_robot::CtrlComponent::enable_perceptive_’ [-Wreorder]
+   70 |         bool enable_perceptive_ = true;
+      |              ^~~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/control/CtrlComponent.cpp:27:5: warning:   when initialized here [-Wreorder]
+   27 |     CtrlComponent::CtrlComponent(const std::shared_ptr<rclcpp_lifecycle::LifecycleNode> &node,
+      |     ^~~~~~~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedRobotPreComputation.h:41,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedPrecomputation.h:7,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/constraint/FootPlacementCBFConstraint.cpp:3:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::EndEffectorLinearConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h:79:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   79 |         size_t getNumConstraints(scalar_t time) const override { return numConstraints_; }
+      |                                  ~~~~~~~~~^~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedRobotPreComputation.h:41,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedPrecomputation.h:7,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/constraint/FootPlacementConstraint.cpp:6:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::EndEffectorLinearConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h:79:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   79 |         size_t getNumConstraints(scalar_t time) const override { return numConstraints_; }
+      |                                  ~~~~~~~~~^~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /opt/openrobots/include/hpp/fcl/collision_data.h:1,
+                 from /home/lee/Code/quadruped_control_ws/install/ocs2_sphere_approximation/include/ocs2_sphere_approximation/ocs2_sphere_approximation/PinocchioSphereInterface.h:32,
+                 from /home/lee/Code/quadruped_control_ws/install/ocs2_sphere_approximation/include/ocs2_sphere_approximation/ocs2_sphere_approximation/PinocchioSphereKinematics.h:38,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/perceptive/constraint/SphereSdfConstraint.h:10,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/constraint/SphereSdfConstraint.cpp:5:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedRobotPreComputation.h:41,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedPrecomputation.h:7,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/constraint/SphereSdfConstraint.cpp:6:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::EndEffectorLinearConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h:79:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   79 |         size_t getNumConstraints(scalar_t time) const override { return numConstraints_; }
+      |                                  ~~~~~~~~~^~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/constraint/SphereSdfConstraint.cpp: In member function ‘virtual ocs2::vector_t ocs2::legged_robot::SphereSdfConstraint::getValue(ocs2::scalar_t, const vector_t&, const ocs2::PreComputation&) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/constraint/SphereSdfConstraint.cpp:29:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘const size_t’ {aka ‘const long unsigned int’} [-Wsign-compare]
+   29 |         for (int i = 0; i < numConstraints_; ++i)
+      |                         ~~^~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/constraint/SphereSdfConstraint.cpp: In member function ‘virtual ocs2::VectorFunctionLinearApproximation ocs2::legged_robot::SphereSdfConstraint::getLinearApproximation(ocs2::scalar_t, const vector_t&, const ocs2::PreComputation&) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/constraint/SphereSdfConstraint.cpp:46:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘const size_t’ {aka ‘const long unsigned int’} [-Wsign-compare]
+   46 |         for (int i = 0; i < numConstraints_; ++i)
+      |                         ~~^~~~~~~~~~~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /opt/openrobots/include/hpp/fcl/config.hh:1,
+                 from /opt/openrobots/include/pinocchio/serialization/eigen.hpp:20,
+                 from /opt/openrobots/include/pinocchio/serialization/fwd.hpp:11,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-composite.hpp:14,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-generic.hpp:9,
+                 from /opt/openrobots/include/pinocchio/multibody/model.hpp:17,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedInterface.cpp:1:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedRobotPreComputation.h:41,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedPrecomputation.h:7,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedInterface.cpp:14:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::EndEffectorLinearConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h:79:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   79 |         size_t getNumConstraints(scalar_t time) const override { return numConstraints_; }
+      |                                  ~~~~~~~~~^~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedInterface.cpp: In member function ‘virtual void ocs2::legged_robot::PerceptiveLeggedInterface::setupOptimalControlProblem(const string&, const string&, const string&, bool)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedInterface.cpp:135:18: warning: unused variable ‘thighExcess’ [-Wunused-variable]
+  135 |         scalar_t thighExcess = 0.025;
+      |                  ^~~~~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedRobotPreComputation.h:41,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedPrecomputation.h:7,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedPrecomputation.cpp:5:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h: In member function ‘virtual size_t ocs2::legged_robot::EndEffectorLinearConstraint::getNumConstraints(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/constraint/EndEffectorLinearConstraint.h:79:43: warning: unused parameter ‘time’ [-Wunused-parameter]
+   79 |         size_t getNumConstraints(scalar_t time) const override { return numConstraints_; }
+      |                                  ~~~~~~~~~^~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp:13:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h: In constructor ‘ocs2::legged_robot::PerceptiveLeggedReferenceManager::PerceptiveLeggedReferenceManager(ocs2::CentroidalModelInfo, std::shared_ptr<ocs2::legged_robot::GaitSchedule>, std::shared_ptr<ocs2::legged_robot::SwingTrajectoryPlanner>, std::shared_ptr<ocs2::legged_robot::ConvexRegionSelector>, const ocs2::EndEffectorKinematics<double>&, ocs2::scalar_t, ocs2::legged_robot::PerceptiveLeggedReferenceManager::FootPlacementRelaxationConfig)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/perceptive/interface/PerceptiveLeggedReferenceManager.h:97:35: warning: ‘ocs2::legged_robot::PerceptiveLeggedReferenceManager::info_’ will be initialized after [-Wreorder]
+   97 |         const CentroidalModelInfo info_;
+      |                                   ^~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp:104:82: warning:   base ‘ocs2::legged_robot::SwitchedModelReferenceManager’ [-Wreorder]
+  104 |           footPlacementRelaxationConfig_(std::move(footPlacementRelaxationConfig))
+      |                                                                                  ^
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp:91:5: warning:   when initialized here [-Wreorder]
+   91 |     PerceptiveLeggedReferenceManager::PerceptiveLeggedReferenceManager(CentroidalModelInfo info,
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp: In member function ‘virtual void ocs2::legged_robot::PerceptiveLeggedReferenceManager::modifyReferences(ocs2::scalar_t, ocs2::scalar_t, const vector_t&, ocs2::TargetTrajectories&, ocs2::ModeSchedule&)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp:151:30: warning: comparison of integer expressions of different signedness: ‘size_t’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+  151 |         for (size_t i = 0; i < nodeNum; ++i)
+      |                            ~~^~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp: In member function ‘void ocs2::legged_robot::PerceptiveLeggedReferenceManager::modifyProjections(ocs2::scalar_t, const vector_t&, size_t, size_t, const std::vector<bool>&, std::vector<convex_plane_decomposition::PlanarTerrainProjection>&)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp:431:39: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<convex_plane_decomposition::PlanarTerrainProjection>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  431 |             for (int i = initIndex; i < projections.size(); ++i)
+      |                                     ~~^~~~~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp: In member function ‘ocs2::legged_robot::contact_flag_t ocs2::legged_robot::PerceptiveLeggedReferenceManager::getFootPlacementFlags(ocs2::scalar_t) const’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/perceptive/interface/PerceptiveLeggedReferenceManager.cpp:507:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::array<bool, 4>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  507 |         for (int i = 0; i < flag.size(); ++i)
+      |                         ~~^~~~~~~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/test/execution_contract_selfcheck.cpp:5:
+/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/include/gz_quadruped_hardware/actuator.hpp: In member function ‘double gazebo::Actuator_::getActuatorI(double, double)’:
+/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/include/gz_quadruped_hardware/actuator.hpp:155:47: warning: unused parameter ‘qd’ [-Wunused-parameter]
+  155 |     double getActuatorI(double tauDes, double qd){
+      |                                        ~~~~~~~^~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+---
+Finished <<< ocs2_quadruped_controller [4min 44s]
+Starting >>> fixed_touchdown_experience
+--- stderr: fixed_touchdown_experience
+In file included from /usr/local/include/boost/bind.hpp:30,
+                 from /usr/local/include/boost/property_tree/json_parser/detail/parser.hpp:7,
+                 from /usr/local/include/boost/property_tree/json_parser/detail/read.hpp:13,
+                 from /usr/local/include/boost/property_tree/json_parser.hpp:16,
+                 from /home/lee/Code/quadruped_control_ws/src/fixed_touchdown_experience/src/feasibility_sweep.cpp:2:
+/usr/local/include/boost/bind.hpp:36:1: note: ‘#pragma message: The practice of declaring the Bind placeholders (_1, _2, ...) in the global namespace is deprecated. Please use <boost/bind/bind.hpp> + using namespace boost::placeholders, or define BOOST_BIND_GLOBAL_PLACEHOLDERS to retain the current behavior.’
+   36 | BOOST_PRAGMA_MESSAGE(
+      | ^~~~~~~~~~~~~~~~~~~~
+---
+Finished <<< fixed_touchdown_experience [12.9s]
+
+Summary: 2 packages finished [4min 57s]
+  2 packages had stderr output: fixed_touchdown_experience ocs2_quadruped_controller

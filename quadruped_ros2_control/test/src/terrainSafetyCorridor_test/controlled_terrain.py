@@ -20,7 +20,9 @@ def set_update_release(message, released):
 
 def swing_spans_bar(liftoff_x, forecast_x, centre, width, foot_radius=.020):
     """Require free footholds on both sides of this static box, including the foot."""
-    return bool(forecast_x) and liftoff_x < centre-width/2-foot_radius and max(forecast_x) > centre+width/2+foot_radius
+    return bool(forecast_x) and (
+        liftoff_x < centre-width/2-foot_radius and max(forecast_x) > centre+width/2+foot_radius or
+        liftoff_x > centre+width/2+foot_radius and min(forecast_x) < centre-width/2-foot_radius)
 
 
 def mask_strip(message, rectangle, unknown=False):
@@ -62,7 +64,7 @@ def known_course_layer(message, bars=None):
         bars = [(1.1,.06,.04),(1.8,.08,.07),(2.5,.12,.05),(3.2,.06,.09)]
     x=info.pose.position.x+info.length_x/2-(np.arange(nx)+.5)*r
     y=info.pose.position.y+info.length_y/2-(np.arange(ny)+.5)*r
-    lane=((-0.6<=x)&(x<=5.))[:,None] & ((-3.8<=y)&(y<=-2.2))[None,:]
+    lane=((-3.<=x)&(x<=1.))[:,None] & ((-.8<=y)&(y<=.8))[None,:] if bars[0][0]<0 and len(bars[0])==5 and abs(bars[0][3])<.1 else ((-0.6<=x)&(x<=5.))[:,None] & ((-3.8<=y)&(y<=-2.2))[None,:]
     heights=np.zeros((nx,ny))
     for bar in bars:
         centre,width,height=bar[:3]

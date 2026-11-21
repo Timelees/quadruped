@@ -95,6 +95,9 @@ def main():
 
     lf_liftoff = None
     lf_liftoff_x = None
+    liftoffs = [None]*4
+    liftoff_xs = [None]*4
+    last_stances = [True]*4
     last_lf_stance = True
     reveal_events = []
     revealed = False
@@ -103,6 +106,11 @@ def main():
     def diag(m):
         nonlocal lf_liftoff, lf_liftoff_x, last_lf_stance
         if len(m.data) in (78, 83, 112, 113, 151) or len(m.data) >= 163:
+            for leg,bit in enumerate((8,4,2,1)):
+                contact=bool(int(m.data[1]) & bit)
+                if last_stances[leg] and not contact:
+                    liftoffs[leg],liftoff_xs[leg]=m.data[0],m.data[30+12*leg]
+                last_stances[leg]=contact
             stance = bool(int(m.data[1]) & 8)
             if last_lf_stance and not stance:
                 lf_liftoff, lf_liftoff_x = m.data[0], m.data[30]
@@ -138,14 +146,16 @@ def main():
     def markers(m):
         counts['corridor'] += int(any(x.action == 0 and x.points for x in m.markers))
 
-    node.create_subscription(Odometry, '/Ground_Truth', odom, 30)
+    node.create_subscription(Odometry, '/Ground_Truth', odom, 1 if args.controlled_reveal else 30)
     def estimate(m):
         p, q = m.pose.pose.position, m.pose.pose.orientation
         estimates.append([m.header.stamp.sec+m.header.stamp.nanosec*1e-9, p.x,p.y,p.z,q.x,q.y,q.z,q.w])
     node.create_subscription(Odometry, '/odom', estimate, 30)
-    node.create_subscription(Float64MultiArray, '/wbc_diagnostics', diag, 100)
+    # A queued controller sample can release the map after the target swing.
+    # Controlled reveal prioritizes freshness; timestamps retain sampling gaps.
+    node.create_subscription(Float64MultiArray, '/wbc_diagnostics', diag, 1 if args.controlled_reveal else 100)
     node.create_subscription(GridMap, '/elevation_map_raw', maps, 1)
-    node.create_subscription(Float64MultiArray, '/swing_reference', reference, 10)
+    node.create_subscription(Float64MultiArray, '/swing_reference', reference, 1 if args.controlled_reveal else 10)
     node.create_subscription(MarkerArray, '/terrain_safety_corridor', markers, 1)
     certified_samples = []
     last_certified_stamp = -float('inf')
@@ -181,7 +191,7 @@ def main():
     if args.controlled_reveal:
         from controlled_terrain import swing_spans_bar
         bars = args.known_course_bars or [(1.1,.06,.04),(1.8,.08,.07),(2.5,.12,.05),(3.2,.06,.09)]
-        reveal_x, reveal_width, _ = bars[1][:3]
+        reveal_x, reveal_width, _ = bars[0 if args.scenario == 'obstacle' else 1][:3]
         map_forward = node.create_publisher(PlanarTerrain, '/planar_terrain', 10)
         source_map = None
         def forward_map(message):
@@ -197,7 +207,7 @@ def main():
                 known_course_layer(m, bars)
             if not revealed:
                 from controlled_terrain import mask_strip
-                changed = mask_strip(m, (reveal_x-.2,reveal_x+.2,-3.7,-2.3), args.reveal_unknown)
+                changed = mask_strip(m, (reveal_x-.2,reveal_x+.2,*([-.65,.65] if args.scenario == 'obstacle' else [-3.7,-2.3])), args.reveal_unknown)
                 if changed and not any(e['event']=='mask_applied' for e in reveal_events):
                     reveal_events.append(dict(event='mask_applied', ros_time=m.header.stamp.sec+m.header.stamp.nanosec*1e-9, modified_cells=changed))
                 if not reveal_events:
@@ -257,22 +267,26 @@ def main():
                 targets['obstacle'] = -.35 if obstacle_direction == 1 else -2.05
             heading = (0.0 if args.scenario in ('stairs', 'course', 'flat', 'lateral') or obstacle_direction == 1 else
                        math.pi if args.scenario == 'obstacle' else math.pi/2)
-            if args.controlled_reveal and reveal_arm_time is None and wbc and x >= args.reveal_at_x:
+            if args.controlled_reveal and reveal_arm_time is None and wbc and (x <= args.reveal_at_x if args.scenario == 'obstacle' else x >= args.reveal_at_x):
                 reveal_arm_time = wbc[-1][0]
-            if args.controlled_reveal and not revealed and wbc and lf_liftoff is not None and not last_lf_stance and reveal_arm_time is not None and lf_liftoff >= reveal_arm_time:
-                elapsed_swing = wbc[-1][0]-lf_liftoff
-                future = [row[1] for row in references[-105:] if wbc[-1][0] <= row[0] <= lf_liftoff+args.swing_duration]
-                # The frozen CyberDog collision fixture has 20 mm foot spheres.
-                crosses = swing_spans_bar(lf_liftoff_x, future, reveal_x, reveal_width)
-                if elapsed_swing >= args.swing_duration*args.reveal_phase and (not args.reveal_require_crossing or crosses):
-                    revealed = True
-                    if source_map is not None:
-                        forward_map(source_map)
-                    reveal_events.append(dict(event='trigger', ros_time=latest[0], controller_time=wbc[-1][0],
-                        liftoff=lf_liftoff, liftoff_foot_x=lf_liftoff_x, observed_phase=elapsed_swing/args.swing_duration, base_x=x,
-                        swing_duration_s=args.swing_duration,
-                        foot_x=wbc[-1][30], foot_z=wbc[-1][32], forecast_crossing=bool(crosses),
-                        barrier_x=reveal_x, barrier_width=reveal_width))
+            if args.controlled_reveal and not revealed and wbc and reveal_arm_time is not None:
+                # The single obstacle can first meet any leg after the 180° turn.
+                # Preserve the established LF-only protocol for other scenarios.
+                for leg in (range(4) if args.scenario=='obstacle' else (0,)):
+                    start=liftoffs[leg]
+                    if start is None or last_stances[leg] or start<reveal_arm_time:continue
+                    elapsed_swing=wbc[-1][0]-start
+                    future=[row[1+6*leg] for row in references[-105:]
+                            if wbc[-1][0]<=row[0]<=start+args.swing_duration]
+                    crosses=swing_spans_bar(liftoff_xs[leg],future,reveal_x,reveal_width,.019)
+                    if elapsed_swing<args.swing_duration*args.reveal_phase or (args.reveal_require_crossing and not crosses):continue
+                    revealed=True
+                    if source_map is not None:forward_map(source_map)
+                    reveal_events.append(dict(event='trigger',ros_time=latest[0],controller_time=wbc[-1][0],
+                        leg=leg,liftoff=start,liftoff_foot_x=liftoff_xs[leg],observed_phase=elapsed_swing/args.swing_duration,
+                        base_x=x,swing_duration_s=args.swing_duration,foot_x=wbc[-1][30+12*leg],
+                        foot_z=wbc[-1][32+12*leg],forecast_crossing=bool(crosses),barrier_x=reveal_x,barrier_width=reveal_width))
+                    break
             wrench_ready = t > 12 if args.wrench_at_x is None else phase == 'forward' and x >= args.wrench_at_x
             if args.wrench_force and not wrench_finished and wrench_ready and wbc:
                 # Trigger once during an observed LF swing away from the ground.
@@ -331,9 +345,9 @@ def main():
                 remaining = direction * (target - (x if longitudinal else y))
                 # Keep the approach above the controller's low-speed drift; stop at the target.
                 msg.ly = min(args.speed, max(.25, remaining*2)) if remaining >= .025 else 0.
-                msg.rx = -clamp(.6*angle(heading-yaw), .15)
+                msg.rx = 0. if args.scenario == 'obstacle' else -clamp(.6*angle(heading-yaw), .15)
                 # Small cross-track correction, using the existing body-frame velocity input.
-                msg.lx = clamp((direction*(y-args.lane_y) if longitudinal else x)*(.7 if longitudinal else -.7), .15)
+                msg.lx = 0. if args.scenario == 'obstacle' else clamp((direction*(y-args.lane_y) if longitudinal else x)*(.7 if longitudinal else -.7), .15)
                 if args.scenario == 'lateral':
                     remaining = args.lateral_direction * (target-y)
                     msg.lx = -args.lateral_direction * args.speed if remaining >= .025 else 0.

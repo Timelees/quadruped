@@ -1,0 +1,16 @@
+Nature Figure Rendered Collision Audit
+pdf: src/quadruped_ros2_control/test/src/fixed_touchdown_experience/figure/initial_audit/fig4_terminal_boundary.pdf
+pages: 1
+visible text boxes: 32
+stroke paths: 104
+
+[FAIL] page 1 text-stroke: Text is crossed by 1 stroked path(s) — 'a'
+  text bbox: (72.67967987060547, 55.501426696777344, 79.42772674560547, 65.50142669677734)
+[FAIL] page 1 text-stroke: Text is crossed by 5 stroked path(s) — 'Original boundary reference'
+  text bbox: (386.0976257324219, 55.85873031616211, 498.8277587890625, 63.85873031616211)
+[FAIL] page 1 text-stroke: Text is crossed by 5 stroked path(s) — 'Boundary-preserving update'
+  text bbox: (386.0976257324219, 67.60872650146484, 500.7230224609375, 75.60872650146484)
+
+summary: 3 fail, 0 warn, 2 contained fill overlays, 0 contained image overlays
+verdict: FIX BEFORE DELIVERY
+note: contained overlays can be intentional; WARN findings need final-size visual review

@@ -1,0 +1,60 @@
+{
+  "decisions": [
+    {
+      "leg": 0,
+      "activation": 27.775,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 5.89084,
+      "remaining": 0.32,
+      "position_delta": 0.00709779
+    },
+    {
+      "leg": 0,
+      "activation": 27.865,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.136047,
+      "remaining": 0.23,
+      "position_delta": 0.0137484
+    },
+    {
+      "leg": 0,
+      "activation": 27.95,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.09627,
+      "remaining": 0.145,
+      "position_delta": 0.0882125
+    },
+    {
+      "leg": 1,
+      "activation": 28.13,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.156746,
+      "remaining": 0.365,
+      "position_delta": 0.0941985
+    },
+    {
+      "leg": 1,
+      "activation": 28.22,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.119247,
+      "remaining": 0.275,
+      "position_delta": 0.0908781
+    },
+    {
+      "leg": 1,
+      "activation": 28.305,
+      "outcome": 3,
+      "reason": "state outside correction gate",
+      "compute_ms": 0.097392,
+      "remaining": 0.19,
+      "position_delta": 0.124993
+    }
+  ],
+  "applied": [],
+  "applied_envelopes": []
+}

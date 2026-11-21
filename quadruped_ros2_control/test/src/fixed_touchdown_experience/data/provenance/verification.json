@@ -1,0 +1,14 @@
+{
+  "cpp_selfchecks": [
+    "swing_replan_selfcheck",
+    "execution_contract_selfcheck",
+    "terrain_safety_corridor_selfcheck"
+  ],
+  "cpp_exit_status": 0,
+  "python_tests": {
+    "passed": 26,
+    "skipped": 1
+  },
+  "mechanism": "mechanism_release",
+  "physical_final_binary_prefix": "4b1f61cd27ac"
+}

@@ -1,0 +1,71 @@
+Starting >>> ocs2_quadruped_controller
+--- stderr: ocs2_quadruped_controller
+In file included from /opt/openrobots/include/hpp/fcl/collision_data.h:1,
+                 from /home/lee/Code/quadruped_control_ws/install/ocs2_self_collision/include/ocs2_self_collision/ocs2_self_collision/PinocchioGeometryInterface.h:32,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedInterface.h:18,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/control/CtrlComponent.h:11,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/FSM/StateOCS2.h:12,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/Ocs2QuadrupedController.h:11,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/Ocs2QuadrupedController.cpp:5:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /opt/openrobots/include/hpp/fcl/collision_data.h:1,
+                 from /home/lee/Code/quadruped_control_ws/install/ocs2_self_collision/include/ocs2_self_collision/ocs2_self_collision/PinocchioGeometryInterface.h:32,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/interface/LeggedInterface.h:18,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/control/CtrlComponent.h:11,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/include/ocs2_quadruped_controller/FSM/StateOCS2.h:12,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/FSM/StateOCS2.cpp:5:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /opt/openrobots/include/hpp/fcl/config.hh:1,
+                 from /opt/openrobots/include/pinocchio/serialization/eigen.hpp:20,
+                 from /opt/openrobots/include/pinocchio/serialization/fwd.hpp:11,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-composite.hpp:14,
+                 from /opt/openrobots/include/pinocchio/multibody/joint/joint-generic.hpp:9,
+                 from /opt/openrobots/include/pinocchio/multibody/model.hpp:17,
+                 from /opt/openrobots/include/pinocchio/algorithm/centroidal.hpp:8,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WbcBase.cpp:12:
+/opt/openrobots/include/hpp/fcl/coal.hpp:10:71: note: ‘#pragma message: Please update your includes from 'hpp/fcl' to 'coal'’
+   10 | #pragma message("Please update your includes from 'hpp/fcl' to 'coal'")
+      |                                                                       ^
+In file included from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblemB.hpp:1014,
+                 from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES.hpp:66,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp:7:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblemB.ipp: In member function ‘void qpOASES::QProblemB::applyGivens(qpOASES::real_t, qpOASES::real_t, qpOASES::real_t, qpOASES::real_t, qpOASES::real_t, qpOASES::real_t&, qpOASES::real_t&) const’:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblemB.ipp:447:68: warning: unused parameter ‘nu’ [-Wunused-parameter]
+  447 | inline void QProblemB::applyGivens(     real_t c, real_t s, real_t nu, real_t xold, real_t yold,
+      |                                                             ~~~~~~~^~
+In file included from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/QProblem.hpp:43,
+                 from /home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES.hpp:67,
+                 from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp:7:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp: In copy constructor ‘qpOASES::ConstraintProduct::ConstraintProduct(const qpOASES::ConstraintProduct&)’:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp:64:66: warning: unused parameter ‘toCopy’ [-Wunused-parameter]
+   64 |                 ConstraintProduct(      const ConstraintProduct &toCopy /**< Rhs object. */
+      |                                         ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp: In member function ‘qpOASES::ConstraintProduct& qpOASES::ConstraintProduct::operator=(const qpOASES::ConstraintProduct&)’:
+/home/lee/Code/quadruped_control_ws/install/qpoases_colcon/include/qpOASES/ConstraintProduct.hpp:71:74: warning: unused parameter ‘toCopy’ [-Wunused-parameter]
+   71 |                 ConstraintProduct &operator=(   const ConstraintProduct &toCopy /**< Rhs object. */
+      |                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~
+In file included from /home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp:11:
+/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/include/gz_quadruped_hardware/actuator.hpp: In member function ‘double gazebo::Actuator_::getActuatorI(double, double)’:
+/home/lee/Code/quadruped_control_ws/install/gz_quadruped_hardware/include/gz_quadruped_hardware/actuator.hpp:155:47: warning: unused parameter ‘qd’ [-Wunused-parameter]
+  155 |     double getActuatorI(double tauDes, double qd){
+      |                                        ~~~~~~~^~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp: In member function ‘virtual ocs2::vector_t ocs2::legged_robot::WeightedWbc::update(const vector_t&, const vector_t&, const vector_t&, size_t, ocs2::scalar_t)’:
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp:85:39: warning: comparison of integer expressions of different signedness: ‘Eigen::EigenBase<Eigen::Matrix<double, -1, 1> >::Index’ {aka ‘long int’} and ‘size_t’ {aka ‘long unsigned int’} [-Wsign-compare]
+   85 |             if (motor_current_.size() == info_.actuatedDofNum && motor_applied_.size() == info_.actuatedDofNum &&
+      |                 ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/controllers/ocs2_quadruped_controller/src/wbc/WeightedWbc.cpp:85:88: warning: comparison of integer expressions of different signedness: ‘Eigen::EigenBase<Eigen::Matrix<double, -1, 1> >::Index’ {aka ‘long int’} and ‘size_t’ {aka ‘long unsigned int’} [-Wsign-compare]
+   85 |             if (motor_current_.size() == info_.actuatedDofNum && motor_applied_.size() == info_.actuatedDofNum &&
+      |                                                                  ~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-invalid-partial-specialization’ may have been intended to silence earlier diagnostics
+---
+Finished <<< ocs2_quadruped_controller [1min 9s]
+Starting >>> fixed_touchdown_experience
+Finished <<< fixed_touchdown_experience [0.95s]
+
+Summary: 2 packages finished [1min 10s]
+  1 package had stderr output: ocs2_quadruped_controller

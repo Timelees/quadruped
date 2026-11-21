@@ -192,9 +192,14 @@ namespace ocs2::legged_robot {
         std::shared_ptr<const ExecutionSwings> executionSwings() const {
             return std::atomic_load(&executionSwings_);
         }
-        struct FootFeedback {
+        struct FootSample {
             double time = -std::numeric_limits<double>::infinity();
-            SwingFootState velocity;
+            SwingFootState velocity, acceleration;
+        };
+        struct FootFeedback : FootSample {
+            // Immutable bounded history: the newest control sample can be in
+            // the future of the observation captured by the asynchronous MPC.
+            std::vector<FootSample> history;
         };
         void setFootFeedback(std::shared_ptr<const FootFeedback> feedback) {
             std::atomic_store(&footFeedback_, std::move(feedback));

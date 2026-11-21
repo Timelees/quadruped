@@ -1,0 +1,223 @@
+{
+  "source": "/home/lee/Code/quadruped_control_ws/src/quadruped_ros2_control/libraries/gz_quadruped_playground/worlds/stair10cm.sdf",
+  "source_sha256": "298847f9f87bbf25278b45cfdc91843e724e965984211a520e282e5a041225b4",
+  "obstacles": [
+    {
+      "name": "thin_obstacle_2cm",
+      "source_pose": [
+        -1.2,
+        0.0,
+        0.03,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        0.03,
+        1.0,
+        0.02
+      ],
+      "source_bottom": 0.019999999999999997,
+      "source_top": 0.04,
+      "experiment_pose": [
+        -1.2,
+        0.0,
+        0.01,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "experiment_top": 0.02
+    },
+    {
+      "name": "thin_obstacle_4cm",
+      "source_pose": [
+        -1.6,
+        0.0,
+        0.03,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        0.03,
+        1.0,
+        0.04
+      ],
+      "source_bottom": 0.009999999999999998,
+      "source_top": 0.05,
+      "experiment_pose": [
+        -1.6,
+        0.0,
+        0.02,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "experiment_top": 0.04
+    },
+    {
+      "name": "thin_obstacle_6cm",
+      "source_pose": [
+        -2.0,
+        0.0,
+        0.03,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        0.03,
+        1.0,
+        0.06
+      ],
+      "source_bottom": 0.0,
+      "source_top": 0.06,
+      "experiment_pose": [
+        -2.0,
+        0.0,
+        0.03,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "experiment_top": 0.06
+    },
+    {
+      "name": "thin_obstacle_8cm",
+      "source_pose": [
+        -2.4,
+        0.0,
+        0.03,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        0.03,
+        1.0,
+        0.08
+      ],
+      "source_bottom": -0.010000000000000002,
+      "source_top": 0.07,
+      "experiment_pose": [
+        -2.4,
+        0.0,
+        0.04,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "experiment_top": 0.08
+    },
+    {
+      "name": "thin_obstacle_10cm",
+      "source_pose": [
+        -2.8,
+        0.0,
+        0.03,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        0.03,
+        1.0,
+        0.1
+      ],
+      "source_bottom": -0.020000000000000004,
+      "source_top": 0.08,
+      "experiment_pose": [
+        -2.8,
+        0.0,
+        0.05,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "experiment_top": 0.1
+    },
+    {
+      "name": "thin_obstacle_12cm",
+      "source_pose": [
+        -3.2,
+        0.0,
+        0.03,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        0.03,
+        1.0,
+        0.12
+      ],
+      "source_bottom": -0.03,
+      "source_top": 0.09,
+      "experiment_pose": [
+        -3.2,
+        0.0,
+        0.06,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "experiment_top": 0.12
+    },
+    {
+      "name": "thin_obstacle_14cm",
+      "source_pose": [
+        -3.6,
+        0.0,
+        0.03,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        0.03,
+        1.0,
+        0.14
+      ],
+      "source_bottom": -0.04000000000000001,
+      "source_top": 0.1,
+      "experiment_pose": [
+        -3.6,
+        0.0,
+        0.07,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "experiment_top": 0.14
+    },
+    {
+      "name": "thin_obstacle_16cm",
+      "source_pose": [
+        -4.0,
+        0.0,
+        0.03,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        0.03,
+        1.0,
+        0.16
+      ],
+      "source_bottom": -0.05,
+      "source_top": 0.11,
+      "experiment_pose": [
+        -4.0,
+        0.0,
+        0.08,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "experiment_top": 0.16
+    }
+  ],
+  "corrected_sha256": "6cd3bd29833f71e936436d5f80221b96c42faaea1caf10fb76d45026ba782227"
+}

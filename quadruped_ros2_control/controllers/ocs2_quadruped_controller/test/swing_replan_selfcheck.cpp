@@ -141,24 +141,24 @@ void plannerChecks() {
             "policy in transit changed an imminent swing terminal");
     SwingTrajectoryPlanner::SwingFootState p,v,a;
     a.fill(Eigen::Vector3d::Constant(NAN));
-    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));
+    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));a.fill(old.getAcceleration(1.1));
     SwingTrajectoryPlanner quiet(config,4);quiet.setTerrainInterface(terrain);quiet.setMapTiming({.9,2.0});
     quiet.updateTerrain(schedule,heights,heights,positions,touchdowns,.95,1.5);
     quiet.updateTerrain(schedule,heights,heights,positions,touchdowns,1.1,1.5,p,v,a);
     require(quiet.getReplanStats().attempts==0,"certified reference with tracked state requested an unnecessary QP");
     require((quiet.getPositionConstraint(0,1.12)-old.getPosition(1.12)-Eigen::Vector3d(0,0,config.footRadius)).norm()<1e-10,
             "quiet tracking changed the reference");
-    p.fill(old.getPosition(1.17)+Eigen::Vector3d(.025,0,0));v.fill(old.getVelocity(1.17));
+    p.fill(old.getPosition(1.17)+Eigen::Vector3d(.025,0,0));v.fill(old.getVelocity(1.17));a.fill(old.getAcceleration(1.17));
     quiet.updateTerrain(schedule,heights,heights,positions,touchdowns,1.17,1.5,p,v,a);
     require(quiet.getReplanStats().attempts==0,"tracking error replanned a map-certified reference");
-    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));
+    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));a.fill(old.getAcceleration(1.1));
     terrain->bar=true;
     planner.updateTerrain(schedule,heights,heights,positions,touchdowns,1.1,1.5,p,v,a);
     require(!planner.getTerrainCorridor(0,1.1).valid,"new obstacle did not invalidate the old reference");
     require((planner.getPositionConstraint(0,1.125)-old.getPosition(1.125)-
         Eigen::Vector3d(0,0,config.footRadius)).norm()<1e-10,"candidate activated before delay");
     require(planner.getReplanStats().attempts==0,"prediction counted as activation");
-    p.fill(old.getPosition(1.125)+Eigen::Vector3d(.0005,0,.0005));v.fill(old.getVelocity(1.125));
+    p.fill(old.getPosition(1.125)+Eigen::Vector3d(.0005,0,.0005));v.fill(old.getVelocity(1.125));a.fill(old.getAcceleration(1.125));
     planner.updateTerrain(schedule,heights,heights,positions,touchdowns,1.125,1.5,p,v,a);
     require(planner.getReplanStats().admitted==4,"measured activation not admitted");
     require((planner.getPositionConstraint(0,1.125)-p[0]-
@@ -166,7 +166,7 @@ void plannerChecks() {
             "activation did not use the fresh state");
     const auto before=planner.getPositionConstraint(0,1.21);
     terrain->available=false;
-    p.fill(old.getPosition(1.2));v.fill(old.getVelocity(1.2));
+    p.fill(old.getPosition(1.2));v.fill(old.getVelocity(1.2));a.fill(old.getAcceleration(1.2));
     planner.updateTerrain(schedule,heights,heights,positions,touchdowns,1.2,1.5,p,v,a);
     require((planner.getPositionConstraint(0,1.21)-before).norm()<1e-12,"rejection replaced the old reference");
     require(planner.getReplanStats().attempts==planner.getReplanStats().admitted+4,"activation rejection stats");
@@ -183,12 +183,12 @@ void plannerChecks() {
     recovering.updateTerrain(schedule,heights,heights,positions,touchdowns,.95,1.5);
     terrain->bar=true;
     for (size_t leg=0;leg<4;++leg) recovering.rejectExecutionUpdate(leg,1.4);
-    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));
+    p.fill(old.getPosition(1.1));v.fill(old.getVelocity(1.1));a.fill(old.getAcceleration(1.1));
     recovering.updateTerrain(schedule,heights,heights,positions,touchdowns,1.1,1.5,p,v,a);
     require(recovering.getReplanStats().attempts==0,"veto recovery skipped accepted-reference MPC cycle");
-    p.fill(old.getPosition(1.17));v.fill(old.getVelocity(1.17));
+    p.fill(old.getPosition(1.17));v.fill(old.getVelocity(1.17));a.fill(old.getAcceleration(1.17));
     recovering.updateTerrain(schedule,heights,heights,positions,touchdowns,1.17,1.5,p,v,a);
-    p.fill(old.getPosition(1.195));v.fill(old.getVelocity(1.195));
+    p.fill(old.getPosition(1.195));v.fill(old.getVelocity(1.195));a.fill(old.getAcceleration(1.195));
     recovering.updateTerrain(schedule,heights,heights,positions,touchdowns,1.195,1.5,p,v,a);
     require(recovering.getReplanStats().attempts>0,"one activation veto froze the entire remaining swing");
     SwingTrajectoryPlanner early(config,4);
@@ -196,10 +196,10 @@ void plannerChecks() {
     terrain->bar=false;
     early.updateTerrain(schedule,heights,heights,positions,touchdowns,.95,1.5);
     terrain->bar=true;
-    p.fill(old.getPosition(1.04));v.fill(old.getVelocity(1.04));
+    p.fill(old.getPosition(1.04));v.fill(old.getVelocity(1.04));a.fill(old.getAcceleration(1.04));
     early.updateTerrain(schedule,heights,heights,positions,touchdowns,1.04,1.5,p,v,a);
     require(early.getReplanStats().attempts==0,"early prediction counted as activation");
-    p.fill(old.getPosition(1.065));v.fill(old.getVelocity(1.065));
+    p.fill(old.getPosition(1.065));v.fill(old.getVelocity(1.065));a.fill(old.getAcceleration(1.065));
     early.updateTerrain(schedule,heights,heights,positions,touchdowns,1.065,1.5,p,v,a);
     require(early.getReplanStats().admitted==4,"waiting for noncontact phase suppressed a feasible early update");
     require((early.getPositionConstraint(0,1.065)-p[0]-Eigen::Vector3d(0,0,config.footRadius)).norm()<1e-8,

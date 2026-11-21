@@ -13,7 +13,9 @@ void addPlane(CorridorPolytope& cell, const Eigen::Vector3d& normal, double boun
     for (auto& plane : cell.halfSpaces) {
         if ((plane.normal - normal).norm() < 1e-10) {
             plane.geometricOffset = std::min(plane.geometricOffset, bound);
-            plane.planningOffset = plane.geometricOffset - trackingMargin;
+            // Target contact can use zero tracking shrink. Merging that row
+            // must not relax an existing non-target obstacle's planning bound.
+            plane.planningOffset = std::min(plane.planningOffset, bound - trackingMargin);
             return;
         }
     }
@@ -195,7 +197,14 @@ static TerrainSafetyCorridor buildCorridor(const TerrainInterface& terrain, cons
                         }
                     }
                 }
-                if (normal.z() < -0.5 && isTarget(prism)) continue;
+                if (normal.z() < -0.5 && isTarget(prism)) {
+                    // Only the approach builder passes a contact window. Retain
+                    // target nonpenetration in centre coordinates; no clearance
+                    // shrink at legal contact. All other prisms retain their rows.
+                    addPlane(cell, -Eigen::Vector3d::UnitZ(),
+                             -(prism.height + config.footRadius), 0.0);
+                    continue;
+                }
                 addPlane(cell, normal, bound, config.trackingMargin);
             }
             // XY seed hull is inside every lateral planning face by construction.
@@ -232,10 +241,10 @@ static TerrainSafetyCorridor buildCorridor(const TerrainInterface& terrain, cons
 TerrainSafetyCorridor buildTerrainSafetyCorridor(const TerrainInterface& terrain, const BSpline& reference,
                                                  const CorridorConfig& config, int subdivisionsPerSpan,
                                                  HullBasis basis, TerrainMapTiming map, double touchdownTime) {
-    // The swing corridor must exclude the landing surface from creating a lower
-    // bound: the foot is expected to land on it, not avoid it from above.
+    // Noncontact mode treats the target as occupied too. Only the separate
+    // approach builder permits contact with that particular support footprint.
     return buildCorridor(terrain, reference, config, subdivisionsPerSpan, basis,
-                         config.contactPhase, 1.0 - config.contactPhase, config.landingPositionWindow,
+                         config.contactPhase, 1.0 - config.contactPhase, 0.0,
                          map, touchdownTime);
 }
 

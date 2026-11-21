@@ -1,0 +1,52 @@
+[
+  {
+    "figure": "fig7_feasibility_heatmap",
+    "collision_verdict": "PASS",
+    "counts": {
+      "fail": 0,
+      "warn": 0,
+      "contained_fill_overlays": 124,
+      "contained_image_overlays": 122
+    }
+  },
+  {
+    "figure": "fig8_replanning_latency",
+    "collision_verdict": "PASS",
+    "counts": {
+      "fail": 0,
+      "warn": 0,
+      "contained_fill_overlays": 0,
+      "contained_image_overlays": 0
+    }
+  },
+  {
+    "figure": "fig9_minvo_bernstein",
+    "collision_verdict": "PASS",
+    "counts": {
+      "fail": 0,
+      "warn": 0,
+      "contained_fill_overlays": 0,
+      "contained_image_overlays": 0
+    }
+  },
+  {
+    "figure": "fig10_real_input_feasibility",
+    "collision_verdict": "PASS",
+    "counts": {
+      "fail": 0,
+      "warn": 0,
+      "contained_fill_overlays": 0,
+      "contained_image_overlays": 0
+    }
+  },
+  {
+    "figure": "fig11_hocbf_residual",
+    "collision_verdict": "PASS",
+    "counts": {
+      "fail": 0,
+      "warn": 0,
+      "contained_fill_overlays": 0,
+      "contained_image_overlays": 0
+    }
+  }
+]

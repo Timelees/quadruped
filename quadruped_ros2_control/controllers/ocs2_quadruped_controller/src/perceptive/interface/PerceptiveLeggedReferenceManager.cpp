@@ -118,7 +118,11 @@ namespace ocs2::legged_robot
             const auto& map=convexRegionSelectorPtr_->getPlanarTerrainPtr()->gridMap;
             if (map.exists("swing_update_release_test_only")) {
                 const auto& release=map.get("swing_update_release_test_only");
-                swingTrajectoryPtr_->setOnlineReplanningReleased(release.allFinite() && release.minCoeff()>.5);
+                const bool released=release.allFinite() && release.minCoeff()>.5;
+                if(released && !swingTrajectoryPtr_->isOnlineReplanningEnabled())
+                    std::cerr<<"Swing reveal map committed controller_time="<<initTime
+                             <<" map_stamp_ns="<<map.getTimestamp()<<'\n';
+                swingTrajectoryPtr_->setOnlineReplanningReleased(released);
             }
         }
         SwitchedModelReferenceManager::preSolverRun(initTime, finalTime, initState);
@@ -278,23 +282,28 @@ namespace ocs2::legged_robot
                     if (shouldLog && leg == 0) {
                         std::cerr << "[Workspace] IK failed: " << e.what() << '\n';
                     }
-                    // IK failed for this query — return a wide default bound so the
-                    // QP can still solve without workspace constraints. The terrain
-                    // clearance constraints still provide safety.
-                    return Eigen::Vector2d(-1.0, 1.0);
+                    // Fail closed. Sampled IK is a heuristic screen, never a reachability certificate.
+                    return Eigen::Vector2d::Constant(std::numeric_limits<double>::quiet_NaN()).eval();
                 }
             });
             const auto [liftOff3d, touchDown3d] = getSwingPositions3d(contactFlagStocks, allProjections);
             SwingTrajectoryPlanner::SwingFootState footPosition, footVelocity, footAcceleration;
             const auto measuredPositions = endEffectorKinematicsPtr_->getPosition(initState);
             const auto feedback = swingTrajectoryPtr_->footFeedback();
+            const SwingTrajectoryPlanner::FootSample* sample=feedback.get();
+            if (sample && sample->time>initTime) {
+                sample=nullptr;
+                for(auto it=feedback->history.rbegin();it!=feedback->history.rend();++it)
+                    if(it->time<=initTime){sample=&*it;break;}
+            }
             for (size_t leg = 0; leg < info_.numThreeDofContacts; ++leg) {
                 footPosition[leg] = measuredPositions[leg];
                 footPosition[leg].z() -= swingTrajectoryPtr_->getConfig().footRadius;
                 footVelocity[leg] = Eigen::Vector3d::Constant(std::numeric_limits<scalar_t>::quiet_NaN());
                 footAcceleration[leg] = footVelocity[leg];
-                if (feedback && initTime >= feedback->time && initTime - feedback->time <= 0.03) {
-                    footVelocity[leg] = feedback->velocity[leg];
+                if (sample && initTime >= sample->time && initTime - sample->time <= 0.03) {
+                    footVelocity[leg] = sample->velocity[leg] + (initTime-sample->time)*sample->acceleration[leg];
+                    footAcceleration[leg] = sample->acceleration[leg];
                 }
             }
             swingTrajectoryPtr_->updateTerrain(modeSchedule, liftOffHeightSequence, touchDownHeightSequence,

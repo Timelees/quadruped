@@ -1,0 +1,22 @@
+[
+  {
+    "leg_pass": true,
+    "leg": 0,
+    "activation": 8.495,
+    "actual_time": 8.505,
+    "delay_s": 0.0,
+    "position_error_m": 0.0,
+    "velocity_error_mps": 3.87658e-15,
+    "reason": "accepted"
+  },
+  {
+    "leg_pass": true,
+    "leg": 3,
+    "activation": 8.495,
+    "actual_time": 8.505,
+    "delay_s": 0.0,
+    "position_error_m": 0.0,
+    "velocity_error_mps": 5.02852e-15,
+    "reason": "accepted"
+  }
+]

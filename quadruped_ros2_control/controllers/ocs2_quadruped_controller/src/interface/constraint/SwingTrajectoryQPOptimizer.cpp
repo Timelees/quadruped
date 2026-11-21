@@ -577,7 +577,7 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
                 const double phase = double(k) / (n - 1);
                 sections.col(k) = workspace(start + duration * phase, curve.getPosition(phase));
                 if (!sections.col(k).allFinite() || sections(0, k) > sections(1, k)) {
-                    throw std::invalid_argument("Invalid IK workspace bounds.");
+                    throw std::runtime_error("Invalid IK workspace bounds.");
                 }
             }
             for (int i = 0; i < phases.size(); ++i) {
@@ -585,35 +585,13 @@ SwingTrajectoryQpOptimizer::OptimizedTrajectory SwingTrajectoryQpOptimizer::opti
                 const int k = std::min(int(index), n - 2);
                 Eigen::Vector2d limits =
                     (1 - (index - k)) * sections.col(k) + (index - k) * sections.col(k + 1);
-                // Ensure workspace bounds contain the reference trajectory value.
-                // If IK-computed workspace excludes the reference, expand it to include
-                // the reference plus a small margin. This prevents the QP from making
-                // unnecessary corrections when workspace bounds are overly conservative.
-                const double referenceZ = B.row(i).dot(z);
-                // Small fixed margin - do not scale with obstacle height as that causes
-                // QP divergence (primal_norm explodes).
-                const double margin = 0.005;  // 5mm
-                limits[0] = std::min(limits[0], referenceZ - margin);
-                limits[1] = std::max(limits[1], referenceZ + margin);
-                // For high obstacles, expand the IK-based upper bound to allow
-                // QP to lift the foot higher. Scale gradually with obstacle height.
-                if (maxObstacleHeight > 0.06) {
-                    // Allow up to 20mm extra above the obstacle height
-                    const double ikRelaxation = 0.01 * std::min(1.0, (maxObstacleHeight - 0.06) / 0.04);
-                    limits[1] = std::max(limits[1], maxObstacleHeight + 0.01 + ikRelaxation);
-                }
-                // Additionally relax near endpoints to ensure compatibility with
-                // fixed boundary control points (first/last 3 are position/velocity/accel).
-                const double endpointBlend = std::min(1.0, std::min(phases[i], 1.0 - phases[i]) * 6.0);
-                limits[0] = std::min(limits[0], (1 - endpointBlend) * referenceZ + endpointBlend * limits[0]);
-                limits[1] = std::max(limits[1], (1 - endpointBlend) * referenceZ + endpointBlend * limits[1]);
                 rows.push_back(B.row(i));
                 bounds.push_back(limits[0]);
                 rows.push_back(-B.row(i));
                 bounds.push_back(-limits[1]);
             }
         }
-    } catch (const TerrainUnavailable &e) {
+    } catch (const std::runtime_error &e) {
         if (config_.verbose) {
             std::cerr << "Swing QP terrain unavailable: " << e.what() << '\n';
         }

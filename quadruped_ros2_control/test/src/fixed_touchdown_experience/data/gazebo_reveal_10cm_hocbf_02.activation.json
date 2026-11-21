@@ -1,0 +1,62 @@
+[
+  {
+    "leg_pass": true,
+    "leg": 1,
+    "activation": 7.14,
+    "actual_time": 7.155,
+    "delay_s": 0.0,
+    "position_error_m": 1.38778e-17,
+    "velocity_error_mps": 5.33692e-15,
+    "reason": "accepted"
+  },
+  {
+    "leg_pass": true,
+    "leg": 2,
+    "activation": 7.14,
+    "actual_time": 7.155,
+    "delay_s": 0.0,
+    "position_error_m": 0.0,
+    "velocity_error_mps": 6.83985e-15,
+    "reason": "accepted"
+  },
+  {
+    "leg_pass": true,
+    "leg": 0,
+    "activation": 7.54,
+    "actual_time": 7.555,
+    "delay_s": 0.0,
+    "position_error_m": 5.72196e-17,
+    "velocity_error_mps": 3.46848e-15,
+    "reason": "accepted"
+  },
+  {
+    "leg_pass": true,
+    "leg": 3,
+    "activation": 7.54,
+    "actual_time": 7.555,
+    "delay_s": 0.0,
+    "position_error_m": 5.72196e-17,
+    "velocity_error_mps": 1.65454e-15,
+    "reason": "accepted"
+  },
+  {
+    "leg_pass": true,
+    "leg": 0,
+    "activation": 18.74,
+    "actual_time": 18.75,
+    "delay_s": 0.0,
+    "position_error_m": 1.38778e-17,
+    "velocity_error_mps": 6.28263e-15,
+    "reason": "accepted"
+  },
+  {
+    "leg_pass": true,
+    "leg": 3,
+    "activation": 18.74,
+    "actual_time": 18.75,
+    "delay_s": 0.0,
+    "position_error_m": 3.10317e-17,
+    "velocity_error_mps": 1.18192e-15,
+    "reason": "accepted"
+  }
+]

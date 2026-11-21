@@ -1,0 +1,52 @@
+[
+  {
+    "leg_pass": false,
+    "leg": 1,
+    "activation": 7.935,
+    "actual_time": 7.955,
+    "delay_s": 0.0,
+    "position_error_m": 5.72196e-17,
+    "velocity_error_mps": 8.61583e-15,
+    "reason": "activation_control_3"
+  },
+  {
+    "leg_pass": false,
+    "leg": 0,
+    "activation": 8.335,
+    "actual_time": 8.34,
+    "delay_s": 0.0,
+    "position_error_m": 0.0,
+    "velocity_error_mps": 0.0,
+    "reason": "terminal_changed"
+  },
+  {
+    "leg_pass": false,
+    "leg": 1,
+    "activation": 11.135,
+    "actual_time": 11.14,
+    "delay_s": 0.0,
+    "position_error_m": 0.0,
+    "velocity_error_mps": 1.8598e-15,
+    "reason": "activation_control_3"
+  },
+  {
+    "leg_pass": false,
+    "leg": 0,
+    "activation": 18.735,
+    "actual_time": 18.74,
+    "delay_s": 0.0,
+    "position_error_m": 0.0,
+    "velocity_error_mps": 0.0,
+    "reason": "terminal_changed"
+  },
+  {
+    "leg_pass": false,
+    "leg": 1,
+    "activation": 37.535,
+    "actual_time": 37.555,
+    "delay_s": 0.0,
+    "position_error_m": 0.0,
+    "velocity_error_mps": 0.0,
+    "reason": "terminal_changed"
+  }
+]

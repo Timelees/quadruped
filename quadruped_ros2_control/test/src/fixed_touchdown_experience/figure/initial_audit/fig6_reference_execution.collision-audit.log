@@ -1,0 +1,26 @@
+Nature Figure Rendered Collision Audit
+pdf: src/quadruped_ros2_control/test/src/fixed_touchdown_experience/figure/initial_audit/fig6_reference_execution.pdf
+pages: 1
+visible text boxes: 32
+stroke paths: 76
+
+[FAIL] page 1 text-page-clipping: Text extends beyond the final PDF page boundary — 'Time since lift-off (s)'
+  text bbox: (236.25888061523438, 330.666259765625, 339.0433654785156, 340.666259765625)
+[FAIL] page 1 text-stroke: Text is crossed by 1 stroked path(s) — 'a'
+  text bbox: (72.67967987060547, 40.89220428466797, 79.42772674560547, 50.89220428466797)
+[FAIL] page 1 text-stroke: Text is crossed by 4 stroked path(s) — 'Truth-to-reference error'
+  text bbox: (386.5820007324219, 194.34815979003906, 480.92755126953125, 202.34815979003906)
+[FAIL] page 1 text-stroke: Text is crossed by 4 stroked path(s) — 'Estimated tracking error'
+  text bbox: (386.5820007324219, 206.09814453125, 484.1905822753906, 214.09814453125)
+[FAIL] page 1 text-stroke: Text is crossed by 5 stroked path(s) — 'Planning allowance (20 mm)'
+  text bbox: (386.5820007324219, 217.84814453125, 500.77508544921875, 225.84814453125)
+[FAIL] page 1 text-stroke: Text is crossed by 4 stroked path(s) — 'Executed reference samples'
+  text bbox: (387.0507507324219, 40.73873519897461, 500.68060302734375, 48.73873519897461)
+[FAIL] page 1 text-stroke: Text is crossed by 2 stroked path(s) — 'Gazebo foot truth'
+  text bbox: (387.0507507324219, 52.48873519897461, 457.7850646972656, 60.48873519897461)
+[FAIL] page 1 text-stroke: Text is crossed by 3 stroked path(s) — 'Collision boundary'
+  text bbox: (387.0507507324219, 64.23873138427734, 461.2331237792969, 72.23873138427734)
+
+summary: 8 fail, 0 warn, 6 contained fill overlays, 0 contained image overlays
+verdict: FIX BEFORE DELIVERY
+note: contained overlays can be intentional; WARN findings need final-size visual review

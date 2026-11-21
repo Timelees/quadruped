@@ -44,16 +44,14 @@ struct CorridorConfig {
     // Contact transitions retain the controller's existing contact-envelope rows.
     // Only [contactPhase, 1-contactPhase] has the non-contact corridor certificate.
     double contactPhase = 0.10;
-    // Target surface exclusion radius: a prism at this distance from the touchdown
-    // position and at the same height is excluded from creating a lower bound.
-    // This lets the swing corridor be built even when the target step rises above
-    // the liftoff surface. Zero disables target exclusion (all prisms are obstacles).
+    // Target support footprint window for approach mode only. Noncontact
+    // builders never exclude the target. Approach retains a no-penetration row.
     double landingPositionWindow = 0.025;
 };
 
 struct TerrainSafetyCorridor {
     std::vector<CorridorPolytope> cells;
-    std::vector<CorridorPolytope> approachCells;  // execution only, no target-top clearance row
+    std::vector<CorridorPolytope> approachCells;  // execution only, target nonpenetration replaces clearance
     double footRadius = 0.0;
     double numericalMargin = 0.0;
     Eigen::Vector3d touchdownCentre = Eigen::Vector3d::Zero();

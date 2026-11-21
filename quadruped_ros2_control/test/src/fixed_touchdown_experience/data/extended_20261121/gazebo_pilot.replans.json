@@ -1,0 +1,3516 @@
+{
+  "decisions": [
+    {
+      "leg": 1,
+      "activation": 25.055,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.73102,
+      "remaining": 0.37,
+      "position_delta": 0.00375932
+    },
+    {
+      "leg": 1,
+      "activation": 25.855,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 5.73363,
+      "remaining": 0.37,
+      "position_delta": 0.00506361
+    },
+    {
+      "leg": 1,
+      "activation": 25.92,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 5.59399,
+      "remaining": 0.305,
+      "position_delta": 0.0118207
+    },
+    {
+      "leg": 1,
+      "activation": 25.995,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 5.16509,
+      "remaining": 0.23,
+      "position_delta": 0.0142791
+    },
+    {
+      "leg": 1,
+      "activation": 26.065,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 6.05659,
+      "remaining": 0.16,
+      "position_delta": 0.0116582
+    },
+    {
+      "leg": 0,
+      "activation": 26.24,
+      "outcome": 1,
+      "reason": "",
+      "compute_ms": 7.67708,
+      "remaining": 0.385,
+      "position_delta": 0.00229934
+    },
+    {
+      "leg": 0,
+      "activation": 26.31,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.19138,
+      "remaining": 0.315,
+      "position_delta": 0.0140201
+    },
+    {
+      "leg": 0,
+      "activation": 26.375,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.79378,
+      "remaining": 0.25,
+      "position_delta": 0.0172472
+    },
+    {
+      "leg": 0,
+      "activation": 26.44,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.37375,
+      "remaining": 0.185,
+      "position_delta": 0.012798
+    },
+    {
+      "leg": 1,
+      "activation": 26.63,
+      "outcome": 1,
+      "reason": "",
+      "compute_ms": 7.82633,
+      "remaining": 0.395,
+      "position_delta": 0.000951009
+    },
+    {
+      "leg": 1,
+      "activation": 26.71,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.45342,
+      "remaining": 0.315,
+      "position_delta": 0.00722011
+    },
+    {
+      "leg": 3,
+      "activation": 27.845,
+      "outcome": 1,
+      "reason": "",
+      "compute_ms": 7.55822,
+      "remaining": 0.38,
+      "position_delta": 0.00302036
+    },
+    {
+      "leg": 3,
+      "activation": 27.92,
+      "outcome": 1,
+      "reason": "",
+      "compute_ms": 7.29824,
+      "remaining": 0.305,
+      "position_delta": 0.00830016
+    },
+    {
+      "leg": 3,
+      "activation": 27.985,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.94101,
+      "remaining": 0.24,
+      "position_delta": 0.0078537
+    },
+    {
+      "leg": 3,
+      "activation": 28.05,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.17215,
+      "remaining": 0.175,
+      "position_delta": 0.00983984
+    },
+    {
+      "leg": 1,
+      "activation": 28.23,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030499,
+      "remaining": 0.395,
+      "position_delta": 0.000955255
+    },
+    {
+      "leg": 2,
+      "activation": 28.23,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 8.21146,
+      "remaining": 0.395,
+      "position_delta": 0.00110145
+    },
+    {
+      "leg": 1,
+      "activation": 28.315,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028778,
+      "remaining": 0.31,
+      "position_delta": 0.00871861
+    },
+    {
+      "leg": 2,
+      "activation": 28.315,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 8.46645,
+      "remaining": 0.31,
+      "position_delta": 0.0109002
+    },
+    {
+      "leg": 1,
+      "activation": 28.395,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029219,
+      "remaining": 0.23,
+      "position_delta": 0.012071
+    },
+    {
+      "leg": 1,
+      "activation": 28.475,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030896,
+      "remaining": 0.15,
+      "position_delta": 0.0128598
+    },
+    {
+      "leg": 0,
+      "activation": 28.64,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.051079,
+      "remaining": 0.385,
+      "position_delta": 0.00166052
+    },
+    {
+      "leg": 3,
+      "activation": 28.64,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.73048,
+      "remaining": 0.385,
+      "position_delta": 0.00233801
+    },
+    {
+      "leg": 0,
+      "activation": 28.725,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.048528,
+      "remaining": 0.3,
+      "position_delta": 0.0102325
+    },
+    {
+      "leg": 3,
+      "activation": 28.725,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 5.08209,
+      "remaining": 0.3,
+      "position_delta": 0.0153336
+    },
+    {
+      "leg": 0,
+      "activation": 28.815,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.055431,
+      "remaining": 0.21,
+      "position_delta": 0.0127584
+    },
+    {
+      "leg": 3,
+      "activation": 28.815,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.22546,
+      "remaining": 0.21,
+      "position_delta": 0.0118808
+    },
+    {
+      "leg": 0,
+      "activation": 28.88,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.056279,
+      "remaining": 0.145,
+      "position_delta": 0.00875938
+    },
+    {
+      "leg": 3,
+      "activation": 28.88,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 6.20943,
+      "remaining": 0.145,
+      "position_delta": 0.00408158
+    },
+    {
+      "leg": 1,
+      "activation": 29.05,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.035696,
+      "remaining": 0.375,
+      "position_delta": 0.00428579
+    },
+    {
+      "leg": 2,
+      "activation": 29.05,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.40594,
+      "remaining": 0.375,
+      "position_delta": 0.00473747
+    },
+    {
+      "leg": 1,
+      "activation": 29.13,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.039731,
+      "remaining": 0.295,
+      "position_delta": 0.0138095
+    },
+    {
+      "leg": 2,
+      "activation": 29.13,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.98973,
+      "remaining": 0.295,
+      "position_delta": 0.0131351
+    },
+    {
+      "leg": 1,
+      "activation": 29.21,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.034102,
+      "remaining": 0.215,
+      "position_delta": 0.0119437
+    },
+    {
+      "leg": 2,
+      "activation": 29.21,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.33164,
+      "remaining": 0.215,
+      "position_delta": 0.00892003
+    },
+    {
+      "leg": 1,
+      "activation": 29.29,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.03575,
+      "remaining": 0.135,
+      "position_delta": 0.004348
+    },
+    {
+      "leg": 2,
+      "activation": 29.29,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.07993,
+      "remaining": 0.135,
+      "position_delta": 0.00542719
+    },
+    {
+      "leg": 0,
+      "activation": 29.45,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.044132,
+      "remaining": 0.375,
+      "position_delta": 0.00490058
+    },
+    {
+      "leg": 3,
+      "activation": 29.45,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.43508,
+      "remaining": 0.375,
+      "position_delta": 0.00306262
+    },
+    {
+      "leg": 0,
+      "activation": 29.525,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049398,
+      "remaining": 0.3,
+      "position_delta": 0.0178509
+    },
+    {
+      "leg": 3,
+      "activation": 29.525,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 4.26819,
+      "remaining": 0.3,
+      "position_delta": 0.00632244
+    },
+    {
+      "leg": 0,
+      "activation": 29.595,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.05516,
+      "remaining": 0.23,
+      "position_delta": 0.0222703
+    },
+    {
+      "leg": 0,
+      "activation": 29.67,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049297,
+      "remaining": 0.155,
+      "position_delta": 0.0143362
+    },
+    {
+      "leg": 1,
+      "activation": 29.83,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.048163,
+      "remaining": 0.395,
+      "position_delta": 0.000763112
+    },
+    {
+      "leg": 2,
+      "activation": 29.83,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.73276,
+      "remaining": 0.395,
+      "position_delta": 0.00160759
+    },
+    {
+      "leg": 1,
+      "activation": 29.905,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.045969,
+      "remaining": 0.32,
+      "position_delta": 0.00580136
+    },
+    {
+      "leg": 2,
+      "activation": 29.905,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.75394,
+      "remaining": 0.32,
+      "position_delta": 0.00787376
+    },
+    {
+      "leg": 1,
+      "activation": 29.985,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.050767,
+      "remaining": 0.24,
+      "position_delta": 0.0106626
+    },
+    {
+      "leg": 1,
+      "activation": 30.06,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.044991,
+      "remaining": 0.165,
+      "position_delta": 0.012789
+    },
+    {
+      "leg": 0,
+      "activation": 30.235,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.092419,
+      "remaining": 0.39,
+      "position_delta": 0.00114352
+    },
+    {
+      "leg": 0,
+      "activation": 30.305,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.071343,
+      "remaining": 0.32,
+      "position_delta": 0.00672152
+    },
+    {
+      "leg": 0,
+      "activation": 30.385,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.073867,
+      "remaining": 0.24,
+      "position_delta": 0.00962039
+    },
+    {
+      "leg": 0,
+      "activation": 30.465,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.074209,
+      "remaining": 0.16,
+      "position_delta": 0.0133033
+    },
+    {
+      "leg": 1,
+      "activation": 30.63,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.07927,
+      "remaining": 0.395,
+      "position_delta": 0.00100909
+    },
+    {
+      "leg": 2,
+      "activation": 30.63,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.034053,
+      "remaining": 0.395,
+      "position_delta": 0.00122158
+    },
+    {
+      "leg": 1,
+      "activation": 30.695,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.076912,
+      "remaining": 0.33,
+      "position_delta": 0.00713514
+    },
+    {
+      "leg": 2,
+      "activation": 30.695,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.032992,
+      "remaining": 0.33,
+      "position_delta": 0.00557814
+    },
+    {
+      "leg": 1,
+      "activation": 30.775,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.082458,
+      "remaining": 0.25,
+      "position_delta": 0.0113126
+    },
+    {
+      "leg": 2,
+      "activation": 30.775,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.03224,
+      "remaining": 0.25,
+      "position_delta": 0.00404471
+    },
+    {
+      "leg": 2,
+      "activation": 30.84,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029612,
+      "remaining": 0.185,
+      "position_delta": 0.00785288
+    },
+    {
+      "leg": 0,
+      "activation": 31.03,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.10394,
+      "remaining": 0.395,
+      "position_delta": 0.00100328
+    },
+    {
+      "leg": 3,
+      "activation": 31.03,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027585,
+      "remaining": 0.395,
+      "position_delta": 0.00122555
+    },
+    {
+      "leg": 0,
+      "activation": 31.1,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.095324,
+      "remaining": 0.325,
+      "position_delta": 0.00755297
+    },
+    {
+      "leg": 3,
+      "activation": 31.1,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.032959,
+      "remaining": 0.325,
+      "position_delta": 0.00744123
+    },
+    {
+      "leg": 0,
+      "activation": 31.17,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.109342,
+      "remaining": 0.255,
+      "position_delta": 0.0112157
+    },
+    {
+      "leg": 3,
+      "activation": 31.17,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.03046,
+      "remaining": 0.255,
+      "position_delta": 0.00962423
+    },
+    {
+      "leg": 3,
+      "activation": 31.24,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028996,
+      "remaining": 0.185,
+      "position_delta": 0.00467039
+    },
+    {
+      "leg": 1,
+      "activation": 31.445,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.77449,
+      "remaining": 0.38,
+      "position_delta": 0.00239745
+    },
+    {
+      "leg": 2,
+      "activation": 31.445,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.032119,
+      "remaining": 0.38,
+      "position_delta": 0.00322715
+    },
+    {
+      "leg": 1,
+      "activation": 31.53,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.034421,
+      "remaining": 0.295,
+      "position_delta": 0.00907084
+    },
+    {
+      "leg": 2,
+      "activation": 31.53,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028136,
+      "remaining": 0.295,
+      "position_delta": 0.0126385
+    },
+    {
+      "leg": 1,
+      "activation": 31.595,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.036892,
+      "remaining": 0.23,
+      "position_delta": 0.0110858
+    },
+    {
+      "leg": 2,
+      "activation": 31.595,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.035686,
+      "remaining": 0.23,
+      "position_delta": 0.00882506
+    },
+    {
+      "leg": 1,
+      "activation": 31.66,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026308,
+      "remaining": 0.165,
+      "position_delta": 0.00841105
+    },
+    {
+      "leg": 2,
+      "activation": 31.66,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02515,
+      "remaining": 0.165,
+      "position_delta": 0.00258625
+    },
+    {
+      "leg": 0,
+      "activation": 31.83,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049701,
+      "remaining": 0.395,
+      "position_delta": 0.0011074
+    },
+    {
+      "leg": 3,
+      "activation": 31.83,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.03448,
+      "remaining": 0.395,
+      "position_delta": 0.0014202
+    },
+    {
+      "leg": 0,
+      "activation": 31.905,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.047253,
+      "remaining": 0.32,
+      "position_delta": 0.0154743
+    },
+    {
+      "leg": 3,
+      "activation": 31.905,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027807,
+      "remaining": 0.32,
+      "position_delta": 0.0182171
+    },
+    {
+      "leg": 0,
+      "activation": 31.97,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.051699,
+      "remaining": 0.255,
+      "position_delta": 0.019463
+    },
+    {
+      "leg": 3,
+      "activation": 31.97,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.033685,
+      "remaining": 0.255,
+      "position_delta": 0.0260149
+    },
+    {
+      "leg": 0,
+      "activation": 32.04,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.045545,
+      "remaining": 0.185,
+      "position_delta": 0.0096734
+    },
+    {
+      "leg": 3,
+      "activation": 32.04,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026877,
+      "remaining": 0.185,
+      "position_delta": 0.0205272
+    },
+    {
+      "leg": 1,
+      "activation": 32.235,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030846,
+      "remaining": 0.39,
+      "position_delta": 0.00168197
+    },
+    {
+      "leg": 2,
+      "activation": 32.235,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.050291,
+      "remaining": 0.39,
+      "position_delta": 0.00168137
+    },
+    {
+      "leg": 1,
+      "activation": 32.305,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029409,
+      "remaining": 0.32,
+      "position_delta": 0.0175274
+    },
+    {
+      "leg": 2,
+      "activation": 32.305,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049054,
+      "remaining": 0.32,
+      "position_delta": 0.00565385
+    },
+    {
+      "leg": 1,
+      "activation": 32.37,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028921,
+      "remaining": 0.255,
+      "position_delta": 0.0267712
+    },
+    {
+      "leg": 2,
+      "activation": 32.37,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.048679,
+      "remaining": 0.255,
+      "position_delta": 0.00647292
+    },
+    {
+      "leg": 1,
+      "activation": 32.435,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026415,
+      "remaining": 0.19,
+      "position_delta": 0.023912
+    },
+    {
+      "leg": 2,
+      "activation": 32.435,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.046292,
+      "remaining": 0.19,
+      "position_delta": 0.0104759
+    },
+    {
+      "leg": 1,
+      "activation": 32.5,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02603,
+      "remaining": 0.125,
+      "position_delta": 0.0165835
+    },
+    {
+      "leg": 2,
+      "activation": 32.5,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.045943,
+      "remaining": 0.125,
+      "position_delta": 0.0178349
+    },
+    {
+      "leg": 0,
+      "activation": 32.64,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.052476,
+      "remaining": 0.385,
+      "position_delta": 0.00105833
+    },
+    {
+      "leg": 3,
+      "activation": 32.64,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.062964,
+      "remaining": 0.385,
+      "position_delta": 0.00237292
+    },
+    {
+      "leg": 0,
+      "activation": 32.715,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.04918,
+      "remaining": 0.31,
+      "position_delta": 0.00644928
+    },
+    {
+      "leg": 3,
+      "activation": 32.715,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.066785,
+      "remaining": 0.31,
+      "position_delta": 0.00855823
+    },
+    {
+      "leg": 0,
+      "activation": 32.79,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.055501,
+      "remaining": 0.235,
+      "position_delta": 0.00873786
+    },
+    {
+      "leg": 3,
+      "activation": 32.79,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.065317,
+      "remaining": 0.235,
+      "position_delta": 0.00658875
+    },
+    {
+      "leg": 0,
+      "activation": 32.85,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.048102,
+      "remaining": 0.175,
+      "position_delta": 0.00716068
+    },
+    {
+      "leg": 3,
+      "activation": 32.85,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.06297,
+      "remaining": 0.175,
+      "position_delta": 0.0054574
+    },
+    {
+      "leg": 1,
+      "activation": 33.04,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049921,
+      "remaining": 0.385,
+      "position_delta": 0.00151333
+    },
+    {
+      "leg": 2,
+      "activation": 33.04,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.07594,
+      "remaining": 0.385,
+      "position_delta": 0.00207342
+    },
+    {
+      "leg": 1,
+      "activation": 33.105,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.044781,
+      "remaining": 0.32,
+      "position_delta": 0.00570001
+    },
+    {
+      "leg": 2,
+      "activation": 33.105,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.068872,
+      "remaining": 0.32,
+      "position_delta": 0.0073943
+    },
+    {
+      "leg": 1,
+      "activation": 33.18,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.055618,
+      "remaining": 0.245,
+      "position_delta": 0.00968582
+    },
+    {
+      "leg": 2,
+      "activation": 33.18,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.07264,
+      "remaining": 0.245,
+      "position_delta": 0.00733568
+    },
+    {
+      "leg": 1,
+      "activation": 33.25,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.042867,
+      "remaining": 0.175,
+      "position_delta": 0.01232
+    },
+    {
+      "leg": 0,
+      "activation": 33.43,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.091638,
+      "remaining": 0.395,
+      "position_delta": 0.000895072
+    },
+    {
+      "leg": 3,
+      "activation": 33.43,
+      "outcome": 1,
+      "reason": "",
+      "compute_ms": 7.77123,
+      "remaining": 0.395,
+      "position_delta": 0.00117159
+    },
+    {
+      "leg": 0,
+      "activation": 33.49,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.071695,
+      "remaining": 0.335,
+      "position_delta": 0.00613747
+    },
+    {
+      "leg": 3,
+      "activation": 33.49,
+      "outcome": 1,
+      "reason": "",
+      "compute_ms": 7.13405,
+      "remaining": 0.335,
+      "position_delta": 0.00492739
+    },
+    {
+      "leg": 0,
+      "activation": 33.555,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.075067,
+      "remaining": 0.27,
+      "position_delta": 0.00912382
+    },
+    {
+      "leg": 3,
+      "activation": 33.555,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.5723,
+      "remaining": 0.27,
+      "position_delta": 0.00364191
+    },
+    {
+      "leg": 0,
+      "activation": 33.625,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.080175,
+      "remaining": 0.2,
+      "position_delta": 0.0111022
+    },
+    {
+      "leg": 3,
+      "activation": 33.625,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.62341,
+      "remaining": 0.2,
+      "position_delta": 0.00772963
+    },
+    {
+      "leg": 0,
+      "activation": 33.7,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.091585,
+      "remaining": 0.125,
+      "position_delta": 0.0173519
+    },
+    {
+      "leg": 3,
+      "activation": 33.7,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.69784,
+      "remaining": 0.125,
+      "position_delta": 0.0164127
+    },
+    {
+      "leg": 1,
+      "activation": 33.845,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.078326,
+      "remaining": 0.38,
+      "position_delta": 0.0024062
+    },
+    {
+      "leg": 2,
+      "activation": 33.845,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.033055,
+      "remaining": 0.38,
+      "position_delta": 0.0025991
+    },
+    {
+      "leg": 1,
+      "activation": 33.92,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.081928,
+      "remaining": 0.305,
+      "position_delta": 0.00770176
+    },
+    {
+      "leg": 2,
+      "activation": 33.92,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029278,
+      "remaining": 0.305,
+      "position_delta": 0.00652329
+    },
+    {
+      "leg": 1,
+      "activation": 33.98,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.0741,
+      "remaining": 0.245,
+      "position_delta": 0.0103461
+    },
+    {
+      "leg": 2,
+      "activation": 33.98,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029482,
+      "remaining": 0.245,
+      "position_delta": 0.00613075
+    },
+    {
+      "leg": 1,
+      "activation": 34.055,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.067601,
+      "remaining": 0.17,
+      "position_delta": 0.0153454
+    },
+    {
+      "leg": 2,
+      "activation": 34.055,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028447,
+      "remaining": 0.17,
+      "position_delta": 0.00369359
+    },
+    {
+      "leg": 0,
+      "activation": 34.245,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.065742,
+      "remaining": 0.38,
+      "position_delta": 0.00212523
+    },
+    {
+      "leg": 3,
+      "activation": 34.245,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02892,
+      "remaining": 0.38,
+      "position_delta": 0.00306363
+    },
+    {
+      "leg": 0,
+      "activation": 34.32,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.093299,
+      "remaining": 0.305,
+      "position_delta": 0.0083416
+    },
+    {
+      "leg": 3,
+      "activation": 34.32,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026451,
+      "remaining": 0.305,
+      "position_delta": 0.0162746
+    },
+    {
+      "leg": 0,
+      "activation": 34.39,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.98361,
+      "remaining": 0.235,
+      "position_delta": 0.010902
+    },
+    {
+      "leg": 3,
+      "activation": 34.39,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.032093,
+      "remaining": 0.235,
+      "position_delta": 0.0143075
+    },
+    {
+      "leg": 0,
+      "activation": 34.45,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.63977,
+      "remaining": 0.175,
+      "position_delta": 0.00911583
+    },
+    {
+      "leg": 3,
+      "activation": 34.45,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026128,
+      "remaining": 0.175,
+      "position_delta": 0.00290713
+    },
+    {
+      "leg": 1,
+      "activation": 34.64,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030144,
+      "remaining": 0.385,
+      "position_delta": 0.00343273
+    },
+    {
+      "leg": 2,
+      "activation": 34.64,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027496,
+      "remaining": 0.385,
+      "position_delta": 0.00271971
+    },
+    {
+      "leg": 1,
+      "activation": 34.71,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.035294,
+      "remaining": 0.315,
+      "position_delta": 0.0307891
+    },
+    {
+      "leg": 2,
+      "activation": 34.71,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030483,
+      "remaining": 0.315,
+      "position_delta": 0.0294962
+    },
+    {
+      "leg": 1,
+      "activation": 34.78,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029862,
+      "remaining": 0.245,
+      "position_delta": 0.0423032
+    },
+    {
+      "leg": 2,
+      "activation": 34.78,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.024695,
+      "remaining": 0.245,
+      "position_delta": 0.0378955
+    },
+    {
+      "leg": 1,
+      "activation": 34.855,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027109,
+      "remaining": 0.17,
+      "position_delta": 0.0351849
+    },
+    {
+      "leg": 2,
+      "activation": 34.855,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.024937,
+      "remaining": 0.17,
+      "position_delta": 0.0234972
+    },
+    {
+      "leg": 0,
+      "activation": 35.04,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.041799,
+      "remaining": 0.385,
+      "position_delta": 0.0027347
+    },
+    {
+      "leg": 3,
+      "activation": 35.04,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.046786,
+      "remaining": 0.385,
+      "position_delta": 0.00138159
+    },
+    {
+      "leg": 0,
+      "activation": 35.11,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.055278,
+      "remaining": 0.315,
+      "position_delta": 0.0183111
+    },
+    {
+      "leg": 3,
+      "activation": 35.11,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.044484,
+      "remaining": 0.315,
+      "position_delta": 0.00485597
+    },
+    {
+      "leg": 0,
+      "activation": 35.175,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.059332,
+      "remaining": 0.25,
+      "position_delta": 0.0263085
+    },
+    {
+      "leg": 3,
+      "activation": 35.175,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049295,
+      "remaining": 0.25,
+      "position_delta": 0.0068864
+    },
+    {
+      "leg": 0,
+      "activation": 35.245,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.04934,
+      "remaining": 0.18,
+      "position_delta": 0.0198753
+    },
+    {
+      "leg": 3,
+      "activation": 35.245,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.046225,
+      "remaining": 0.18,
+      "position_delta": 0.0119324
+    },
+    {
+      "leg": 1,
+      "activation": 35.43,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.035076,
+      "remaining": 0.395,
+      "position_delta": 0.00124653
+    },
+    {
+      "leg": 2,
+      "activation": 35.43,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.051953,
+      "remaining": 0.395,
+      "position_delta": 0.00138266
+    },
+    {
+      "leg": 1,
+      "activation": 35.5,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.034123,
+      "remaining": 0.325,
+      "position_delta": 0.0202833
+    },
+    {
+      "leg": 2,
+      "activation": 35.5,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.050678,
+      "remaining": 0.325,
+      "position_delta": 0.00994116
+    },
+    {
+      "leg": 1,
+      "activation": 35.565,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029701,
+      "remaining": 0.26,
+      "position_delta": 0.0239035
+    },
+    {
+      "leg": 2,
+      "activation": 35.565,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.044458,
+      "remaining": 0.26,
+      "position_delta": 0.00901655
+    },
+    {
+      "leg": 1,
+      "activation": 35.625,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030323,
+      "remaining": 0.2,
+      "position_delta": 0.0286685
+    },
+    {
+      "leg": 2,
+      "activation": 35.625,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.041896,
+      "remaining": 0.2,
+      "position_delta": 0.00296884
+    },
+    {
+      "leg": 1,
+      "activation": 35.7,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027103,
+      "remaining": 0.125,
+      "position_delta": 0.0239756
+    },
+    {
+      "leg": 2,
+      "activation": 35.7,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.045797,
+      "remaining": 0.125,
+      "position_delta": 0.00941069
+    },
+    {
+      "leg": 0,
+      "activation": 35.83,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.061024,
+      "remaining": 0.395,
+      "position_delta": 0.00132014
+    },
+    {
+      "leg": 3,
+      "activation": 35.83,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.064856,
+      "remaining": 0.395,
+      "position_delta": 0.00153043
+    },
+    {
+      "leg": 0,
+      "activation": 35.905,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.076787,
+      "remaining": 0.32,
+      "position_delta": 0.00797482
+    },
+    {
+      "leg": 3,
+      "activation": 35.905,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.07558,
+      "remaining": 0.32,
+      "position_delta": 0.00884981
+    },
+    {
+      "leg": 0,
+      "activation": 35.965,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.057072,
+      "remaining": 0.26,
+      "position_delta": 0.00759857
+    },
+    {
+      "leg": 3,
+      "activation": 35.965,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.066901,
+      "remaining": 0.26,
+      "position_delta": 0.00843812
+    },
+    {
+      "leg": 0,
+      "activation": 36.03,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.058861,
+      "remaining": 0.195,
+      "position_delta": 0.00715088
+    },
+    {
+      "leg": 3,
+      "activation": 36.03,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.068181,
+      "remaining": 0.195,
+      "position_delta": 0.00533569
+    },
+    {
+      "leg": 0,
+      "activation": 36.09,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.064683,
+      "remaining": 0.135,
+      "position_delta": 0.0117148
+    },
+    {
+      "leg": 3,
+      "activation": 36.09,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.064004,
+      "remaining": 0.135,
+      "position_delta": 0.014621
+    },
+    {
+      "leg": 1,
+      "activation": 36.24,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.042612,
+      "remaining": 0.385,
+      "position_delta": 0.0023796
+    },
+    {
+      "leg": 2,
+      "activation": 36.24,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.065198,
+      "remaining": 0.385,
+      "position_delta": 0.00236618
+    },
+    {
+      "leg": 1,
+      "activation": 36.3,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.044151,
+      "remaining": 0.325,
+      "position_delta": 0.00769942
+    },
+    {
+      "leg": 2,
+      "activation": 36.3,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.067043,
+      "remaining": 0.325,
+      "position_delta": 0.00770514
+    },
+    {
+      "leg": 1,
+      "activation": 36.375,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.051862,
+      "remaining": 0.25,
+      "position_delta": 0.00843663
+    },
+    {
+      "leg": 2,
+      "activation": 36.375,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.069804,
+      "remaining": 0.25,
+      "position_delta": 0.00717521
+    },
+    {
+      "leg": 1,
+      "activation": 36.455,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049123,
+      "remaining": 0.17,
+      "position_delta": 0.0108839
+    },
+    {
+      "leg": 2,
+      "activation": 36.455,
+      "outcome": 4,
+      "reason": "candidate fixed-state constraint violated",
+      "compute_ms": 3.62118,
+      "remaining": 0.17,
+      "position_delta": 0.00560508
+    },
+    {
+      "leg": 0,
+      "activation": 36.63,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.098241,
+      "remaining": 0.395,
+      "position_delta": 0.00123372
+    },
+    {
+      "leg": 3,
+      "activation": 36.63,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030252,
+      "remaining": 0.395,
+      "position_delta": 0.00131098
+    },
+    {
+      "leg": 0,
+      "activation": 36.705,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.068899,
+      "remaining": 0.32,
+      "position_delta": 0.00800272
+    },
+    {
+      "leg": 3,
+      "activation": 36.705,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025389,
+      "remaining": 0.32,
+      "position_delta": 0.0185902
+    },
+    {
+      "leg": 0,
+      "activation": 36.775,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.077327,
+      "remaining": 0.25,
+      "position_delta": 0.00918551
+    },
+    {
+      "leg": 3,
+      "activation": 36.775,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026871,
+      "remaining": 0.25,
+      "position_delta": 0.0241114
+    },
+    {
+      "leg": 0,
+      "activation": 36.85,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.0874,
+      "remaining": 0.175,
+      "position_delta": 0.00867462
+    },
+    {
+      "leg": 3,
+      "activation": 36.85,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026906,
+      "remaining": 0.175,
+      "position_delta": 0.021832
+    },
+    {
+      "leg": 1,
+      "activation": 37.03,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.08201,
+      "remaining": 0.395,
+      "position_delta": 0.00103322
+    },
+    {
+      "leg": 2,
+      "activation": 37.03,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.036169,
+      "remaining": 0.395,
+      "position_delta": 0.00112677
+    },
+    {
+      "leg": 1,
+      "activation": 37.1,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.031135,
+      "remaining": 0.325,
+      "position_delta": 0.00785346
+    },
+    {
+      "leg": 2,
+      "activation": 37.1,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027496,
+      "remaining": 0.325,
+      "position_delta": 0.0131179
+    },
+    {
+      "leg": 1,
+      "activation": 37.175,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02801,
+      "remaining": 0.25,
+      "position_delta": 0.0111542
+    },
+    {
+      "leg": 2,
+      "activation": 37.175,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028797,
+      "remaining": 0.25,
+      "position_delta": 0.017196
+    },
+    {
+      "leg": 1,
+      "activation": 37.245,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.063046,
+      "remaining": 0.18,
+      "position_delta": 0.009195
+    },
+    {
+      "leg": 2,
+      "activation": 37.245,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028019,
+      "remaining": 0.18,
+      "position_delta": 0.00634012
+    },
+    {
+      "leg": 0,
+      "activation": 37.425,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.051556,
+      "remaining": 0.4,
+      "position_delta": 0.000639707
+    },
+    {
+      "leg": 3,
+      "activation": 37.425,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029842,
+      "remaining": 0.4,
+      "position_delta": 0.00091021
+    },
+    {
+      "leg": 0,
+      "activation": 37.495,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049193,
+      "remaining": 0.33,
+      "position_delta": 0.0249518
+    },
+    {
+      "leg": 3,
+      "activation": 37.495,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027852,
+      "remaining": 0.33,
+      "position_delta": 0.02724
+    },
+    {
+      "leg": 0,
+      "activation": 37.57,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.045674,
+      "remaining": 0.255,
+      "position_delta": 0.0304404
+    },
+    {
+      "leg": 3,
+      "activation": 37.57,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025491,
+      "remaining": 0.255,
+      "position_delta": 0.0284569
+    },
+    {
+      "leg": 0,
+      "activation": 37.64,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.060304,
+      "remaining": 0.185,
+      "position_delta": 0.0141375
+    },
+    {
+      "leg": 3,
+      "activation": 37.64,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.034554,
+      "remaining": 0.185,
+      "position_delta": 0.0247103
+    },
+    {
+      "leg": 1,
+      "activation": 37.83,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.034108,
+      "remaining": 0.395,
+      "position_delta": 0.00155595
+    },
+    {
+      "leg": 2,
+      "activation": 37.83,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.03,
+      "remaining": 0.395,
+      "position_delta": 0.00145712
+    },
+    {
+      "leg": 1,
+      "activation": 37.9,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.031159,
+      "remaining": 0.325,
+      "position_delta": 0.0328167
+    },
+    {
+      "leg": 2,
+      "activation": 37.9,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.033903,
+      "remaining": 0.325,
+      "position_delta": 0.0180686
+    },
+    {
+      "leg": 1,
+      "activation": 37.975,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02859,
+      "remaining": 0.25,
+      "position_delta": 0.0497225
+    },
+    {
+      "leg": 2,
+      "activation": 37.975,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025138,
+      "remaining": 0.25,
+      "position_delta": 0.011958
+    },
+    {
+      "leg": 1,
+      "activation": 38.045,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030099,
+      "remaining": 0.18,
+      "position_delta": 0.0542895
+    },
+    {
+      "leg": 2,
+      "activation": 38.045,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026983,
+      "remaining": 0.18,
+      "position_delta": 0.007478
+    },
+    {
+      "leg": 0,
+      "activation": 38.23,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.065783,
+      "remaining": 0.395,
+      "position_delta": 0.00137226
+    },
+    {
+      "leg": 3,
+      "activation": 38.23,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.06884,
+      "remaining": 0.395,
+      "position_delta": 0.00260925
+    },
+    {
+      "leg": 0,
+      "activation": 38.29,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.064046,
+      "remaining": 0.335,
+      "position_delta": 0.00920384
+    },
+    {
+      "leg": 3,
+      "activation": 38.29,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.062053,
+      "remaining": 0.335,
+      "position_delta": 0.0136624
+    },
+    {
+      "leg": 0,
+      "activation": 38.36,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.050645,
+      "remaining": 0.265,
+      "position_delta": 0.00842036
+    },
+    {
+      "leg": 3,
+      "activation": 38.36,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.057053,
+      "remaining": 0.265,
+      "position_delta": 0.0181797
+    },
+    {
+      "leg": 0,
+      "activation": 38.43,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.064607,
+      "remaining": 0.195,
+      "position_delta": 0.00699889
+    },
+    {
+      "leg": 3,
+      "activation": 38.43,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.065363,
+      "remaining": 0.195,
+      "position_delta": 0.00904169
+    },
+    {
+      "leg": 1,
+      "activation": 38.63,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.043441,
+      "remaining": 0.395,
+      "position_delta": 0.00105168
+    },
+    {
+      "leg": 2,
+      "activation": 38.63,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027641,
+      "remaining": 0.395,
+      "position_delta": 0.00101719
+    },
+    {
+      "leg": 1,
+      "activation": 38.7,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.039898,
+      "remaining": 0.325,
+      "position_delta": 0.00827386
+    },
+    {
+      "leg": 2,
+      "activation": 38.7,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.064801,
+      "remaining": 0.325,
+      "position_delta": 0.00513613
+    },
+    {
+      "leg": 1,
+      "activation": 38.765,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.048387,
+      "remaining": 0.26,
+      "position_delta": 0.0101914
+    },
+    {
+      "leg": 2,
+      "activation": 38.765,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.070464,
+      "remaining": 0.26,
+      "position_delta": 0.00484035
+    },
+    {
+      "leg": 1,
+      "activation": 38.835,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.037322,
+      "remaining": 0.19,
+      "position_delta": 0.0104511
+    },
+    {
+      "leg": 2,
+      "activation": 38.835,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.057382,
+      "remaining": 0.19,
+      "position_delta": 0.0115407
+    },
+    {
+      "leg": 0,
+      "activation": 39.025,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.075014,
+      "remaining": 0.4,
+      "position_delta": 0.00130984
+    },
+    {
+      "leg": 3,
+      "activation": 39.025,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.031951,
+      "remaining": 0.4,
+      "position_delta": 0.00109105
+    },
+    {
+      "leg": 0,
+      "activation": 39.095,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.064901,
+      "remaining": 0.33,
+      "position_delta": 0.00934674
+    },
+    {
+      "leg": 3,
+      "activation": 39.095,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026764,
+      "remaining": 0.33,
+      "position_delta": 0.0132434
+    },
+    {
+      "leg": 0,
+      "activation": 39.16,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.073739,
+      "remaining": 0.265,
+      "position_delta": 0.0112239
+    },
+    {
+      "leg": 3,
+      "activation": 39.16,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02814,
+      "remaining": 0.265,
+      "position_delta": 0.017863
+    },
+    {
+      "leg": 0,
+      "activation": 39.22,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.065234,
+      "remaining": 0.205,
+      "position_delta": 0.010289
+    },
+    {
+      "leg": 3,
+      "activation": 39.22,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027357,
+      "remaining": 0.205,
+      "position_delta": 0.0163065
+    },
+    {
+      "leg": 0,
+      "activation": 39.285,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.05586,
+      "remaining": 0.14,
+      "position_delta": 0.00954298
+    },
+    {
+      "leg": 3,
+      "activation": 39.285,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026995,
+      "remaining": 0.14,
+      "position_delta": 0.0102845
+    },
+    {
+      "leg": 1,
+      "activation": 39.425,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028035,
+      "remaining": 0.4,
+      "position_delta": 0.00112519
+    },
+    {
+      "leg": 2,
+      "activation": 39.425,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025221,
+      "remaining": 0.4,
+      "position_delta": 0.00127608
+    },
+    {
+      "leg": 1,
+      "activation": 39.5,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029068,
+      "remaining": 0.325,
+      "position_delta": 0.00788423
+    },
+    {
+      "leg": 2,
+      "activation": 39.5,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027514,
+      "remaining": 0.325,
+      "position_delta": 0.0151181
+    },
+    {
+      "leg": 1,
+      "activation": 39.565,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029403,
+      "remaining": 0.26,
+      "position_delta": 0.0117833
+    },
+    {
+      "leg": 2,
+      "activation": 39.565,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02485,
+      "remaining": 0.26,
+      "position_delta": 0.020493
+    },
+    {
+      "leg": 1,
+      "activation": 39.625,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.031635,
+      "remaining": 0.2,
+      "position_delta": 0.0117575
+    },
+    {
+      "leg": 2,
+      "activation": 39.625,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.03061,
+      "remaining": 0.2,
+      "position_delta": 0.0100449
+    },
+    {
+      "leg": 1,
+      "activation": 39.69,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.050915,
+      "remaining": 0.135,
+      "position_delta": 0.0103756
+    },
+    {
+      "leg": 2,
+      "activation": 39.69,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030341,
+      "remaining": 0.135,
+      "position_delta": 0.00982102
+    },
+    {
+      "leg": 0,
+      "activation": 39.835,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.05631,
+      "remaining": 0.39,
+      "position_delta": 0.00108859
+    },
+    {
+      "leg": 3,
+      "activation": 39.835,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027934,
+      "remaining": 0.39,
+      "position_delta": 0.00346287
+    },
+    {
+      "leg": 0,
+      "activation": 39.905,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.048924,
+      "remaining": 0.32,
+      "position_delta": 0.0254236
+    },
+    {
+      "leg": 3,
+      "activation": 39.905,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027021,
+      "remaining": 0.32,
+      "position_delta": 0.0265365
+    },
+    {
+      "leg": 0,
+      "activation": 39.98,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.055419,
+      "remaining": 0.245,
+      "position_delta": 0.0411536
+    },
+    {
+      "leg": 3,
+      "activation": 39.98,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030088,
+      "remaining": 0.245,
+      "position_delta": 0.0411754
+    },
+    {
+      "leg": 0,
+      "activation": 40.05,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.043054,
+      "remaining": 0.175,
+      "position_delta": 0.0708628
+    },
+    {
+      "leg": 3,
+      "activation": 40.05,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.023699,
+      "remaining": 0.175,
+      "position_delta": 0.0290915
+    },
+    {
+      "leg": 1,
+      "activation": 40.225,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.03342,
+      "remaining": 0.4,
+      "position_delta": 0.0869656
+    },
+    {
+      "leg": 2,
+      "activation": 40.225,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.039879,
+      "remaining": 0.4,
+      "position_delta": 0.072666
+    },
+    {
+      "leg": 1,
+      "activation": 40.295,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.031491,
+      "remaining": 0.33,
+      "position_delta": 0.0938165
+    },
+    {
+      "leg": 2,
+      "activation": 40.295,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.033682,
+      "remaining": 0.33,
+      "position_delta": 0.0899752
+    },
+    {
+      "leg": 1,
+      "activation": 40.365,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030773,
+      "remaining": 0.26,
+      "position_delta": 0.0420532
+    },
+    {
+      "leg": 2,
+      "activation": 40.365,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.033852,
+      "remaining": 0.26,
+      "position_delta": 0.0788214
+    },
+    {
+      "leg": 1,
+      "activation": 40.435,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.031119,
+      "remaining": 0.19,
+      "position_delta": 0.0296721
+    },
+    {
+      "leg": 2,
+      "activation": 40.435,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029057,
+      "remaining": 0.19,
+      "position_delta": 0.060725
+    },
+    {
+      "leg": 1,
+      "activation": 40.5,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02667,
+      "remaining": 0.125,
+      "position_delta": 0.0177286
+    },
+    {
+      "leg": 2,
+      "activation": 40.5,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.033517,
+      "remaining": 0.125,
+      "position_delta": 0.058448
+    },
+    {
+      "leg": 0,
+      "activation": 40.63,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.065413,
+      "remaining": 0.395,
+      "position_delta": 0.00480386
+    },
+    {
+      "leg": 3,
+      "activation": 40.63,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.041702,
+      "remaining": 0.395,
+      "position_delta": 0.00890906
+    },
+    {
+      "leg": 0,
+      "activation": 40.705,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.041763,
+      "remaining": 0.32,
+      "position_delta": 0.0158987
+    },
+    {
+      "leg": 3,
+      "activation": 40.705,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.031074,
+      "remaining": 0.32,
+      "position_delta": 0.0211604
+    },
+    {
+      "leg": 0,
+      "activation": 40.775,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.046776,
+      "remaining": 0.25,
+      "position_delta": 0.0390106
+    },
+    {
+      "leg": 3,
+      "activation": 40.775,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.040007,
+      "remaining": 0.25,
+      "position_delta": 0.0206015
+    },
+    {
+      "leg": 0,
+      "activation": 40.85,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.06163,
+      "remaining": 0.175,
+      "position_delta": 0.0678297
+    },
+    {
+      "leg": 3,
+      "activation": 40.85,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.033617,
+      "remaining": 0.175,
+      "position_delta": 0.00525257
+    },
+    {
+      "leg": 1,
+      "activation": 41.025,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049173,
+      "remaining": 0.4,
+      "position_delta": 0.00412543
+    },
+    {
+      "leg": 2,
+      "activation": 41.025,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028751,
+      "remaining": 0.4,
+      "position_delta": 0.00438962
+    },
+    {
+      "leg": 1,
+      "activation": 41.085,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049934,
+      "remaining": 0.34,
+      "position_delta": 0.0170817
+    },
+    {
+      "leg": 2,
+      "activation": 41.085,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029267,
+      "remaining": 0.34,
+      "position_delta": 0.0214862
+    },
+    {
+      "leg": 1,
+      "activation": 41.155,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.043367,
+      "remaining": 0.27,
+      "position_delta": 0.0200813
+    },
+    {
+      "leg": 2,
+      "activation": 41.155,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.032802,
+      "remaining": 0.27,
+      "position_delta": 0.0244472
+    },
+    {
+      "leg": 1,
+      "activation": 41.23,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.046748,
+      "remaining": 0.195,
+      "position_delta": 0.0120006
+    },
+    {
+      "leg": 2,
+      "activation": 41.23,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02738,
+      "remaining": 0.195,
+      "position_delta": 0.0126972
+    },
+    {
+      "leg": 0,
+      "activation": 41.425,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049149,
+      "remaining": 0.4,
+      "position_delta": 0.0011885
+    },
+    {
+      "leg": 3,
+      "activation": 41.425,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027114,
+      "remaining": 0.4,
+      "position_delta": 0.000780986
+    },
+    {
+      "leg": 0,
+      "activation": 41.495,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.039565,
+      "remaining": 0.33,
+      "position_delta": 0.00752861
+    },
+    {
+      "leg": 3,
+      "activation": 41.495,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.024686,
+      "remaining": 0.33,
+      "position_delta": 0.00834531
+    },
+    {
+      "leg": 0,
+      "activation": 41.565,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.040853,
+      "remaining": 0.26,
+      "position_delta": 0.00799689
+    },
+    {
+      "leg": 3,
+      "activation": 41.565,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02628,
+      "remaining": 0.26,
+      "position_delta": 0.0106199
+    },
+    {
+      "leg": 0,
+      "activation": 41.635,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.058755,
+      "remaining": 0.19,
+      "position_delta": 0.00919466
+    },
+    {
+      "leg": 3,
+      "activation": 41.635,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027538,
+      "remaining": 0.19,
+      "position_delta": 0.0105426
+    },
+    {
+      "leg": 1,
+      "activation": 41.825,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.033793,
+      "remaining": 0.4,
+      "position_delta": 0.000773296
+    },
+    {
+      "leg": 2,
+      "activation": 41.825,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030851,
+      "remaining": 0.4,
+      "position_delta": 0.00102113
+    },
+    {
+      "leg": 1,
+      "activation": 41.9,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028266,
+      "remaining": 0.325,
+      "position_delta": 0.00817989
+    },
+    {
+      "leg": 2,
+      "activation": 41.9,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025145,
+      "remaining": 0.325,
+      "position_delta": 0.0183786
+    },
+    {
+      "leg": 1,
+      "activation": 41.965,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029983,
+      "remaining": 0.26,
+      "position_delta": 0.012965
+    },
+    {
+      "leg": 2,
+      "activation": 41.965,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026936,
+      "remaining": 0.26,
+      "position_delta": 0.0243064
+    },
+    {
+      "leg": 1,
+      "activation": 42.035,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026423,
+      "remaining": 0.19,
+      "position_delta": 0.0155222
+    },
+    {
+      "leg": 2,
+      "activation": 42.035,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028464,
+      "remaining": 0.19,
+      "position_delta": 0.0699326
+    },
+    {
+      "leg": 0,
+      "activation": 42.235,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.051682,
+      "remaining": 0.39,
+      "position_delta": 0.0741771
+    },
+    {
+      "leg": 3,
+      "activation": 42.235,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.024989,
+      "remaining": 0.39,
+      "position_delta": 0.150304
+    },
+    {
+      "leg": 0,
+      "activation": 42.295,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.058985,
+      "remaining": 0.33,
+      "position_delta": 0.113616
+    },
+    {
+      "leg": 3,
+      "activation": 42.295,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.032857,
+      "remaining": 0.33,
+      "position_delta": 0.167391
+    },
+    {
+      "leg": 0,
+      "activation": 42.36,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.040278,
+      "remaining": 0.265,
+      "position_delta": 0.163577
+    },
+    {
+      "leg": 3,
+      "activation": 42.36,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.031955,
+      "remaining": 0.265,
+      "position_delta": 0.166621
+    },
+    {
+      "leg": 0,
+      "activation": 42.425,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.047582,
+      "remaining": 0.2,
+      "position_delta": 0.230254
+    },
+    {
+      "leg": 3,
+      "activation": 42.425,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028836,
+      "remaining": 0.2,
+      "position_delta": 0.17474
+    },
+    {
+      "leg": 0,
+      "activation": 42.495,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.043771,
+      "remaining": 0.13,
+      "position_delta": 0.25666
+    },
+    {
+      "leg": 3,
+      "activation": 42.495,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028337,
+      "remaining": 0.13,
+      "position_delta": 0.183143
+    },
+    {
+      "leg": 1,
+      "activation": 42.625,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.037637,
+      "remaining": 0.4,
+      "position_delta": 0.0223373
+    },
+    {
+      "leg": 2,
+      "activation": 42.625,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.024668,
+      "remaining": 0.4,
+      "position_delta": 0.093559
+    },
+    {
+      "leg": 1,
+      "activation": 42.695,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.045971,
+      "remaining": 0.33,
+      "position_delta": 0.0831476
+    },
+    {
+      "leg": 2,
+      "activation": 42.695,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.024243,
+      "remaining": 0.33,
+      "position_delta": 0.0789001
+    },
+    {
+      "leg": 1,
+      "activation": 42.755,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.037485,
+      "remaining": 0.27,
+      "position_delta": 0.0892553
+    },
+    {
+      "leg": 2,
+      "activation": 42.755,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027493,
+      "remaining": 0.27,
+      "position_delta": 0.112489
+    },
+    {
+      "leg": 1,
+      "activation": 42.825,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.033297,
+      "remaining": 0.2,
+      "position_delta": 0.0818344
+    },
+    {
+      "leg": 2,
+      "activation": 42.825,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025376,
+      "remaining": 0.2,
+      "position_delta": 0.064414
+    },
+    {
+      "leg": 1,
+      "activation": 42.885,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.036542,
+      "remaining": 0.14,
+      "position_delta": 0.0673106
+    },
+    {
+      "leg": 2,
+      "activation": 42.885,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029868,
+      "remaining": 0.14,
+      "position_delta": 0.0750491
+    },
+    {
+      "leg": 0,
+      "activation": 43.025,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.046312,
+      "remaining": 0.4,
+      "position_delta": 0.00491299
+    },
+    {
+      "leg": 3,
+      "activation": 43.025,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026039,
+      "remaining": 0.4,
+      "position_delta": 0.00766706
+    },
+    {
+      "leg": 0,
+      "activation": 43.1,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.057534,
+      "remaining": 0.325,
+      "position_delta": 0.00865144
+    },
+    {
+      "leg": 3,
+      "activation": 43.1,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02817,
+      "remaining": 0.325,
+      "position_delta": 0.00995196
+    },
+    {
+      "leg": 0,
+      "activation": 43.17,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.064122,
+      "remaining": 0.255,
+      "position_delta": 0.00431559
+    },
+    {
+      "leg": 3,
+      "activation": 43.17,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029158,
+      "remaining": 0.255,
+      "position_delta": 0.00969568
+    },
+    {
+      "leg": 0,
+      "activation": 43.235,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.051321,
+      "remaining": 0.19,
+      "position_delta": 0.0176555
+    },
+    {
+      "leg": 3,
+      "activation": 43.235,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026596,
+      "remaining": 0.19,
+      "position_delta": 0.00814241
+    },
+    {
+      "leg": 1,
+      "activation": 43.43,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.044033,
+      "remaining": 0.395,
+      "position_delta": 0.00431339
+    },
+    {
+      "leg": 2,
+      "activation": 43.43,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.03322,
+      "remaining": 0.395,
+      "position_delta": 0.00258997
+    },
+    {
+      "leg": 1,
+      "activation": 43.505,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030309,
+      "remaining": 0.32,
+      "position_delta": 0.0116187
+    },
+    {
+      "leg": 2,
+      "activation": 43.505,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.027194,
+      "remaining": 0.32,
+      "position_delta": 0.0201188
+    },
+    {
+      "leg": 1,
+      "activation": 43.575,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.032987,
+      "remaining": 0.25,
+      "position_delta": 0.00884202
+    },
+    {
+      "leg": 2,
+      "activation": 43.575,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029725,
+      "remaining": 0.25,
+      "position_delta": 0.0229576
+    },
+    {
+      "leg": 1,
+      "activation": 43.645,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026342,
+      "remaining": 0.18,
+      "position_delta": 0.0139763
+    },
+    {
+      "leg": 2,
+      "activation": 43.645,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025949,
+      "remaining": 0.18,
+      "position_delta": 0.0260967
+    },
+    {
+      "leg": 0,
+      "activation": 43.825,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.049044,
+      "remaining": 0.4,
+      "position_delta": 0.0936418
+    },
+    {
+      "leg": 3,
+      "activation": 43.825,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026009,
+      "remaining": 0.4,
+      "position_delta": 0.113286
+    },
+    {
+      "leg": 0,
+      "activation": 43.9,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.04576,
+      "remaining": 0.325,
+      "position_delta": 0.161744
+    },
+    {
+      "leg": 3,
+      "activation": 43.9,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029212,
+      "remaining": 0.325,
+      "position_delta": 0.12235
+    },
+    {
+      "leg": 0,
+      "activation": 43.96,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.039377,
+      "remaining": 0.265,
+      "position_delta": 0.181001
+    },
+    {
+      "leg": 3,
+      "activation": 43.96,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.024928,
+      "remaining": 0.265,
+      "position_delta": 0.0985828
+    },
+    {
+      "leg": 0,
+      "activation": 44.025,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.051911,
+      "remaining": 0.2,
+      "position_delta": 0.198325
+    },
+    {
+      "leg": 3,
+      "activation": 44.025,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026609,
+      "remaining": 0.2,
+      "position_delta": 0.0992201
+    },
+    {
+      "leg": 0,
+      "activation": 44.085,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.064692,
+      "remaining": 0.14,
+      "position_delta": 0.25196
+    },
+    {
+      "leg": 3,
+      "activation": 44.085,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.024187,
+      "remaining": 0.14,
+      "position_delta": 0.104606
+    },
+    {
+      "leg": 1,
+      "activation": 44.225,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.034337,
+      "remaining": 0.4,
+      "position_delta": 0.0310738
+    },
+    {
+      "leg": 2,
+      "activation": 44.225,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028992,
+      "remaining": 0.4,
+      "position_delta": 0.103494
+    },
+    {
+      "leg": 1,
+      "activation": 44.29,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.028908,
+      "remaining": 0.335,
+      "position_delta": 0.0311086
+    },
+    {
+      "leg": 2,
+      "activation": 44.29,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025668,
+      "remaining": 0.335,
+      "position_delta": 0.0842816
+    },
+    {
+      "leg": 1,
+      "activation": 44.36,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.033469,
+      "remaining": 0.265,
+      "position_delta": 0.0878646
+    },
+    {
+      "leg": 2,
+      "activation": 44.36,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026782,
+      "remaining": 0.265,
+      "position_delta": 0.16293
+    },
+    {
+      "leg": 1,
+      "activation": 44.435,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030556,
+      "remaining": 0.19,
+      "position_delta": 0.0512799
+    },
+    {
+      "leg": 2,
+      "activation": 44.435,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02889,
+      "remaining": 0.19,
+      "position_delta": 0.0659738
+    },
+    {
+      "leg": 0,
+      "activation": 44.64,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.045945,
+      "remaining": 0.385,
+      "position_delta": 0.105613
+    },
+    {
+      "leg": 3,
+      "activation": 44.64,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026233,
+      "remaining": 0.385,
+      "position_delta": 0.0935115
+    },
+    {
+      "leg": 0,
+      "activation": 44.715,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.051418,
+      "remaining": 0.31,
+      "position_delta": 0.0721425
+    },
+    {
+      "leg": 3,
+      "activation": 44.715,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029485,
+      "remaining": 0.31,
+      "position_delta": 0.0569245
+    },
+    {
+      "leg": 0,
+      "activation": 44.785,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.044758,
+      "remaining": 0.24,
+      "position_delta": 0.0513679
+    },
+    {
+      "leg": 3,
+      "activation": 44.785,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025466,
+      "remaining": 0.24,
+      "position_delta": 0.0589052
+    },
+    {
+      "leg": 0,
+      "activation": 44.855,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.04365,
+      "remaining": 0.17,
+      "position_delta": 0.0455865
+    },
+    {
+      "leg": 3,
+      "activation": 44.855,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02677,
+      "remaining": 0.17,
+      "position_delta": 0.0276936
+    },
+    {
+      "leg": 1,
+      "activation": 45.035,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.03186,
+      "remaining": 0.39,
+      "position_delta": 0.182311
+    },
+    {
+      "leg": 2,
+      "activation": 45.035,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026966,
+      "remaining": 0.39,
+      "position_delta": 0.00299839
+    },
+    {
+      "leg": 1,
+      "activation": 45.1,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.031666,
+      "remaining": 0.325,
+      "position_delta": 0.207138
+    },
+    {
+      "leg": 2,
+      "activation": 45.1,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.031746,
+      "remaining": 0.325,
+      "position_delta": 0.0382022
+    },
+    {
+      "leg": 1,
+      "activation": 45.165,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.033561,
+      "remaining": 0.26,
+      "position_delta": 0.229121
+    },
+    {
+      "leg": 2,
+      "activation": 45.165,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030044,
+      "remaining": 0.26,
+      "position_delta": 0.0487063
+    },
+    {
+      "leg": 1,
+      "activation": 45.235,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.032432,
+      "remaining": 0.19,
+      "position_delta": 0.24693
+    },
+    {
+      "leg": 2,
+      "activation": 45.235,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.024588,
+      "remaining": 0.19,
+      "position_delta": 0.0815448
+    },
+    {
+      "leg": 0,
+      "activation": 45.435,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.048994,
+      "remaining": 0.39,
+      "position_delta": 0.0746186
+    },
+    {
+      "leg": 3,
+      "activation": 45.435,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.026183,
+      "remaining": 0.39,
+      "position_delta": 0.084762
+    },
+    {
+      "leg": 0,
+      "activation": 45.495,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.053309,
+      "remaining": 0.33,
+      "position_delta": 0.0700443
+    },
+    {
+      "leg": 3,
+      "activation": 45.495,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025787,
+      "remaining": 0.33,
+      "position_delta": 0.0413194
+    },
+    {
+      "leg": 0,
+      "activation": 45.56,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.043911,
+      "remaining": 0.265,
+      "position_delta": 0.0963987
+    },
+    {
+      "leg": 3,
+      "activation": 45.56,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025931,
+      "remaining": 0.265,
+      "position_delta": 0.0955497
+    },
+    {
+      "leg": 0,
+      "activation": 45.62,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.065269,
+      "remaining": 0.205,
+      "position_delta": 0.0895561
+    },
+    {
+      "leg": 3,
+      "activation": 45.62,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.051062,
+      "remaining": 0.205,
+      "position_delta": 0.107352
+    },
+    {
+      "leg": 0,
+      "activation": 45.685,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.054932,
+      "remaining": 0.14,
+      "position_delta": 0.0980372
+    },
+    {
+      "leg": 3,
+      "activation": 45.685,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025275,
+      "remaining": 0.14,
+      "position_delta": 0.114106
+    },
+    {
+      "leg": 1,
+      "activation": 45.825,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.034644,
+      "remaining": 0.4,
+      "position_delta": 0.0830365
+    },
+    {
+      "leg": 2,
+      "activation": 45.825,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.03204,
+      "remaining": 0.4,
+      "position_delta": 0.16631
+    },
+    {
+      "leg": 1,
+      "activation": 45.89,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030185,
+      "remaining": 0.335,
+      "position_delta": 0.138532
+    },
+    {
+      "leg": 2,
+      "activation": 45.89,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02791,
+      "remaining": 0.335,
+      "position_delta": 0.11036
+    },
+    {
+      "leg": 1,
+      "activation": 45.96,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.032711,
+      "remaining": 0.265,
+      "position_delta": 0.16864
+    },
+    {
+      "leg": 2,
+      "activation": 45.96,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.032301,
+      "remaining": 0.265,
+      "position_delta": 0.109308
+    },
+    {
+      "leg": 1,
+      "activation": 46.025,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.02856,
+      "remaining": 0.2,
+      "position_delta": 0.119756
+    },
+    {
+      "leg": 2,
+      "activation": 46.025,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.034356,
+      "remaining": 0.2,
+      "position_delta": 0.0761092
+    },
+    {
+      "leg": 1,
+      "activation": 46.085,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.025885,
+      "remaining": 0.14,
+      "position_delta": 0.0855458
+    },
+    {
+      "leg": 2,
+      "activation": 46.085,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.029219,
+      "remaining": 0.14,
+      "position_delta": 0.0641985
+    },
+    {
+      "leg": 0,
+      "activation": 46.23,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.045593,
+      "remaining": 0.395,
+      "position_delta": 0.109368
+    },
+    {
+      "leg": 3,
+      "activation": 46.23,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030768,
+      "remaining": 0.395,
+      "position_delta": 0.0220588
+    },
+    {
+      "leg": 0,
+      "activation": 46.305,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.05193,
+      "remaining": 0.32,
+      "position_delta": 0.197157
+    },
+    {
+      "leg": 3,
+      "activation": 46.305,
+      "outcome": 6,
+      "reason": "no current terrain corridor certificate",
+      "compute_ms": 0.030645,
+      "remaining": 0.32,
+      "position_delta": 0.0942898
+    }
+  ],
+  "applied": [],
+  "applied_envelopes": []
+}

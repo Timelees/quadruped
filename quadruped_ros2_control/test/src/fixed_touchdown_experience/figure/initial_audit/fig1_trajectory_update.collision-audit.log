@@ -1,0 +1,20 @@
+Nature Figure Rendered Collision Audit
+pdf: src/quadruped_ros2_control/test/src/fixed_touchdown_experience/figure/initial_audit/fig1_trajectory_update.pdf
+pages: 1
+visible text boxes: 18
+stroke paths: 29
+
+[FAIL] page 1 text-page-clipping: Text extends beyond the final PDF page boundary — 'Foot reference x (m)'
+  text bbox: (236.56356811523438, 184.07424926757812, 338.8736877441406, 194.07424926757812)
+[FAIL] page 1 text-stroke: Text is crossed by 2 stroked path(s) — 'Original reference'
+  text bbox: (199.11044311523438, 54.73472213745117, 271.1685791015625, 62.73472213745117)
+[FAIL] page 1 text-stroke: Text is crossed by 1 stroked path(s) — 'Instantiated reference'
+  text bbox: (309.69793701171875, 31.234722137451172, 398.5560607910156, 39.23472213745117)
+[FAIL] page 1 text-stroke: Text is crossed by 1 stroked path(s) — 'Update trigger'
+  text bbox: (309.69793701171875, 42.98472213745117, 368.2349853515625, 50.98472213745117)
+[WARN] page 1 text-fill-edge: Text partially overlaps the edge of 1 filled region(s) — '−1.8'
+  text bbox: (477.0653991699219, 171.40292358398438, 498.9194641113281, 180.40292358398438)
+
+summary: 4 fail, 1 warn, 10 contained fill overlays, 0 contained image overlays
+verdict: FIX BEFORE DELIVERY
+note: contained overlays can be intentional; WARN findings need final-size visual review

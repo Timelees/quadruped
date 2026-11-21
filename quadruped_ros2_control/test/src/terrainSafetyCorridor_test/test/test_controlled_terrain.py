@@ -23,6 +23,8 @@ class ControlledTerrainTest(unittest.TestCase):
         self.assertFalse(swing_spans_bar(.59,[.63],.62,.01))
         self.assertFalse(swing_spans_bar(.63,[.67],.62,.01))
         self.assertTrue(swing_spans_bar(.59,[.65,.66],.62,.01))
+        self.assertTrue(swing_spans_bar(-1.10,[-1.24,-1.32],-1.20,.03,.019))
+        self.assertFalse(swing_spans_bar(-1.10,[-1.21],-1.20,.03,.019))
 
     def test_rolling_mask_preserves_outside_and_unknown_evidence(self):
         m = S(info=S(resolution=.1, length_x=.4, length_y=.4,

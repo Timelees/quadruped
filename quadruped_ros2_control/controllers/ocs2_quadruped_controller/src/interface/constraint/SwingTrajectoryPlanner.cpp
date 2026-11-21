@@ -229,7 +229,8 @@ namespace ocs2::legged_robot {
             if (std::abs(map.terrain->getHeight(target.x(),target.y())-target.z()) >
                 config_.terrainQpConfig.landingPositionWindow) return reject("activation_target");
         } catch (const TerrainUnavailable&) { return reject("activation_target"); }
-        if (config_.safetyFilterConfig.enabled) {
+        if (config_.safetyFilterConfig.enabled &&
+            (now-swing.start)/(swing.end-swing.start)>=result.corridor.start) {
             SwingSafetyFilter::FootState state;
             state.position=position; state.velocity=velocity;
             state.positionError=dp; state.velocityError=dv;
@@ -703,15 +704,15 @@ namespace ocs2::legged_robot {
                       << " reference_jump=" << (result.bspline->getPosition(initTime)-executing.getPosition(initTime)).norm() << '\n';
             return *result.bspline;
         }
-        if (!footPosition[leg].allFinite() || !footVelocity[leg].allFinite()) {
+        if (!footPosition[leg].allFinite() || !footVelocity[leg].allFinite() || !footAcceleration[leg].allFinite()) {
             if (activating) {
                 replanner_.recordRejection(SwingReplanOutcome::RejectedActivation);
                 pendingActivation_[leg] = INFINITY;
             }
             return executing;
         }
-        const Eigen::Vector3d acceleration = footAcceleration[leg].allFinite() ? footAcceleration[leg] :
-                                            executing.getAcceleration(initTime);
+        // Timestamp-gated, allocated WBC acceleration; missing feedback rejects the update.
+        const Eigen::Vector3d acceleration = footAcceleration[leg];
         // Always re-read the synchronized terrain snapshot. An executing swing's
         // previous map certificate must not silently become a new-map certificate.
         const double referenceStart = executing.getKnots()[0];
@@ -790,7 +791,7 @@ namespace ocs2::legged_robot {
             decision = replanner_.admit(executing, corridor, swingStartTime, initTime, swingFinalTime,
                                        footPosition[leg], footVelocity[leg], acceleration, heightBounds);
         }
-        if (decision.admitted() && config_.safetyFilterConfig.enabled) {
+        if (decision.admitted() && config_.safetyFilterConfig.enabled && phase>=contactPhase) {
             const auto& filterConfig = config_.safetyFilterConfig;
             SwingSafetyFilter::FootState state;
             state.position = footPosition[leg] + config_.footRadius * Eigen::Vector3d::UnitZ();

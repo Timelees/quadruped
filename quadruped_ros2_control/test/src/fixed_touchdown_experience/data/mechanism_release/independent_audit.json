@@ -1,0 +1,22 @@
+{
+  "accepted_cases": 13,
+  "cpp_trace_residuals": {
+    "old_z": 2.7755575615628914e-17,
+    "old_vz": 5.551115123125783e-16,
+    "old_az": 1.2434497875801753e-14,
+    "planned_z": 5.551115123125783e-17,
+    "planned_vz": 4.440892098500626e-16,
+    "planned_az": 1.4210854715202004e-14,
+    "new_z": 5.551115123125783e-17,
+    "new_vz": 4.440892098500626e-16,
+    "new_az": 1.4210854715202004e-14
+  },
+  "terminal_max_residuals": [
+    4.440892098500626e-16,
+    3.469446951953614e-18,
+    4.577886713892267e-13
+  ],
+  "minvo_cells_checked": 66,
+  "minvo_max_violation": 1.4618253422392325e-17,
+  "evidence": "independent NumPy evaluation versus native production C++ spline evaluations"
+}

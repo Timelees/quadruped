@@ -340,6 +340,78 @@ bool SwingOnlineReplanner::validate(const BSpline& candidate, const TerrainSafet
     return true;
 }
 
+SwingReplanDecision SwingOnlineReplanner::instantiate(const BSpline& planned,
+        const TerrainSafetyCorridor& corridor, double start, double activation, double end,
+        const Eigen::Vector3d& position, const Eigen::Vector3d& velocity,
+        const Eigen::Vector3d& acceleration) const {
+    SwingReplanDecision result;
+    result.activation=activation; result.end=end;
+    result.outcome=SwingReplanOutcome::RejectedActivation;
+    result.reason="actual activation boundary unavailable";
+    if (!position.allFinite() || !velocity.allFinite() || !acceleration.allFinite() ||
+        !std::isfinite(activation) || end-activation<config_.minRemainingTime ||
+        activation<planned.getKnots()[0] || !corridor.valid) return result;
+    const auto dp=(position-planned.getPosition(activation)).eval();
+    const auto dv=(velocity-planned.getVelocity(activation)).eval();
+    const auto da=(acceleration-planned.getAcceleration(activation)).eval();
+    if (dp.norm()>config_.maxPositionDeviation || dv.norm()>config_.maxVelocityDeviation) return result;
+    const double delta=std::min(config_.correctionDuration,end-activation);
+    std::vector<Eigen::Vector3d> d;
+    correctionControlPoints(delta,dp,dv,da,d);
+    Eigen::Matrix<double,6,3> correction;
+    for (int i=0;i<6;++i) correction.row(i)=d[i].transpose();
+    result.candidate=correctedReference(planned,activation,end,correction,delta,corridor,start);
+    if (!validate(result.candidate,corridor,start,end,&result.reason)) return result;
+    const auto controls=result.candidate.getControlPoints();
+    // All members have this exact knot vector. Nine independent box directions
+    // suffice: support of a linear row is sum_j |row * direction_j|.
+    std::vector<Eigen::MatrixXd> directions;
+    const double radii[]={config_.positionUncertainty,config_.velocityUncertainty,config_.disturbanceBound};
+    Eigen::MatrixXd effects=Eigen::MatrixXd::Zero(controls.rows(),3);
+    Eigen::Matrix<double,6,3> hermite=Eigen::Matrix<double,6,3>::Zero();
+    hermite(0,0)=hermite(1,0)=hermite(2,0)=radii[0];
+    hermite(1,1)=delta/5*radii[1];hermite(2,1)=2*delta/5*radii[1];
+    hermite(2,2)=delta*delta/20*radii[2];
+    int offset=0;
+    for (const auto& piece:extractPolynomialSegments(result.candidate)) {
+        if (piece.start<activation+delta-1e-12) {
+            PolynomialSegment d{activation,activation+delta,Eigen::Matrix<double,6,6>::Identity()};
+            effects.middleRows(offset,6)=restrictSegment(d,piece.start,piece.end).bezierMap*hermite;
+        }
+        offset+=5;
+    }
+    for (int order=0;order<3;++order) for (int axis=0;axis<3;++axis) {
+        Eigen::MatrixXd direction=Eigen::MatrixXd::Zero(controls.rows(),3);
+        direction.col(axis)=effects.col(order);directions.push_back(std::move(direction));
+    }
+    const auto mapped=remapCorridor(result.candidate,corridor,start,end);
+    const auto rows=corridorControlPointConstraints(mapped);
+    Eigen::VectorXd q(controls.size()); q<<controls.col(0),controls.col(1),controls.col(2);
+    Eigen::VectorXd support=Eigen::VectorXd::Zero(rows.b.size());
+    for (const auto& direction:directions) {
+        Eigen::VectorXd dq(direction.size());dq<<direction.col(0),direction.col(1),direction.col(2);
+        support+=(rows.A*dq).cwiseAbs();
+    }
+    if ((rows.A*q+support-rows.b).maxCoeff()>1e-8) {
+        result.reason="activation family geometry"; return result;
+    }
+    for (const auto& segment:extractPolynomialSegments(result.candidate)) {
+        Eigen::MatrixXd derivative=segment.bezierMap;
+        for (int order=1;order<=3;++order) {
+            derivative=((6-order)/(segment.end-segment.start)*
+                (derivative.bottomRows(derivative.rows()-1)-derivative.topRows(derivative.rows()-1))).eval();
+            Eigen::MatrixXd radius=Eigen::MatrixXd::Zero(derivative.rows(),3);
+            for (const auto& direction:directions) radius+=(derivative*direction).cwiseAbs();
+            const double limit=order==1?config_.maxVelocity:order==2?config_.maxAcceleration:config_.maxJerk;
+            if (((derivative*controls).cwiseAbs()+radius).maxCoeff()>limit+1e-7) {
+                result.reason="activation family derivative";return result;
+            }
+        }
+    }
+    result.outcome=SwingReplanOutcome::Admitted;result.reason="actual boundary family certified";
+    return result;
+}
+
 SwingReplanDecision SwingOnlineReplanner::admit(const BSpline& old, const TerrainSafetyCorridor& corridor,
         double swingStart, double activation, double end, const Eigen::Vector3d& position,
         const Eigen::Vector3d& velocity, const Eigen::Vector3d& acceleration) {
@@ -418,7 +490,14 @@ SwingReplanDecision SwingOnlineReplanner::admit(const BSpline& old, const Terrai
                 // uncertainty already inside the geometry/plan offset gap.
                 const double extra = std::max(0.0, plane.normal.norm()*uncertainty -
                                                (plane.geometricOffset - plane.planningOffset));
-                plane.planningOffset -= std::max(0.0, margin) * (1.0 - config_.maxMarginFraction) + extra;
+                // Reserve the affine activation family in the QP itself. Without
+                // this reserve an optimum on a planning face has zero room for
+                // any nonzero activation uncertainty, even when its centre fits.
+                const double familyReserve=plane.normal.lpNorm<1>() *
+                    (config_.positionUncertainty + 0.4*delta*config_.velocityUncertainty +
+                     0.05*delta*delta*config_.disturbanceBound);
+                plane.planningOffset -= std::max(0.0, margin) * (1.0 - config_.maxMarginFraction) +
+                                        extra + familyReserve;
             }
             admissionCorridor.cells.push_back(std::move(overlap));
         }

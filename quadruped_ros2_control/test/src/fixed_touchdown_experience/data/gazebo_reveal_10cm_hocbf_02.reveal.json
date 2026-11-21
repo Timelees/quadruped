@@ -1,0 +1,28 @@
+[
+  {
+    "event": "mask_applied",
+    "ros_time": 0.9910000000000001,
+    "modified_cells": 3960
+  },
+  {
+    "event": "map_released",
+    "map_stamp": 26.929,
+    "received_ros_time": 27.051,
+    "preparation_wall_s": 0.005669570004101843
+  },
+  {
+    "event": "trigger",
+    "ros_time": 27.051,
+    "controller_time": 26.00999999999911,
+    "liftoff": 25.944999999999123,
+    "liftoff_foot_x": -1.0956207360222991,
+    "observed_phase": 0.16249999999996767,
+    "base_x": -0.9105172502924568,
+    "swing_duration_s": 0.4,
+    "foot_x": -1.1103133956780886,
+    "foot_z": 0.034534290831854775,
+    "forecast_crossing": true,
+    "barrier_x": -1.2,
+    "barrier_width": 0.03
+  }
+]

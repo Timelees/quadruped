@@ -1,0 +1,1 @@
+Offline production algorithm. The old and updated splines use the same absolute touchdown time. Curves are contact-reference positions; clearance uses 19 mm foot spheres. Shading shows the configured planning allowance only in the middle 50% noncontact interval after instantiation, not a measured or proven tracking envelope.

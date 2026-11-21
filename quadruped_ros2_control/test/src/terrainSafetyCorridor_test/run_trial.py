@@ -154,7 +154,7 @@ def main():
     memory_reserve = 1024 * 1024 * 1024
     if available_memory_bytes() < memory_reserve:
         p.error('Less than 1 GiB memory available; Gazebo was not started')
-    if args.controlled_reveal and args.scenario != 'course': p.error('Controlled reveal requires --scenario course')
+    if args.controlled_reveal and args.scenario not in ('course','obstacle'): p.error('Controlled reveal requires course or obstacle')
     if not 0 <= args.reveal_phase <= .75: p.error('--reveal-phase must be in [0,.75]')
     if args.swing_duration is not None and (not math.isfinite(args.swing_duration) or not .2 <= args.swing_duration <= .8):
         p.error('--swing-duration must be in [.2,.8] s')
@@ -268,7 +268,7 @@ def main():
         p.error('--obstacle-height must be in (0, .3] metres')
     tree = ET.parse(world_file)
     controlled_bars=[]
-    if args.controlled_reveal:
+    if args.controlled_reveal and args.scenario == 'course':
         for index in range(4):
             bar=tree.getroot().find(f".//model[@name='safety_lane_bar_{index}']")
             if bar is None: p.error('World-truth intervention requires the validated four-bar lane')
@@ -284,6 +284,12 @@ def main():
         obstacle.find('pose').text = f'-1.2 0 {args.obstacle_height/2} 0 0 0'
         for size in obstacle.findall('.//geometry/box/size'):
             size.text = f'0.03 1.0 {args.obstacle_height}'
+    if args.controlled_reveal and args.scenario == 'obstacle':
+        obstacle = tree.getroot().find(".//model[@name='thin_obstacle']")
+        pose=list(map(float,obstacle.find('pose').text.split()))
+        size=list(map(float,obstacle.find('.//collision/geometry/box/size').text.split()))
+        controlled_bars=[[pose[0],size[0],pose[2]+size[2]/2,pose[1],size[1]]]
+        manifest['trial.controlled_bars']=controlled_bars
     if args.wrench_force:
         if not 0 < args.wrench_force <= 10 or not .005 <= args.wrench_duration <= .2:
             p.error('Force must be in (0,10] N and duration in [0.005,0.2] s')
@@ -306,11 +312,11 @@ def main():
     manifest['trial.world.sdf'] = hashlib.sha256(world_file.read_bytes()).hexdigest()
     manifest['trial.map_sampling'] = dict(near_obstacles_m=.02, elsewhere_m=.10, minimum_time_interval_s=1.0)
     manifest['trial.seed'] = args.seed
-    reveal_centre = controlled_bars[1][0] if controlled_bars else 1.8
+    reveal_centre = controlled_bars[0 if args.scenario == 'obstacle' else 1][0] if controlled_bars else 1.8
     manifest['trial.reveal'] = dict(enabled=args.controlled_reveal, phase=args.reveal_phase,
         trigger_x=args.reveal_at_x, unknown=args.reveal_unknown,
         require_crossing=args.reveal_require_crossing,
-        mask=[reveal_centre-.2,reveal_centre+.2,-3.7,-2.3], source=args.controlled_map_source,
+        mask=[reveal_centre-.2,reveal_centre+.2,*([-.65,.65] if args.scenario == 'obstacle' else [-3.7,-2.3])], source=args.controlled_map_source,
         note='test-only certificate reveal; planar region topology is retained from perception')
     manifest['trial.spawn'] = {'x': args.x, 'y': args.y, 'yaw': args.yaw}
     manifest['trial.route'] = dict(scenario=args.scenario, target_override=args.target,

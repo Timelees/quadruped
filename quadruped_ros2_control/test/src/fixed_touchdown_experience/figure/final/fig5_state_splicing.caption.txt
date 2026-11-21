@@ -1,0 +1,1 @@
+Offline production algorithm. Black points denote the selected activation boundary. Matching measured state does not imply old/new reference C2 continuity across the switch. Acceleration source is last valid allocated WBC input in Gazebo; old reference acceleration is a declared controlled input in the offline experiment.

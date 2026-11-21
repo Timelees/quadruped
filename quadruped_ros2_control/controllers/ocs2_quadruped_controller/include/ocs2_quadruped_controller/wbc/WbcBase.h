@@ -37,9 +37,14 @@ namespace ocs2::legged_robot
         const Eigen::Matrix<scalar_t, 12, 4>& footTracking() const { return foot_tracking_; }
         Eigen::Matrix<scalar_t, 6, 4> measureFeet(const vector_t& rbdStateMeasured);
         Eigen::Matrix<scalar_t, 6, 1> comTracking();
-        struct SwingReference { vector3_t position, velocity, acceleration; };
+        struct SwingReference {
+            vector3_t position, velocity, acceleration;
+            bool onlineUpdate = false;
+        };
         using SwingReferenceCallback = std::function<bool(size_t, SwingReference&)>;
         void setSwingReferenceCallback(SwingReferenceCallback callback) { swing_reference_callback_ = std::move(callback); }
+        // Set only for executed WBC, never admission previews. Export is opt-in.
+        void setExperimentTime(double time) { experiment_time_ = time; }
         bool solutionValid() const { return solution_valid_; }
         int solverStatus() const { return solver_status_; }
         int solverIterations() const { return solver_iterations_; }
@@ -110,6 +115,8 @@ namespace ocs2::legged_robot
         vector_t nominal_swing_target_;
         Eigen::Matrix<scalar_t,3,4> commanded_foot_acceleration_, reference_foot_acceleration_, nominal_foot_acceleration_,
             baseline_foot_acceleration_;
+        double experiment_time_ = std::numeric_limits<double>::quiet_NaN();
+        double last_experiment_time_ = -1e30;
         bool solution_valid_ = true;
         int solver_status_ = 0, solver_iterations_ = 0;
         scalar_t constraint_violation_ = 0.0;

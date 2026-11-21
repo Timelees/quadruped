@@ -1,0 +1,18 @@
+Nature Figure Rendered Collision Audit
+pdf: src/quadruped_ros2_control/test/src/fixed_touchdown_experience/figure/initial_audit/fig5_state_splicing.pdf
+pages: 1
+visible text boxes: 33
+stroke paths: 105
+
+[FAIL] page 1 text-stroke: Text is crossed by 1 stroked path(s) — 'a'
+  text bbox: (72.67967987060547, 55.501426696777344, 79.42772674560547, 65.50142669677734)
+[FAIL] page 1 text-stroke: Text is crossed by 4 stroked path(s) — 'Old reference'
+  text bbox: (373.7070007324219, 55.85873031616211, 428.0531311035156, 63.85873031616211)
+[FAIL] page 1 text-stroke: Text is crossed by 5 stroked path(s) — 'Received candidate (unaligned)'
+  text bbox: (373.7070007324219, 67.60872650146484, 500.8047180175781, 75.60872650146484)
+[FAIL] page 1 text-stroke: Text is crossed by 4 stroked path(s) — 'Matched update'
+  text bbox: (373.7070007324219, 79.35872650146484, 438.8608703613281, 87.35872650146484)
+
+summary: 4 fail, 0 warn, 3 contained fill overlays, 0 contained image overlays
+verdict: FIX BEFORE DELIVERY
+note: contained overlays can be intentional; WARN findings need final-size visual review

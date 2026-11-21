@@ -1,0 +1,20 @@
+{
+  "n": 6400,
+  "cells": 64,
+  "trials_per_cell": 100,
+  "independent_random_seeds": 100,
+  "paired_across_cells": true,
+  "accepted": 1168,
+  "terminal_errors_pva": [
+    5.551115123125783e-17,
+    2.3129646346357064e-15,
+    6.167905692361937e-13
+  ],
+  "polynomial_basis_max_error": 1.942890293094024e-16,
+  "minvo_min_sampled_weight": -1.2212453270876722e-15,
+  "hull_segments": 14066,
+  "input_polygon_witness_max_error": 1.4210854715202004e-14,
+  "physical_trials_per_cell": 0,
+  "workspace_checked_in_replay": false,
+  "wbc_checked_in_replay": false
+}

@@ -1,0 +1,20 @@
+{
+  "cpp_selfchecks": [
+    "swing_replan_selfcheck: passed",
+    "execution_contract_selfcheck: passed",
+    "terrain_safety_corridor_selfcheck: passed"
+  ],
+  "python_regression": {
+    "passed": 26,
+    "skipped": 1
+  },
+  "package_build": "passed",
+  "ros2_runner_help": "passed",
+  "figure_count": 5,
+  "final_alignment": "passed",
+  "final_pdf_font_floor": "passed >=5 pt",
+  "final_pdf_collisions": "all PASS, zero FAIL/WARN",
+  "numerical_audit": "independent_verification.json",
+  "physical_pilot_result": "fell",
+  "physical_online_updates_committed": 0
+}

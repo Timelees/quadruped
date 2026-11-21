@@ -1,0 +1,20 @@
+Nature Figure Rendered Collision Audit
+pdf: src/quadruped_ros2_control/test/src/fixed_touchdown_experience/figure/initial_audit/fig3_continuous_safety.pdf
+pages: 1
+visible text boxes: 18
+stroke paths: 36
+
+[FAIL] page 1 text-page-clipping: Text extends beyond the final PDF page boundary — 'Normalized swing time'
+  text bbox: (230.39169311523438, 184.07424926757812, 344.9221496582031, 194.07424926757812)
+[FAIL] page 1 text-stroke: Text is crossed by 1 stroked path(s) — 'Original clearance'
+  text bbox: (96.99199676513672, 114.2347183227539, 169.88186645507812, 122.2347183227539)
+[FAIL] page 1 text-stroke: Text is crossed by 1 stroked path(s) — 'Updated clearance'
+  text bbox: (96.99199676513672, 125.9847183227539, 172.62588500976562, 133.98472595214844)
+[FAIL] page 1 text-stroke: Text is crossed by 2 stroked path(s) — 'Sparse checks (0.25 phase spacing)'
+  text bbox: (96.99199676513672, 137.73472595214844, 241.32107543945312, 145.73472595214844)
+[FAIL] page 1 text-stroke: Text is crossed by 1 stroked path(s) — 'Collision boundary'
+  text bbox: (96.99199676513672, 149.48472595214844, 171.17437744140625, 157.48472595214844)
+
+summary: 5 fail, 0 warn, 4 contained fill overlays, 0 contained image overlays
+verdict: FIX BEFORE DELIVERY
+note: contained overlays can be intentional; WARN findings need final-size visual review

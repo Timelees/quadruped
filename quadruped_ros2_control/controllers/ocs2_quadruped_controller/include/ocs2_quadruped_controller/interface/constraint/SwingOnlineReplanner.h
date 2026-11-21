@@ -111,6 +111,13 @@ class SwingOnlineReplanner {
                               const Eigen::Vector3d& acceleration,
                               const std::function<Eigen::Vector2d(double,const Eigen::Vector3d&)>& workspace);
 
+    // Actual control-boundary instantiation, with no QP in the control loop.
+    // Certifies the affine Hermite family for a componentwise p/v/a uncertainty
+    // box using exact support functions on position and derivative controls.
+    SwingReplanDecision instantiate(const BSpline& planned, const TerrainSafetyCorridor& corridor,
+        double swingStart, double activation, double end, const Eigen::Vector3d& position,
+        const Eigen::Vector3d& velocity, const Eigen::Vector3d& acceleration) const;
+
     // Rebuild mappings in the candidate's own knot space, using exact segment
     // restriction at every corridor boundary. No sampling enters the certificate.
     static TerrainSafetyCorridor remapCorridor(const BSpline& reference,

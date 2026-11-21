@@ -1,0 +1,10 @@
+{
+  "pdf": "src/quadruped_ros2_control/test/src/fixed_touchdown_experience/figure/initial_audit/fig3_continuous_safety.pdf",
+  "auditable": true,
+  "minimum_required_pt": 5.0,
+  "minimum_found_pt": 8.0,
+  "text_run_count": 6,
+  "below_minimum_count": 0,
+  "below_minimum": [],
+  "warnings": []
+}
